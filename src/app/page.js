@@ -141,7 +141,7 @@ export default function Home() {
     }
 
     // Capture user coordinates
-    if (navigator.geolocation) {
+    if (typeof window !== "undefined" && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const loc = { lat: position.coords.latitude, lon: position.coords.longitude, label: "My Coordinates" };
@@ -155,6 +155,11 @@ export default function Home() {
           fetchAmbientWeather(fallback.lat, fallback.lon);
         }
       );
+    } else {
+      // Insecure context (HTTP local IP) or unsupported browser - Fallback to Central Park NY
+      const fallback = { lat: 40.7851, lon: -73.9682, label: "New York City" };
+      setUserLocation(fallback);
+      fetchAmbientWeather(fallback.lat, fallback.lon);
     }
     
     // Set default selected hour to current browser hour
@@ -432,15 +437,21 @@ export default function Home() {
   };
 
   const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const mockLabel = `My Location (${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)})`;
-        const loc = { lat: position.coords.latitude, lon: position.coords.longitude, label: mockLabel };
-        setDraftStart(loc);
-        setStartQuery(mockLabel);
-      }
-    );
+    if (typeof window !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const mockLabel = `My Location (${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)})`;
+          const loc = { lat: position.coords.latitude, lon: position.coords.longitude, label: mockLabel };
+          setDraftStart(loc);
+          setStartQuery(mockLabel);
+        },
+        (error) => {
+          alert("Geolocation failed or permission denied. Note: Modern browsers require a secure connection (HTTPS) or localhost to access current location. Please manually enter a starting address.");
+        }
+      );
+    } else {
+      alert("Geolocation is unavailable on this connection. Modern mobile browsers block geolocation on insecure connections (HTTP). Please manually enter a starting address.");
+    }
   };
 
   // Complete adding trip & register behavior intent overlay
