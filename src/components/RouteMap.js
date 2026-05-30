@@ -1,20 +1,33 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 
-/**
- * Client-side Leaflet component that renders the bike routing and weather points.
- */
-export default function RouteMap({ coordinates = [], startLocation = null, endLocation = null, sampledCoords = [] }) {
+export default function RouteMap({
+  coordinates = [],
+  startLocation = null,
+  endLocation = null,
+  routeSegments = [],
+  weatherResults = [],
+  selectedDay = 0,
+  selectedHour = 8,
+  customSpeed = 18,
+  isDrawingMode = false,
+  onMapClick = null
+}) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const layersRef = useRef({ polylineGroup: null, markers: [] });
+  const layersRef = useRef({ polylines: [], markers: [] });
+  
+  // Real-time environmental overlays state
+  const [ambientTemp, setAmbientTemp] = useState(20);
+  const [ambientRain, setAmbientRain] = useState(0);
+  const [ambientWindSpeed, setAmbientWindSpeed] = useState(10);
+  const [ambientWindDir, setAmbientWindDir] = useState(0);
 
+  // 1. Initialize Map Instance and Geolocation
   useEffect(() => {
     let L;
-    let mapInstance;
-
     const initMap = async () => {
       L = await import("leaflet");
       
@@ -28,128 +41,291 @@ export default function RouteMap({ coordinates = [], startLocation = null, endLo
 
       if (!mapContainerRef.current) return;
 
-      // 1. Create Leaflet Map Instance if not already created
       if (!mapInstanceRef.current) {
-        mapInstance = L.map(mapContainerRef.current, {
-          zoomControl: true,
-          scrollWheelZoom: true
-        }).setView([40.7128, -74.0060], 12);
-        
-        // CartoDB Dark Matter tiles provide an ultra-premium dark aesthetic
-        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-          subdomains: "abcd",
+        // Initialize at New York default center, but quickly resolve geolocation
+        const map = L.map(mapContainerRef.current, {
+          zoomControl: false, // Clean HUD design
+          scrollWheelZoom: true,
+          attributionControl: false
+        }).setView([40.7128, -74.0060], 13);
+
+        // Pristine CartoDB Positron tile layer for modern light theme
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
           maxZoom: 20
-        }).addTo(mapInstance);
-        
-        mapInstanceRef.current = mapInstance;
-      } else {
-        mapInstance = mapInstanceRef.current;
-      }
+        }).addTo(map);
 
-      // 2. Clear old layers to prevent overlap
-      if (layersRef.current.polylineGroup) {
-        layersRef.current.polylineGroup.remove();
-        layersRef.current.polylineGroup = null;
-      }
-      layersRef.current.markers.forEach(m => m.remove());
-      layersRef.current.markers = [];
+        // Add a clean zoom control at the bottom right
+        L.control.zoom({
+          position: "bottomright"
+        }).addTo(map);
 
-      // 3. Render Route and Markers if coordinates exist
-      if (coordinates && coordinates.length > 0) {
-        const polyline = L.polyline(coordinates, {
-          color: "#6366f1", // Indigo core
-          weight: 4,
-          opacity: 0.9,
-          lineJoin: "round"
+        mapInstanceRef.current = map;
+
+        // Try getting user current location to center map smoothly
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              const { latitude, longitude } = position.coords;
+              map.flyTo([latitude, longitude], 13, { duration: 1.5 });
+            },
+            (err) => console.log("Geolocation centered denied: ", err.message),
+            { enableHighAccuracy: true, timeout: 5000 }
+          );
+        }
+
+        // Handle Map clicks when in drawing mode
+        map.on("click", (e) => {
+          if (onMapClick) {
+            onMapClick({ lat: e.latlng.lat, lon: e.latlng.lng });
+          }
         });
-        
-        const polylineGlow = L.polyline(coordinates, {
-          color: "#6366f1", // Indigo outer glow
-          weight: 8,
-          opacity: 0.25,
-          lineJoin: "round"
-        });
-        
-        layersRef.current.polylineGroup = L.layerGroup([polylineGlow, polyline]).addTo(mapInstance);
-        
-        // Render Start point marker
-        if (startLocation && coordinates[0]) {
-          const startIcon = L.divIcon({
-            className: "custom-marker-start",
-            iconSize: [16, 16],
-            popupAnchor: [0, -8]
-          });
-          const startMarker = L.marker(coordinates[0], { icon: startIcon })
-            .bindPopup(`<strong>Start Location</strong><br/><span style="font-size:12px;color:#94a3b8;">${startLocation.label}</span>`)
-            .addTo(mapInstance);
-          layersRef.current.markers.push(startMarker);
-        }
-        
-        // Render End point marker
-        if (endLocation && coordinates[coordinates.length - 1]) {
-          const endIcon = L.divIcon({
-            className: "custom-marker-end",
-            iconSize: [16, 16],
-            popupAnchor: [0, -8]
-          });
-          const endMarker = L.marker(coordinates[coordinates.length - 1], { icon: endIcon })
-            .bindPopup(`<strong>Destination</strong><br/><span style="font-size:12px;color:#94a3b8;">${endLocation.label}</span>`)
-            .addTo(mapInstance);
-          layersRef.current.markers.push(endMarker);
-        }
-        
-        // Render dynamic weather sample points (Start, Mid, End, etc.)
-        if (sampledCoords && sampledCoords.length > 2) {
-          sampledCoords.forEach((coord, idx) => {
-            // Skip start and end since they are already covered by large custom markers
-            if (idx === 0 || idx === sampledCoords.length - 1) return;
-            
-            const midIcon = L.divIcon({
-              className: "custom-marker-mid",
-              iconSize: [12, 12],
-              popupAnchor: [0, -6]
-            });
-            const label = sampledCoords.length === 3 
-              ? "Midpoint Weather Station" 
-              : `Weather Sample Station #${idx}`;
-            
-            const midMarker = L.marker(coord, { icon: midIcon })
-              .bindPopup(`<strong>${label}</strong><br/><span style="font-size:12px;color:#cbd5e1;">Lat: ${coord[0].toFixed(4)}, Lon: ${coord[1].toFixed(4)}</span>`)
-              .addTo(mapInstance);
-            layersRef.current.markers.push(midMarker);
-          });
-        }
-
-        // Fit bounds with padding so the route is nicely framed
-        const bounds = L.latLngBounds(coordinates);
-        mapInstance.fitBounds(bounds, { padding: [40, 40] });
-      } else {
-        // Fallback view centered on a nice default if empty (New York)
-        mapInstance.setView([40.7128, -74.0060], 11);
       }
     };
 
     initMap();
-    
-    // Trigger Map Reflow on render to handle hidden parents
-    setTimeout(() => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.invalidateSize();
-      }
-    }, 100);
 
     return () => {
-      // Keep instance intact across minor updates, but clear layers.
+      // Clean up maps on unmount
     };
-  }, [coordinates, startLocation, endLocation, sampledCoords]);
+  }, [onMapClick]);
+
+  // 2. Clear and Render Routes & Markers
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+    
+    // Clear old layers
+    layersRef.current.polylines.forEach(p => p.remove());
+    layersRef.current.polylines = [];
+    layersRef.current.markers.forEach(m => m.remove());
+    layersRef.current.markers = [];
+
+    import("leaflet").then((L) => {
+      const currentHourIdx = selectedDay * 24 + selectedHour;
+      const numSamples = weatherResults.length;
+
+      // Draw color-coded, motion-encoded polyline segments
+      if (routeSegments && routeSegments.length > 0 && weatherResults.length > 0) {
+        routeSegments.forEach((seg, idx) => {
+          // Find closest weather sample point index for this segment
+          const sampleIdx = Math.min(Math.floor((idx / routeSegments.length) * numSamples), numSamples - 1);
+          const hourly = weatherResults[sampleIdx]?.hourly;
+          
+          const windSpeed = hourly?.wind_speed_10m?.[currentHourIdx] ?? 0;
+          const windDir = hourly?.wind_direction_10m?.[currentHourIdx] ?? 0;
+          
+          const angleRad = ((seg.bearing - windDir) * Math.PI) / 180;
+          const headwind = windSpeed * Math.cos(angleRad);
+          const crosswind = windSpeed * Math.abs(Math.sin(angleRad));
+          
+          let difficulty = "Neutral";
+          let color = "var(--primary)"; // Indigo
+          let flowClass = "route-flow-neutral";
+          
+          if (headwind > 12 || crosswind > 20) {
+            difficulty = "Hard (Strong winds)";
+            color = "var(--rose)";
+            flowClass = "route-flow-hard";
+          } else if (headwind > 4 || crosswind > 10) {
+            difficulty = "Moderate (Mild winds)";
+            color = "var(--amber)";
+            flowClass = "route-flow-medium";
+          } else if (headwind < -4) {
+            difficulty = "Easy (Helpful tailwind)";
+            color = "var(--emerald)";
+            flowClass = "route-flow-easy";
+          }
+
+          const polyCoords = [[seg.lat1, seg.lon1], [seg.lat2, seg.lon2]];
+
+          // Thin background line for outline definition
+          const bgLine = L.polyline(polyCoords, {
+            color: color,
+            weight: 7,
+            opacity: 0.15,
+            lineJoin: "round"
+          }).addTo(map);
+
+          // Flow dash line
+          const poly = L.polyline(polyCoords, {
+            color: color,
+            weight: 4,
+            opacity: 0.9,
+            lineJoin: "round"
+          }).addTo(map);
+
+          // Inject animated styling via Leaflet internal SVG renderer
+          if (poly._path) {
+            poly._path.classList.add(flowClass);
+          }
+
+          // Tooltip showing exact parameters
+          poly.on("mouseover", function() {
+            poly.setStyle({ weight: 7 });
+            this.bindTooltip(`
+              <div style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; padding: 2px;">
+                <strong style="color: ${color}; font-size: 12px;">${difficulty}</strong><br/>
+                📏 Distance: <strong>${Math.round(seg.distance * 1000)} m</strong><br/>
+                🧭 Bearing: <strong>${Math.round(seg.bearing)}°</strong><br/>
+                💨 Wind: <strong>${windSpeed.toFixed(1)} km/h</strong> (${Math.round(windDir)}°)<br/>
+                🚴 Wind Resistance: <strong>${headwind > 0 ? "Headwind" : "Tailwind"} ${Math.abs(headwind).toFixed(1)} km/h</strong>
+              </div>
+            `, { sticky: true }).openTooltip();
+          });
+
+          poly.on("mouseout", function() {
+            poly.setStyle({ weight: 4 });
+          });
+
+          layersRef.current.polylines.push(bgLine);
+          layersRef.current.polylines.push(poly);
+        });
+
+        // Fit map bounds to frame the route nicely
+        const bounds = L.latLngBounds(coordinates);
+        map.fitBounds(bounds, { padding: [80, 80] });
+      }
+
+      // Draw start location pin (Pulsing emerald ring)
+      if (startLocation) {
+        const startIcon = L.divIcon({
+          className: "",
+          html: `
+            <div style="position: relative; width: 16px; height: 16px;">
+              <div class="marker-ripple" style="width: 16px; height: 16px; background: rgba(16, 185, 129, 0.4);"></div>
+              <div class="custom-marker-start" style="width: 16px; height: 16px;"></div>
+            </div>
+          `,
+          iconSize: [16, 16],
+          iconAnchor: [8, 8]
+        });
+        const startMarker = L.marker([startLocation.lat, startLocation.lon], { icon: startIcon }).addTo(map);
+        layersRef.current.markers.push(startMarker);
+        
+        if (!coordinates || coordinates.length === 0) {
+          map.setView([startLocation.lat, startLocation.lon], 13);
+        }
+      }
+
+      // Draw destination location pin (Pulsing rose ring)
+      if (endLocation) {
+        const endIcon = L.divIcon({
+          className: "",
+          html: `
+            <div style="position: relative; width: 16px; height: 16px;">
+              <div class="marker-ripple" style="width: 16px; height: 16px; background: rgba(225, 29, 72, 0.4);"></div>
+              <div class="custom-marker-end" style="width: 16px; height: 16px;"></div>
+            </div>
+          `,
+          iconSize: [16, 16],
+          iconAnchor: [8, 8]
+        });
+        const endMarker = L.marker([endLocation.lat, endLocation.lon], { icon: endIcon }).addTo(map);
+        layersRef.current.markers.push(endMarker);
+      }
+    });
+
+  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour]);
+
+  // 3. Extract and animate atmospheric states
+  useEffect(() => {
+    if (weatherResults.length === 0) return;
+    const currentHourIdx = selectedDay * 24 + selectedHour;
+    const midIdx = Math.floor(weatherResults.length / 2);
+    const midHourly = weatherResults[midIdx]?.hourly;
+
+    if (midHourly) {
+      setAmbientTemp(midHourly.temperature_2m?.[currentHourIdx] ?? 20);
+      setAmbientRain(midHourly.precipitation_probability?.[currentHourIdx] ?? 0);
+      setAmbientWindSpeed(midHourly.wind_speed_10m?.[currentHourIdx] ?? 10);
+      setAmbientWindDir(midHourly.wind_direction_10m?.[currentHourIdx] ?? 0);
+    }
+  }, [weatherResults, selectedDay, selectedHour]);
+
+  // Compute temperature tint color based on ambientTemp
+  let tempWashColor = "transparent";
+  let tempOpacity = 0;
+  if (ambientTemp < 12) {
+    // Cold: Icy blue wash
+    tempWashColor = "rgba(6, 182, 212, 0.1)";
+    tempOpacity = Math.min(0.6, (12 - ambientTemp) / 15);
+  } else if (ambientTemp > 25) {
+    // Hot: Warm solar wash
+    tempWashColor = "rgba(245, 158, 11, 0.08)";
+    tempOpacity = Math.min(0.5, (ambientTemp - 25) / 15);
+  } else {
+    // Ideal perfect weather: golden emerald shimmer
+    tempWashColor = "rgba(16, 185, 129, 0.03)";
+    tempOpacity = 0.3;
+  }
+
+  // Adjust wind flow animation rate based on wind speed
+  const windAnimDuration = Math.max(1.8, 12 - (ambientWindSpeed / 4)) + "s";
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%", minHeight: "350px", overflow: "hidden", borderRadius: "12px" }}>
+    <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
+      {/* MAP CANVAS */}
       <div 
         ref={mapContainerRef} 
-        style={{ width: "100%", height: "100%", minHeight: "350px", background: "#070a13" }} 
+        style={{ width: "100%", height: "100%", background: "#f1f5f9" }} 
       />
+
+      {/* LIVING HUD ENVIRONMENTAL OVERLAYS */}
+      <div className="environmental-hud-overlay">
+        
+        {/* A. TEMPERATURE WASH */}
+        <div 
+          className="temp-wash-layer" 
+          style={{ 
+            backgroundColor: tempWashColor,
+            opacity: tempOpacity
+          }} 
+        />
+
+        {/* B. WIND PARTICLE GRID (SVG) - Rotated by current Wind Direction */}
+        <svg 
+          className="wind-stream-svg" 
+          style={{ 
+            transform: `rotate(${ambientWindDir}deg)`,
+            opacity: weatherResults.length > 0 ? Math.min(0.35, 0.05 + (ambientWindSpeed / 50)) : 0.05
+          }}
+        >
+          <g>
+            <path className="wind-stream-line" style={{ animationDuration: windAnimDuration }} d="M -100,100 L 2000,100" />
+            <path className="wind-stream-line" style={{ animationDuration: windAnimDuration, animationDelay: "1.5s" }} d="M -100,250 L 2000,250" />
+            <path className="wind-stream-line" style={{ animationDuration: windAnimDuration, animationDelay: "3.2s" }} d="M -100,450 L 2000,450" />
+            <path className="wind-stream-line" style={{ animationDuration: windAnimDuration, animationDelay: "0.5s" }} d="M -100,600 L 2000,600" />
+            <path className="wind-stream-line" style={{ animationDuration: windAnimDuration, animationDelay: "2.1s" }} d="M -100,750 L 2000,750" />
+            <path className="wind-stream-line" style={{ animationDuration: windAnimDuration, animationDelay: "4s" }} d="M -100,900 L 2000,900" />
+          </g>
+        </svg>
+
+        {/* C. CSS FALLING RAIN STREAKS */}
+        <div 
+          className="rain-overlay-container" 
+          style={{ opacity: weatherResults.length > 0 ? ambientRain / 100 : 0 }}
+        >
+          {/* Render 20 randomized rain streaks */}
+          {Array.from({ length: 20 }).map((_, i) => {
+            const leftVal = `${(i * 5.5) + (Math.random() * 2)}%`;
+            const delayVal = `${Math.random() * 2}s`;
+            const durationVal = `${0.8 + Math.random() * 0.6}s`;
+            return (
+              <div 
+                key={i}
+                className="rain-streak"
+                style={{
+                  left: leftVal,
+                  top: "-100px",
+                  animationDelay: delayVal,
+                  animationDuration: durationVal
+                }}
+              />
+            );
+          })}
+        </div>
+
+      </div>
     </div>
   );
 }

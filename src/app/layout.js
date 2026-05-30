@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Aero-Bike | Wind-Aware 7-Day Biking Forecast",
+  title: "Biking Forecast | Wind-Aware Biking Planner",
   description: "Plan your commutes with a smart wind-aware cycling forecast. Predicts travel time, headwind impact, temperature penalties, and suggests optimal departure times dynamically.",
 };
 

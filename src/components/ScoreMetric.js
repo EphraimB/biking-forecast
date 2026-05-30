@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Clock, ArrowRight, ShieldAlert, Sparkles, Navigation } from "lucide-react";
+import { AlertTriangle, ShieldAlert, Sparkles } from "lucide-react";
 
 export default function ScoreMetric({ forecast }) {
   if (!forecast) return null;
@@ -25,16 +25,13 @@ export default function ScoreMetric({ forecast }) {
 
   // Determine score color theme
   let themeColor = "var(--rose)";
-  let glowColor = "var(--rose-glow)";
   let scoreText = "Poor Conditions";
   
   if (score >= 80) {
     themeColor = "var(--emerald)";
-    glowColor = "var(--emerald-glow)";
     scoreText = "Perfect for Biking!";
   } else if (score >= 50) {
     themeColor = "var(--amber)";
-    glowColor = "var(--amber-glow)";
     scoreText = "Acceptable Biking";
   }
 
@@ -44,38 +41,38 @@ export default function ScoreMetric({ forecast }) {
   const strokeDashoffset = circumference - (score / 100) * circumference;
 
   return (
-    <div className="glass-panel animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <h3 style={{ fontSize: "1.1rem", fontWeight: "700", display: "flex", alignItems: "center", gap: "8px" }}>
-        <Sparkles size={18} style={{ color: "var(--primary)" }} /> Commute Suitability
+    <div className="glass-panel animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <h3 style={{ fontSize: "0.88rem", fontWeight: "800", color: "var(--slate-700)", textTransform: "uppercase", letterSpacing: "0.04em", display: "flex", alignItems: "center", gap: "6px" }}>
+        <Sparkles size={16} style={{ color: "var(--primary)" }} /> Commute Suitability
       </h3>
 
-      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: "24px" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: "18px" }}>
         {/* Stunning Radial Gauge */}
-        <div style={{ position: "relative", width: "150px", height: "150px", display: "flex", justifyContent: "center", alignItems: "center" }}>
+        <div style={{ position: "relative", width: "120px", height: "120px", display: "flex", justifyContent: "center", alignItems: "center" }}>
           <svg style={{ transform: "rotate(-90deg)", width: "100%", height: "100%" }}>
             {/* Background ring */}
             <circle
-              cx="75"
-              cy="75"
-              r={radius}
+              cx="60"
+              cy="60"
+              r="50"
               fill="transparent"
-              stroke="rgba(255,255,255,0.05)"
-              strokeWidth="10"
+              stroke="rgba(148, 163, 184, 0.1)"
+              strokeWidth="8"
             />
             {/* Animated foreground ring */}
             <circle
-              cx="75"
-              cy="75"
-              r={radius}
+              cx="60"
+              cy="60"
+              r="50"
               fill="transparent"
               stroke={themeColor}
-              strokeWidth="10"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
+              strokeWidth="8"
+              strokeDasharray={2 * Math.PI * 50}
+              strokeDashoffset={2 * Math.PI * 50 - (score / 100) * 2 * Math.PI * 50}
               strokeLinecap="round"
               style={{
                 transition: "stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.4s",
-                filter: `drop-shadow(0 0 6px ${themeColor})`
+                filter: `drop-shadow(0 0 4px ${themeColor})`
               }}
             />
           </svg>
@@ -86,44 +83,44 @@ export default function ScoreMetric({ forecast }) {
             alignItems: "center",
             justifyContent: "center"
           }}>
-            <span style={{ fontSize: "2.2rem", fontWeight: "800", color: "white", lineHeight: "1" }}>{score}</span>
-            <span style={{ fontSize: "0.75rem", color: "var(--slate-400)", fontWeight: "600", marginTop: "4px" }}>SCORE</span>
+            <span style={{ fontSize: "1.8rem", fontWeight: "800", color: "var(--slate-800)", lineHeight: "1" }}>{score}</span>
+            <span style={{ fontSize: "0.6rem", color: "var(--slate-400)", fontWeight: "700", marginTop: "2px" }}>SCORE</span>
           </div>
         </div>
 
         {/* Overview Stats */}
-        <div style={{ flexGrow: "1", display: "flex", flexDirection: "column", gap: "12px", minWidth: "180px" }}>
+        <div style={{ flexGrow: "1", display: "flex", flexDirection: "column", gap: "8px", minWidth: "160px" }}>
           <div>
-            <h4 style={{ fontSize: "1.2rem", fontWeight: "800", color: "white", display: "flex", alignItems: "center", gap: "6px" }}>
+            <h4 style={{ fontSize: "1.05rem", fontWeight: "800", color: "var(--slate-900)", display: "flex", alignItems: "center", gap: "6px" }}>
               <span style={{ display: "inline-block" }}>{wmoEmoji}</span> {wmoDesc}
             </h4>
-            <p style={{ fontSize: "0.85rem", color: themeColor, fontWeight: "700", marginTop: "2px" }}>
+            <p style={{ fontSize: "0.78rem", color: themeColor, fontWeight: "800", marginTop: "2px" }}>
               {scoreText}
             </p>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "4px" }}>
-            <div className="glass-card" style={{ padding: "8px 12px" }}>
-              <div style={{ fontSize: "0.7rem", color: "var(--slate-500)" }}>EST. DURATION</div>
-              <div style={{ fontSize: "1.1rem", fontWeight: "700", color: "white" }}>
-                {duration} <span style={{ fontSize: "0.8rem", color: "var(--slate-400)" }}>min</span>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "2px" }}>
+            <div className="glass-card" style={{ padding: "6px 10px" }}>
+              <div style={{ fontSize: "0.62rem", color: "var(--slate-400)", fontWeight: "600" }}>EST. TIME</div>
+              <div style={{ fontSize: "0.92rem", fontWeight: "800", color: "var(--slate-800)" }}>
+                {duration} <span style={{ fontSize: "0.7rem", color: "var(--slate-500)", fontWeight: "normal" }}>min</span>
               </div>
             </div>
-            <div className="glass-card" style={{ padding: "8px 12px" }}>
-              <div style={{ fontSize: "0.7rem", color: "var(--slate-500)" }}>DISTANCE</div>
-              <div style={{ fontSize: "1.1rem", fontWeight: "700", color: "white" }}>
-                {distance} <span style={{ fontSize: "0.8rem", color: "var(--slate-400)" }}>km</span>
+            <div className="glass-card" style={{ padding: "6px 10px" }}>
+              <div style={{ fontSize: "0.62rem", color: "var(--slate-400)", fontWeight: "600" }}>DISTANCE</div>
+              <div style={{ fontSize: "0.92rem", fontWeight: "800", color: "var(--slate-800)" }}>
+                {distance} <span style={{ fontSize: "0.7rem", color: "var(--slate-500)", fontWeight: "normal" }}>km</span>
               </div>
             </div>
-            <div className="glass-card" style={{ padding: "8px 12px" }}>
-              <div style={{ fontSize: "0.7rem", color: "var(--slate-500)" }}>AVG SPEED</div>
-              <div style={{ fontSize: "1.1rem", fontWeight: "700", color: "white" }}>
-                {speed} <span style={{ fontSize: "0.8rem", color: "var(--slate-400)" }}>km/h</span>
+            <div className="glass-card" style={{ padding: "6px 10px" }}>
+              <div style={{ fontSize: "0.62rem", color: "var(--slate-400)", fontWeight: "600" }}>AVG SPEED</div>
+              <div style={{ fontSize: "0.92rem", fontWeight: "800", color: "var(--slate-800)" }}>
+                {speed} <span style={{ fontSize: "0.7rem", color: "var(--slate-500)", fontWeight: "normal" }}>km/h</span>
               </div>
             </div>
-            <div className="glass-card" style={{ padding: "8px 12px" }}>
-              <div style={{ fontSize: "0.7rem", color: "var(--slate-500)" }}>WIND IMPACT</div>
-              <div style={{ fontSize: "0.8rem", fontWeight: "700", color: "white", marginTop: "4px" }}>
+            <div className="glass-card" style={{ padding: "6px 10px" }}>
+              <div style={{ fontSize: "0.62rem", color: "var(--slate-400)", fontWeight: "600" }}>WIND FLOW</div>
+              <div style={{ fontSize: "0.7rem", fontWeight: "800", color: "var(--slate-800)", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {windImpact}
               </div>
             </div>
@@ -132,38 +129,32 @@ export default function ScoreMetric({ forecast }) {
       </div>
 
       {/* Wind breakdown panel */}
-      <div className="glass-card" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        <h4 style={{ fontSize: "0.8rem", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--slate-400)" }}>
+      <div className="glass-card" style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "10px 12px" }}>
+        <h4 style={{ fontSize: "0.68rem", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--slate-400)" }}>
           Wind Breakdown along Route
         </h4>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px" }}>
           <div>
-            <div style={{ fontSize: "0.7rem", color: "var(--slate-500)" }}>Headwind/Tailwind</div>
+            <div style={{ fontSize: "0.62rem", color: "var(--slate-400)" }}>Head/Tail</div>
             <div style={{
-              fontSize: "0.95rem",
-              fontWeight: "700",
-              color: headwind > 0 ? "var(--rose)" : headwind < -2 ? "var(--emerald)" : "white",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
+              fontSize: "0.82rem",
+              fontWeight: "800",
+              color: headwind > 0 ? "var(--rose)" : headwind < -2 ? "var(--emerald)" : "var(--slate-800)",
               marginTop: "2px"
             }}>
-              {headwind > 0 ? `+${headwind} km/h` : `${headwind} km/h`}
-              <span style={{ fontSize: "0.65rem", fontWeight: "normal", color: "var(--slate-500)" }}>
-                {headwind > 0 ? "headwind" : "tailwind"}
-              </span>
+              {headwind > 0 ? `+${headwind}` : `${headwind}`} <span style={{ fontSize: "0.58rem", fontWeight: "normal", color: "var(--slate-400)" }}>km/h</span>
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "0.7rem", color: "var(--slate-500)" }}>Crosswind</div>
-            <div style={{ fontSize: "0.95rem", fontWeight: "700", color: crosswind > 15 ? "var(--amber)" : "white", marginTop: "2px" }}>
-              {crosswind} <span style={{ fontSize: "0.7rem", color: "var(--slate-400)", fontWeight: "normal" }}>km/h</span>
+            <div style={{ fontSize: "0.62rem", color: "var(--slate-400)" }}>Crosswind</div>
+            <div style={{ fontSize: "0.82rem", fontWeight: "800", color: crosswind > 15 ? "var(--amber)" : "var(--slate-800)", marginTop: "2px" }}>
+              {crosswind} <span style={{ fontSize: "0.58rem", color: "var(--slate-400)", fontWeight: "normal" }}>km/h</span>
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "0.7rem", color: "var(--slate-500)" }}>Max Gusts</div>
-            <div style={{ fontSize: "0.95rem", fontWeight: "700", color: gusts > 25 ? "var(--rose)" : "white", marginTop: "2px" }}>
-              {gusts} <span style={{ fontSize: "0.7rem", color: "var(--slate-400)", fontWeight: "normal" }}>km/h</span>
+            <div style={{ fontSize: "0.62rem", color: "var(--slate-400)" }}>Max Gusts</div>
+            <div style={{ fontSize: "0.82rem", fontWeight: "800", color: gusts > 25 ? "var(--rose)" : "var(--slate-800)", marginTop: "2px" }}>
+              {gusts} <span style={{ fontSize: "0.58rem", color: "var(--slate-400)", fontWeight: "normal" }}>km/h</span>
             </div>
           </div>
         </div>
@@ -171,39 +162,39 @@ export default function ScoreMetric({ forecast }) {
 
       {/* Penalties breakdown panel */}
       {(penalties.temp > 0 || penalties.rain > 0 || penalties.wind > 0 || penalties.wmo > 0) && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <h4 style={{ fontSize: "0.8rem", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--slate-400)", display: "flex", alignItems: "center", gap: "4px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          <h4 style={{ fontSize: "0.68rem", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--slate-400)", display: "flex", alignItems: "center", gap: "4px" }}>
             <AlertTriangle size={12} style={{ color: "var(--amber)" }} /> Score Reductions
           </h4>
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
             {penalties.temp > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.8rem" }}>
-                <span style={{ color: "var(--slate-300)" }}>🌡️ Temperature (Sub-optimal, {temp}°C)</span>
-                <span style={{ color: "var(--amber)", fontWeight: "600" }}>-{penalties.temp} pts</span>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.72rem" }}>
+                <span style={{ color: "var(--slate-500)" }}>🌡️ Sub-optimal Temperature ({temp}°C)</span>
+                <span style={{ color: "var(--amber)", fontWeight: "700" }}>-{penalties.temp} pts</span>
               </div>
             )}
             {penalties.rain > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.8rem" }}>
-                <span style={{ color: "var(--slate-300)" }}>🌧️ Rain risk / Probability ({rainProb}%)</span>
-                <span style={{ color: "var(--rose)", fontWeight: "600" }}>-{penalties.rain} pts</span>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.72rem" }}>
+                <span style={{ color: "var(--slate-500)" }}>🌧️ Precipitation risk / Probability ({rainProb}%)</span>
+                <span style={{ color: "var(--rose)", fontWeight: "700" }}>-{penalties.rain} pts</span>
               </div>
             )}
             {penalties.wind > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.8rem" }}>
-                <span style={{ color: "var(--slate-300)" }}>💨 Headwind, crosswinds, or strong gusts</span>
-                <span style={{ color: "var(--rose)", fontWeight: "600" }}>-{penalties.wind} pts</span>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.72rem" }}>
+                <span style={{ color: "var(--slate-500)" }}>💨 Excessive winds or gusty crosswinds</span>
+                <span style={{ color: "var(--rose)", fontWeight: "700" }}>-{penalties.wind} pts</span>
               </div>
             )}
             {penalties.wmo > 0 && penalties.wmo < 100 && (
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.8rem" }}>
-                <span style={{ color: "var(--slate-300)" }}>☁️ General weather conditions ({wmoDesc})</span>
-                <span style={{ color: "var(--amber)", fontWeight: "600" }}>-{penalties.wmo} pts</span>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.72rem" }}>
+                <span style={{ color: "var(--slate-500)" }}>☁️ General weather penalty ({wmoDesc})</span>
+                <span style={{ color: "var(--amber)", fontWeight: "700" }}>-{penalties.wmo} pts</span>
               </div>
             )}
             {penalties.wmo >= 100 && (
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "6px", padding: "8px", color: "var(--rose)", fontSize: "0.75rem" }}>
-                <ShieldAlert size={14} />
-                <strong>SAFETY WARNING: Thunderstorms or extreme conditions detected. Biking is strongly discouraged.</strong>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(225,29,72,0.06)", border: "1px solid rgba(225,29,72,0.15)", borderRadius: "8px", padding: "8px", color: "var(--rose)", fontSize: "0.72rem" }}>
+                <ShieldAlert size={14} style={{ flexShrink: "0" }} />
+                <strong>SAFETY WARNING: Thunderstorms detected. Biking is strongly discouraged.</strong>
               </div>
             )}
           </div>

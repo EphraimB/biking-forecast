@@ -5,36 +5,103 @@ import { sampleCoordinates, getDistance } from "./routeUtils";
  * @param {string} query - The location query (e.g. "Brooklyn Bridge, NY")
  * @returns {Promise<Array<{lat: number, lon: number, label: string}>>} Found locations
  */
+const FALLBACK_LOCATIONS = [
+  { label: "Central Park, New York, NY", lat: 40.7851, lon: -73.9682 },
+  { label: "Brooklyn Bridge, New York, NY", lat: 40.7061, lon: -73.9969 },
+  { label: "Times Square, New York, NY", lat: 40.7580, lon: -73.9855 },
+  { label: "Empire State Building, New York, NY", lat: 40.7484, lon: -73.9857 },
+  { label: "Grand Central Terminal, New York, NY", lat: 40.7527, lon: -73.9772 },
+  { label: "Prospect Park, Brooklyn, NY", lat: 40.6602, lon: -73.9690 },
+  { label: "DUMBO, Brooklyn, NY", lat: 40.7033, lon: -73.9879 },
+  { label: "Williamsburg, Brooklyn, NY", lat: 40.7081, lon: -73.9571 },
+  { label: "JFK Airport, Queens, NY", lat: 40.6413, lon: -73.7781 },
+  { label: "LaGuardia Airport, Queens, NY", lat: 40.7769, lon: -73.8740 },
+  { label: "Wall Street, New York, NY", lat: 40.7064, lon: -74.0094 },
+  { label: "Manhattan, New York, NY", lat: 40.7831, lon: -73.9712 },
+  { label: "Brooklyn, New York, NY", lat: 40.6782, lon: -73.9442 },
+  { label: "Queens, New York, NY", lat: 40.7282, lon: -73.7949 },
+  { label: "Bronx, New York, NY", lat: 40.8448, lon: -73.8648 },
+  { label: "Staten Island, New York, NY", lat: 40.5795, lon: -74.1502 },
+  { label: "Golden Gate Park, San Francisco, CA", lat: 37.7694, lon: -122.4862 },
+  { label: "Union Square, San Francisco, CA", lat: 37.7876, lon: -122.4074 },
+  { label: "Ferry Building, San Francisco, CA", lat: 37.7954, lon: -122.3937 }
+];
+
 export async function geocodeAddress(query) {
   if (!query || query.trim().length < 3) return [];
   
+  const normQuery = query.toLowerCase().trim();
+  
+  // Gather matching local fallbacks
+  const localMatches = FALLBACK_LOCATIONS.filter(item => 
+    item.label.toLowerCase().includes(normQuery)
+  );
+
+  // Helper to merge and deduplicate
+  const mergeResults = (primary, secondary) => {
+    const combined = [...primary];
+    secondary.forEach(item => {
+      if (!combined.some(c => c.label.toLowerCase().split(",")[0] === item.label.toLowerCase().split(",")[0])) {
+        combined.push(item);
+      }
+    });
+    return combined;
+  };
+
+  // 1. Try Nominatim (Primary)
   try {
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
       query
     )}&format=json&limit=5&addressdetails=1`;
     
-    const response = await fetch(url, {
-      headers: {
-        // Respect Nominatim Usage Policy by providing a descriptive user-agent
-        Accept: "application/json"
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Nominatim error: ${response.status} - ${response.statusText}`);
+    const response = await fetch(url);
+    if (response.ok) {
+      const data = await response.json();
+      const nominatimResults = data.map(item => ({
+        lat: parseFloat(item.lat),
+        lon: parseFloat(item.lon),
+        label: item.display_name
+      }));
+      return mergeResults(nominatimResults, localMatches);
     }
-    
-    const data = await response.json();
-    
-    return data.map(item => ({
-      lat: parseFloat(item.lat),
-      lon: parseFloat(item.lon),
-      label: item.display_name
-    }));
+    console.warn(`Nominatim throttled: ${response.status}. Failover to Photon Komoot...`);
   } catch (error) {
-    console.error("Geocoding failed:", error);
-    return [];
+    console.warn("Nominatim rate-limit ban detected. Seamless failover to Photon Komoot...");
   }
+
+  // 2. Try Photon Komoot (Secondary Live Network Fallback)
+  try {
+    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`;
+    const response = await fetch(url);
+    if (response.ok) {
+      const data = await response.json();
+      const photonResults = (data.features || []).map(feat => {
+        const coords = feat.geometry?.coordinates || [0, 0];
+        const prop = feat.properties || {};
+        const labelParts = [
+          prop.name,
+          prop.street,
+          prop.city,
+          prop.state,
+          prop.postcode,
+          prop.country
+        ].filter(Boolean);
+        // Deduplicate adjacent parts
+        const uniqueParts = labelParts.filter((item, pos, arr) => !pos || item !== arr[pos - 1]);
+        return {
+          lat: coords[1], // Photon returns [lon, lat]
+          lon: coords[0],
+          label: uniqueParts.join(", ")
+        };
+      });
+      return mergeResults(photonResults, localMatches);
+    }
+  } catch (error) {
+    console.warn("Photon geocoder failed, falling back to offline landmark POIs: ", error.message);
+  }
+
+  // 3. Fallback to Local Offline POIs
+  return localMatches;
 }
 
 /**
