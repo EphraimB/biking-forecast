@@ -1002,16 +1002,15 @@ export default function Home() {
                     <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
                       {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((dayName, idx) => {
                         const dayVal = idx === 6 ? 0 : idx + 1; // 0 Sunday, 1 Monday...
-                        const isSelected = newTripDays.includes(dayVal);
+                        const isSelected = newCommuteDays[dayVal] ?? false;
                         return (
                           <button
                             key={dayName}
                             onClick={() => {
-                              if (isSelected) {
-                                setNewTripDays(newTripDays.filter(d => d !== dayVal));
-                              } else {
-                                setNewTripDays([...newTripDays, dayVal]);
-                              }
+                              setNewCommuteDays({
+                                ...newCommuteDays,
+                                [dayVal]: !isSelected
+                              });
                             }}
                             style={{
                               padding: "4px 8px",
