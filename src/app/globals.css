@@ -534,3 +534,111 @@ body {
   background: rgba(79, 70, 229, 0.03);
   box-shadow: 0 4px 15px rgba(79, 70, 229, 0.04);
 }
+
+/* Route Selector Custom Dropdown Styling */
+.route-selector-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  width: 320px;
+  max-height: 380px;
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  z-index: 10000;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.route-selector-item {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--slate-700);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.route-selector-item:hover {
+  background: rgba(79, 70, 229, 0.05);
+  color: var(--primary);
+}
+
+.route-selector-item.active {
+  background: rgba(79, 70, 229, 0.08);
+  color: var(--primary);
+}
+
+/* Walkthrough Playback & Segment Scrubber Elements */
+.walkthrough-player-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+}
+
+.segment-narrator-box {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.5);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--slate-700);
+  min-height: 54px;
+}
+
+/* Slide-out Drawers and Bottom Sheets */
+.sliding-drawer-sheet {
+  position: absolute;
+  top: 84px;
+  left: 20px;
+  width: 360px;
+  max-height: calc(100vh - 240px);
+  overflow-y: auto;
+  z-index: 9999;
+  pointer-events: auto;
+}
+
+@media (max-width: 768px) {
+  .sliding-drawer-sheet {
+    top: auto;
+    bottom: 120px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-height: 45vh;
+  }
+}
+
+/* Elevation spline area elements */
+.elevation-profile-spline {
+  fill: rgba(79, 70, 229, 0.05);
+  stroke: var(--primary);
+  stroke-width: 2;
+}
+
+.elevation-profile-grid {
+  stroke: rgba(226, 232, 240, 0.6);
+  stroke-width: 1;
+  stroke-dasharray: 2, 2;
+}
+
