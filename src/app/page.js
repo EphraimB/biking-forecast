@@ -53,6 +53,14 @@ const INITIAL_SCHEDULE = {
   leisureRides: []
 };
 
+const getWindCompassDirection = (degrees) => {
+  if (degrees === undefined || degrees === null) return "N";
+  const normalizedDegrees = ((degrees % 360) + 360) % 360;
+  const directions = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+  const index = Math.round(normalizedDegrees / 22.5) % 16;
+  return directions[index];
+};
+
 const BIKE_TYPES = [
   { id: "Road", name: "Road Bike", speed: 24, icon: "🚴" },
   { id: "Hybrid", name: "Hybrid / Commuter", speed: 18, icon: "🚲" },
@@ -2024,11 +2032,12 @@ export default function Home() {
                     <div style={{ fontSize: "0.62rem", color: "var(--slate-400)", fontWeight: "700", textTransform: "uppercase" }}>Wind</div>
                     <div style={{ fontSize: "0.95rem", fontWeight: "800", color: "var(--slate-800)", marginTop: "2px" }}>
                       {currentForecast 
-                        ? `${unitSystem === "imperial" ? (currentForecast.windSpeed * 0.621371).toFixed(0) : currentForecast.windSpeed.toFixed(0)} ${unitSystem === "imperial" ? "mph" : "km/h"} ${currentForecast.windDir}`
+                        ? `${unitSystem === "imperial" ? (currentForecast.windSpeed * 0.621371).toFixed(0) : currentForecast.windSpeed.toFixed(0)} ${unitSystem === "imperial" ? "mph" : "km/h"} ${getWindCompassDirection(currentForecast.windDir)}`
                         : (() => {
                             if (weatherResults.length > 0) {
                               const rawWind = weatherResults[0]?.hourly?.wind_speed_10m?.[currentHourIdx] ?? 10;
-                              return `${unitSystem === "imperial" ? (rawWind * 0.621371).toFixed(0) : rawWind.toFixed(0)} ${unitSystem === "imperial" ? "mph" : "km/h"}`;
+                              const rawDir = weatherResults[0]?.hourly?.wind_direction_10m?.[currentHourIdx] ?? 0;
+                              return `${unitSystem === "imperial" ? (rawWind * 0.621371).toFixed(0) : rawWind.toFixed(0)} ${unitSystem === "imperial" ? "mph" : "km/h"} ${getWindCompassDirection(rawDir)}`;
                             }
                             return "4 mph SW";
                           })()}
