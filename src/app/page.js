@@ -122,6 +122,11 @@ export default function Home() {
   const [isMobileView, setIsMobileView] = useState(false);
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   // Geolocation lookup on boot
   useEffect(() => {
@@ -564,6 +569,7 @@ export default function Home() {
         top: isMobileView ? "10px" : "20px",
         left: isMobileView ? "10px" : "20px",
         right: isMobileView ? "10px" : "auto",
+        width: isMobileView ? "calc(100% - 20px)" : "auto",
         zIndex: "10",
         display: "flex",
         alignItems: "center",
@@ -590,7 +596,8 @@ export default function Home() {
           alignItems: "center",
           gap: isMobileView ? "10px" : "16px",
           flexGrow: isMobileView ? 1 : 0,
-          justifyContent: "space-between"
+          justifyContent: "space-between",
+          width: "100%"
         }}>
           <div>
             <h1 style={{ fontSize: isMobileView ? "1.0rem" : "1.2rem", fontWeight: "800", letterSpacing: "-0.02em", color: "var(--slate-900)" }}>
@@ -603,59 +610,62 @@ export default function Home() {
             )}
           </div>
 
-          <div style={{
-            display: "flex",
-            background: "#f1f5f9",
-            padding: "2px",
-            borderRadius: "8px",
-            border: "1px solid rgba(226, 232, 240, 0.8)",
-            boxShadow: "inset 0 1px 2px rgba(0,0,0,0.03)"
-          }}>
-            <button
-              onClick={() => setUnitSystem("metric")}
-              style={{
-                padding: isMobileView ? "4px 8px" : "4px 10px",
-                borderRadius: "6px",
-                border: "none",
-                background: unitSystem === "metric" ? "#ffffff" : "transparent",
-                color: unitSystem === "metric" ? "var(--primary)" : "var(--slate-500)",
-                fontSize: isMobileView ? "0.62rem" : "0.68rem",
-                fontWeight: "800",
-                cursor: "pointer",
-                boxShadow: unitSystem === "metric" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-                transition: "all 0.15s ease"
-              }}
-            >
-              Metric
-            </button>
-            <button
-              onClick={() => setUnitSystem("imperial")}
-              style={{
-                padding: isMobileView ? "4px 8px" : "4px 10px",
-                borderRadius: "6px",
-                border: "none",
-                background: unitSystem === "imperial" ? "#ffffff" : "transparent",
-                color: unitSystem === "imperial" ? "var(--primary)" : "var(--slate-500)",
-                fontSize: isMobileView ? "0.62rem" : "0.68rem",
-                fontWeight: "800",
-                cursor: "pointer",
-                boxShadow: unitSystem === "imperial" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-                transition: "all 0.15s ease"
-              }}
-            >
-              Imperial
-            </button>
-          </div>
+          {/* Unit Toggle in Header: Only render on desktop to save space on mobile */}
+          {!isMobileView && (
+            <div style={{
+              display: "flex",
+              background: "#f1f5f9",
+              padding: "2px",
+              borderRadius: "8px",
+              border: "1px solid rgba(226, 232, 240, 0.8)",
+              boxShadow: "inset 0 1px 2px rgba(0,0,0,0.03)"
+            }}>
+              <button
+                onClick={() => setUnitSystem("metric")}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: "6px",
+                  border: "none",
+                  background: unitSystem === "metric" ? "#ffffff" : "transparent",
+                  color: unitSystem === "metric" ? "var(--primary)" : "var(--slate-500)",
+                  fontSize: "0.68rem",
+                  fontWeight: "800",
+                  cursor: "pointer",
+                  boxShadow: unitSystem === "metric" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                Metric
+              </button>
+              <button
+                onClick={() => setUnitSystem("imperial")}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: "6px",
+                  border: "none",
+                  background: unitSystem === "imperial" ? "#ffffff" : "transparent",
+                  color: unitSystem === "imperial" ? "var(--primary)" : "var(--slate-500)",
+                  fontSize: "0.68rem",
+                  fontWeight: "800",
+                  cursor: "pointer",
+                  boxShadow: unitSystem === "imperial" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                Imperial
+              </button>
+            </div>
+          )}
 
           <button 
             onClick={() => setIsAddingTrip(true)}
             style={{
-              padding: isMobileView ? "6px 10px" : "6px 12px",
+              padding: isMobileView ? "6px 12px" : "6px 12px",
               background: "var(--primary)",
               color: "white",
               border: "none",
               borderRadius: "8px",
-              fontSize: isMobileView ? "0.72rem" : "0.78rem",
+              fontSize: isMobileView ? "0.78rem" : "0.78rem",
               fontWeight: "700",
               cursor: "pointer",
               display: "flex",
@@ -664,7 +674,7 @@ export default function Home() {
               boxShadow: "0 4px 10px rgba(79, 70, 229, 0.25)"
             }}
           >
-            <Plus size={14} /> {isMobileView ? "Add" : "Add Trip"}
+            <Plus size={14} /> {isMobileView ? "Add Route" : "Add Trip"}
           </button>
         </div>
       </header>
@@ -695,7 +705,7 @@ export default function Home() {
       </div>
 
       {/* --- TEMPORAL STATUS HUD BANNER (SCRUBBER LENS) --- */}
-      {(() => {
+      {hasMounted && (() => {
         const { dayOffset: schedDay, hour: schedHour, label: schedLabel } = getScheduledDayAndHour();
         if (!schedLabel) return null;
         const isScrubbedAway = schedDay !== null && schedHour !== null && (selectedDay !== schedDay || selectedHour !== schedHour);
@@ -1552,6 +1562,51 @@ export default function Home() {
               </span>
             </div>
 
+            {/* Mobile-only Unit Selector placed next to the timeline description */}
+            {isMobileView && (
+              <div style={{
+                display: "flex",
+                background: "#f1f5f9",
+                padding: "2px",
+                borderRadius: "8px",
+                border: "1px solid rgba(226, 232, 240, 0.8)",
+                boxShadow: "inset 0 1px 2px rgba(0,0,0,0.03)"
+              }}>
+                <button
+                  onClick={() => setUnitSystem("metric")}
+                  style={{
+                    padding: "3px 8px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: unitSystem === "metric" ? "#ffffff" : "transparent",
+                    color: unitSystem === "metric" ? "var(--primary)" : "var(--slate-500)",
+                    fontSize: "0.6rem",
+                    fontWeight: "800",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease"
+                  }}
+                >
+                  Metric
+                </button>
+                <button
+                  onClick={() => setUnitSystem("imperial")}
+                  style={{
+                    padding: "3px 8px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: unitSystem === "imperial" ? "#ffffff" : "transparent",
+                    color: unitSystem === "imperial" ? "var(--primary)" : "var(--slate-500)",
+                    fontSize: "0.6rem",
+                    fontWeight: "800",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease"
+                  }}
+                >
+                  Imperial
+                </button>
+              </div>
+            )}
+
             {/* Toggle Pills */}
             <div style={{
               display: "flex",
@@ -1629,7 +1684,7 @@ export default function Home() {
             </div>
           )}
 
-          {timeZoom === "Week" && (
+          {hasMounted && timeZoom === "Week" && (
             <div style={{
               display: "grid",
               gridTemplateColumns: "repeat(7, 1fr)",
