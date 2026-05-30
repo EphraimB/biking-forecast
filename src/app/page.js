@@ -690,7 +690,11 @@ export default function Home() {
           </div>
 
           <button 
-            onClick={() => setIsAddingTrip(true)}
+            onClick={() => {
+              setIsAddingTrip(true);
+              setIsLeftCollapsed(true);
+              setIsRightCollapsed(true);
+            }}
             style={{
               padding: isMobileView ? "5px 10px" : "6px 12px",
               background: "var(--primary)",
@@ -799,7 +803,8 @@ export default function Home() {
           height: "100%",
           background: "rgba(15, 23, 42, 0.15)",
           backdropFilter: "blur(4px)",
-          zIndex: "100",
+          zIndex: "10000", // Elevate above all sidebars and map widgets
+          transform: "translate3d(0, 0, 0)", // Promote to compositing layer to clear WebKit/iOS Leaflet overlay bugs
           display: "flex",
           justifyContent: "center",
           alignItems: "center"
@@ -1378,8 +1383,8 @@ export default function Home() {
           </div>
         </section>
       ) : (
-        // Only render the collapsed toggle button if the opposite panel isn't open on mobile
-        (!isMobileView || isRightCollapsed) && (
+        // Only render the collapsed toggle button if the opposite panel isn't open on mobile, and not in planning mode
+        !isAddingTrip && (!isMobileView || isRightCollapsed) && (
           <button
             onClick={() => {
               setIsLeftCollapsed(false);
@@ -1525,8 +1530,8 @@ export default function Home() {
           )}
         </section>
       ) : (
-        // Only render the collapsed toggle button if the opposite panel isn't open on mobile
-        (!isMobileView || isLeftCollapsed) && (
+        // Only render the collapsed toggle button if the opposite panel isn't open on mobile, and not in planning mode
+        !isAddingTrip && (!isMobileView || isLeftCollapsed) && (
           <button
             onClick={() => {
               setIsRightCollapsed(false);
