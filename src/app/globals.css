@@ -328,6 +328,13 @@ body {
 }
 
 /* Premium Mobile Responsiveness & Drawer Sheets Overrides */
+.header-add-btn-desktop {
+  display: inline;
+}
+.header-add-btn-mobile {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .glass-panel {
     padding: 12px 16px !important;
@@ -337,6 +344,54 @@ body {
   .glass-card {
     padding: 10px 12px !important;
     border-radius: 12px !important;
+  }
+  
+  /* Force main-header to fit mobile screen and stretch */
+  .main-header {
+    top: 60px !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: calc(100% - 20px) !important;
+    gap: 8px !important;
+    z-index: 99999 !important;
+    position: absolute !important;
+  }
+
+  /* Secure time lens banner overlay */
+  .scrubber-lens-container {
+    z-index: 99999 !important;
+    position: absolute !important;
+  }
+  
+  .glass-panel-header {
+    width: 100% !important;
+    padding: 6px 12px !important;
+    justify-content: space-between !important;
+  }
+  
+  /* Prevent title text from overflowing and squishing header buttons on narrow mobile viewports */
+  .glass-panel-header h1 {
+    font-size: 0.95rem !important;
+  }
+  
+  .header-logo {
+    display: none !important;
+  }
+  
+  .header-subtitle {
+    display: none !important;
+  }
+  
+  .header-unit-toggle {
+    display: none !important;
+  }
+  
+  .header-add-btn-desktop {
+    display: none !important;
+  }
+  
+  .header-add-btn-mobile {
+    display: inline !important;
   }
   
   /* Move Leaflet controls up above bottom timeline to prevent overlaps */

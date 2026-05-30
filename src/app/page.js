@@ -563,122 +563,6 @@ export default function Home() {
       background: "#ffffff"
     }}>
       
-      {/* 1. PERSISTENT HEADER HUD BRANDING */}
-      <header style={{
-        position: "absolute",
-        top: isMobileView ? "10px" : "20px",
-        left: isMobileView ? "10px" : "20px",
-        right: isMobileView ? "10px" : "auto",
-        width: isMobileView ? "calc(100% - 20px)" : "auto",
-        zIndex: "10",
-        display: "flex",
-        alignItems: "center",
-        gap: isMobileView ? "8px" : "16px",
-        pointerEvents: "auto"
-      }}>
-        {!isMobileView && (
-          <div style={{
-            background: "linear-gradient(135deg, var(--primary), var(--primary-hover))",
-            width: "44px",
-            height: "44px",
-            borderRadius: "14px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "0 8px 20px rgba(79, 70, 229, 0.35)"
-          }}>
-            <Bike size={24} style={{ color: "white" }} />
-          </div>
-        )}
-        <div className="glass-panel" style={{
-          padding: isMobileView ? "6px 12px" : "8px 18px",
-          display: "flex",
-          alignItems: "center",
-          gap: isMobileView ? "10px" : "16px",
-          flexGrow: isMobileView ? 1 : 0,
-          justifyContent: "space-between",
-          width: "100%"
-        }}>
-          <div>
-            <h1 style={{ fontSize: isMobileView ? "1.0rem" : "1.2rem", fontWeight: "800", letterSpacing: "-0.02em", color: "var(--slate-900)" }}>
-              Biking Forecast
-            </h1>
-            {!isMobileView && (
-              <p style={{ fontSize: "0.68rem", color: "var(--slate-500)", fontWeight: "600" }}>
-                Living Map-based HUD
-              </p>
-            )}
-          </div>
-
-          {/* Unit Toggle in Header: Only render on desktop to save space on mobile */}
-          {!isMobileView && (
-            <div style={{
-              display: "flex",
-              background: "#f1f5f9",
-              padding: "2px",
-              borderRadius: "8px",
-              border: "1px solid rgba(226, 232, 240, 0.8)",
-              boxShadow: "inset 0 1px 2px rgba(0,0,0,0.03)"
-            }}>
-              <button
-                onClick={() => setUnitSystem("metric")}
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: "6px",
-                  border: "none",
-                  background: unitSystem === "metric" ? "#ffffff" : "transparent",
-                  color: unitSystem === "metric" ? "var(--primary)" : "var(--slate-500)",
-                  fontSize: "0.68rem",
-                  fontWeight: "800",
-                  cursor: "pointer",
-                  boxShadow: unitSystem === "metric" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-                  transition: "all 0.15s ease"
-                }}
-              >
-                Metric
-              </button>
-              <button
-                onClick={() => setUnitSystem("imperial")}
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: "6px",
-                  border: "none",
-                  background: unitSystem === "imperial" ? "#ffffff" : "transparent",
-                  color: unitSystem === "imperial" ? "var(--primary)" : "var(--slate-500)",
-                  fontSize: "0.68rem",
-                  fontWeight: "800",
-                  cursor: "pointer",
-                  boxShadow: unitSystem === "imperial" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-                  transition: "all 0.15s ease"
-                }}
-              >
-                Imperial
-              </button>
-            </div>
-          )}
-
-          <button 
-            onClick={() => setIsAddingTrip(true)}
-            style={{
-              padding: isMobileView ? "6px 12px" : "6px 12px",
-              background: "var(--primary)",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              fontSize: isMobileView ? "0.78rem" : "0.78rem",
-              fontWeight: "700",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              boxShadow: "0 4px 10px rgba(79, 70, 229, 0.25)"
-            }}
-          >
-            <Plus size={14} /> {isMobileView ? "Add Route" : "Add Trip"}
-          </button>
-        </div>
-      </header>
-
       {/* 2. CORE INTERACTIVE LEAFLET ENVIRONMENT (ABSOLUTE MAP BACKDROP) */}
       <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: "1" }}>
         <RouteMap
@@ -704,6 +588,131 @@ export default function Home() {
         />
       </div>
 
+      {/* 1. PERSISTENT HEADER HUD BRANDING */}
+      {hasMounted && (
+        <>
+          <header className="main-header" style={{
+            position: "absolute",
+            top: isMobileView ? "60px" : "20px",
+            left: isMobileView ? "10px" : "20px",
+            right: isMobileView ? "10px" : "auto",
+            width: isMobileView ? "calc(100% - 20px)" : "auto",
+            zIndex: "9999", // Elevate to sit reliably on top of all Leaflet internal pane stacks
+            transform: "translate3d(0, 0, 0)", // Promote to compositing layer to clear WebKit/iOS Leaflet overlay bugs
+            display: "flex",
+            alignItems: "center",
+            gap: isMobileView ? "8px" : "16px",
+            pointerEvents: "auto"
+          }}>
+        <div className="header-logo" style={{
+          background: "linear-gradient(135deg, var(--primary), var(--primary-hover))",
+          width: "44px",
+          height: "44px",
+          borderRadius: "14px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "0 8px 20px rgba(79, 70, 229, 0.35)"
+        }}>
+          <Bike size={24} style={{ color: "white" }} />
+        </div>
+        <div className="glass-panel glass-panel-header" style={{
+          padding: isMobileView ? "6px 12px" : "8px 18px",
+          display: "flex",
+          alignItems: "center",
+          gap: isMobileView ? "8px" : "16px",
+          flexGrow: isMobileView ? 1 : 0,
+          flexShrink: 1,
+          minWidth: 0,
+          justifyContent: "space-between",
+          width: "100%"
+        }}>
+          <div style={{ minWidth: 0, flexShrink: 1, marginRight: "4px" }}>
+            <h1 style={{ 
+              fontSize: isMobileView ? "0.9rem" : "1.2rem", 
+              fontWeight: "800", 
+              letterSpacing: "-0.02em", 
+              color: "var(--slate-900)",
+              whiteSpace: "nowrap",
+              textOverflow: "ellipsis",
+              overflow: "hidden"
+            }}>
+              Biking Forecast
+            </h1>
+            <p className="header-subtitle" style={{ fontSize: "0.68rem", color: "var(--slate-500)", fontWeight: "600" }}>
+              Living Map-based HUD
+            </p>
+          </div>
+
+          {/* Unit Toggle in Header: Only render on desktop to save space on mobile */}
+          <div className="header-unit-toggle" style={{
+            display: "flex",
+            background: "#f1f5f9",
+            padding: "2px",
+            borderRadius: "8px",
+            border: "1px solid rgba(226, 232, 240, 0.8)",
+            boxShadow: "inset 0 1px 2px rgba(0,0,0,0.03)"
+          }}>
+            <button
+              onClick={() => setUnitSystem("metric")}
+              style={{
+                padding: "4px 10px",
+                borderRadius: "6px",
+                border: "none",
+                background: unitSystem === "metric" ? "#ffffff" : "transparent",
+                color: unitSystem === "metric" ? "var(--primary)" : "var(--slate-500)",
+                fontSize: "0.68rem",
+                fontWeight: "800",
+                cursor: "pointer",
+                boxShadow: unitSystem === "metric" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                transition: "all 0.15s ease"
+              }}
+            >
+              Metric
+            </button>
+            <button
+              onClick={() => setUnitSystem("imperial")}
+              style={{
+                padding: "4px 10px",
+                borderRadius: "6px",
+                border: "none",
+                background: unitSystem === "imperial" ? "#ffffff" : "transparent",
+                color: unitSystem === "imperial" ? "var(--primary)" : "var(--slate-500)",
+                fontSize: "0.68rem",
+                fontWeight: "800",
+                cursor: "pointer",
+                boxShadow: unitSystem === "imperial" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                transition: "all 0.15s ease"
+              }}
+            >
+              Imperial
+            </button>
+          </div>
+
+          <button 
+            onClick={() => setIsAddingTrip(true)}
+            style={{
+              padding: isMobileView ? "5px 10px" : "6px 12px",
+              background: "var(--primary)",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              fontSize: isMobileView ? "0.72rem" : "0.78rem",
+              fontWeight: "700",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: isMobileView ? "4px" : "6px",
+              boxShadow: "0 4px 10px rgba(79, 70, 229, 0.25)",
+              flexShrink: 0 // Prevents flex layout from squishing button to 0px width on narrow mobile viewports
+            }}
+          >
+            <Plus size={isMobileView ? 12 : 14} /> 
+            <span>Add Trip</span>
+          </button>
+        </div>
+      </header>
+
       {/* --- TEMPORAL STATUS HUD BANNER (SCRUBBER LENS) --- */}
       {hasMounted && (() => {
         const { dayOffset: schedDay, hour: schedHour, label: schedLabel } = getScheduledDayAndHour();
@@ -711,12 +720,12 @@ export default function Home() {
         const isScrubbedAway = schedDay !== null && schedHour !== null && (selectedDay !== schedDay || selectedHour !== schedHour);
         
         return (
-          <div style={{
+          <div className="scrubber-lens-container" style={{
             position: "absolute",
-            top: isMobileView ? "68px" : "84px",
+            top: isMobileView ? "118px" : "84px",
             left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: "10",
+            transform: "translate3d(-50%, 0, 0)", // 3D center and hardware promote
+            zIndex: "9999", // Ensure it sits cleanly above Leaflet overlay tiles
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
@@ -1123,47 +1132,17 @@ export default function Home() {
       )}
 
       {/* 4. LEFT HUD CONTROL PANEL: MY ROUTES (COLLAPSIBLE DRAWER) */}
-      {isLeftCollapsed ? (
-        <button
-          onClick={() => {
-            setIsLeftCollapsed(false);
-            if (isMobileView) {
-              setIsRightCollapsed(true); // Close right drawer to avoid overlapping on mobile
-            }
-          }}
-          className="glass-panel"
-          style={{
-            position: "absolute",
-            top: isMobileView ? "124px" : "84px",
-            left: isMobileView ? "10px" : "20px",
-            zIndex: "10",
-            width: "40px",
-            height: "40px",
-            borderRadius: "12px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            border: "1px solid var(--card-border)",
-            color: "var(--primary)",
-            padding: 0,
-            pointerEvents: "auto",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
-          }}
-          title="Show Routes"
-        >
-          <ChevronRight size={20} />
-        </button>
-      ) : (
+      {!isLeftCollapsed ? (
         <section style={{
           position: "absolute",
-          top: isMobileView ? "124px" : "84px",
+          top: isMobileView ? "176px" : "84px",
           left: isMobileView ? "10px" : "20px",
           right: isMobileView ? "10px" : "auto",
           width: isMobileView ? "auto" : "320px",
-          maxHeight: isMobileView ? "calc(100vh - 300px)" : "calc(100vh - 240px)",
+          maxHeight: isMobileView ? "calc(100vh - 330px)" : "calc(100vh - 240px)",
           overflowY: "auto",
-          zIndex: "10",
+          zIndex: "9999", // Ensure it sits cleanly above Leaflet overlay tiles
+          transform: "translate3d(0, 0, 0)", // Promote to compositing layer to clear WebKit/iOS Leaflet overlay bugs
           display: "flex",
           flexDirection: "column",
           gap: "12px",
@@ -1179,14 +1158,18 @@ export default function Home() {
               <button 
                 onClick={() => setIsLeftCollapsed(true)}
                 style={{ 
-                  background: "none", 
+                  background: "rgba(15, 23, 42, 0.05)", 
                   border: "none", 
+                  borderRadius: "50%",
                   cursor: "pointer", 
-                  color: "var(--slate-400)",
-                  padding: "4px",
+                  color: "var(--slate-500)",
+                  width: "32px",
+                  height: "32px",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center"
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  transition: "all 0.15s ease"
                 }}
                 title="Collapse Panel"
               >
@@ -1394,50 +1377,55 @@ export default function Home() {
 
           </div>
         </section>
+      ) : (
+        // Only render the collapsed toggle button if the opposite panel isn't open on mobile
+        (!isMobileView || isRightCollapsed) && (
+          <button
+            onClick={() => {
+              setIsLeftCollapsed(false);
+              if (isMobileView) {
+                setIsRightCollapsed(true); // Close right drawer to avoid overlapping on mobile
+              }
+            }}
+            className="glass-panel"
+            style={{
+              position: "absolute",
+              top: isMobileView ? "176px" : "84px",
+              left: isMobileView ? "10px" : "20px",
+              zIndex: "9999", // Ensure it sits cleanly above Leaflet overlay tiles
+              transform: "translate3d(0, 0, 0)", // Promote to compositing layer to clear WebKit/iOS Leaflet overlay bugs
+              width: "40px",
+              height: "40px",
+              borderRadius: "12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              border: "1px solid var(--card-border)",
+              color: "var(--primary)",
+              padding: 0,
+              pointerEvents: "auto",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
+            }}
+            title="Show Routes"
+          >
+            <ChevronRight size={20} />
+          </button>
+        )
       )}
 
       {/* 5. RIGHT HUD PANEL: SUITABILITY SCORE GAUGE & METRICS (COLLAPSIBLE DRAWER) */}
-      {isRightCollapsed ? (
-        <button
-          onClick={() => {
-            setIsRightCollapsed(false);
-            if (isMobileView) {
-              setIsLeftCollapsed(true); // Close left drawer to avoid overlapping on mobile
-            }
-          }}
-          className="glass-panel"
-          style={{
-            position: "absolute",
-            top: isMobileView ? "124px" : "84px",
-            right: isMobileView ? "10px" : "20px",
-            zIndex: "10",
-            width: "40px",
-            height: "40px",
-            borderRadius: "12px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            border: "1px solid var(--card-border)",
-            color: "var(--primary)",
-            padding: 0,
-            pointerEvents: "auto",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
-          }}
-          title="Show Weather Details"
-        >
-          <Sparkles size={20} />
-        </button>
-      ) : (
+      {!isRightCollapsed ? (
         <section style={{
           position: "absolute",
-          top: isMobileView ? "124px" : "84px",
+          top: isMobileView ? "176px" : "84px",
           right: isMobileView ? "10px" : "20px",
           left: isMobileView ? "10px" : "auto",
           width: isMobileView ? "auto" : "360px",
-          maxHeight: isMobileView ? "calc(100vh - 300px)" : "calc(100vh - 240px)",
+          maxHeight: isMobileView ? "calc(100vh - 330px)" : "calc(100vh - 240px)",
           overflowY: "auto",
-          zIndex: "10",
+          zIndex: "9999", // Ensure it sits cleanly above Leaflet overlay tiles
+          transform: "translate3d(0, 0, 0)", // Promote to compositing layer to clear WebKit/iOS Leaflet overlay bugs
           display: "flex",
           flexDirection: "column",
           gap: "16px",
@@ -1451,14 +1439,18 @@ export default function Home() {
             <button 
               onClick={() => setIsRightCollapsed(true)}
               style={{ 
-                background: "none", 
+                background: "rgba(15, 23, 42, 0.05)", 
                 border: "none", 
+                borderRadius: "50%",
                 cursor: "pointer", 
-                color: "var(--slate-400)",
-                padding: "4px",
+                color: "var(--slate-500)",
+                width: "32px",
+                height: "32px",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center"
+                justifyContent: "center",
+                flexShrink: 0,
+                transition: "all 0.15s ease"
               }}
               title="Collapse Panel"
             >
@@ -1532,6 +1524,41 @@ export default function Home() {
             </div>
           )}
         </section>
+      ) : (
+        // Only render the collapsed toggle button if the opposite panel isn't open on mobile
+        (!isMobileView || isLeftCollapsed) && (
+          <button
+            onClick={() => {
+              setIsRightCollapsed(false);
+              if (isMobileView) {
+                setIsLeftCollapsed(true); // Close left drawer to avoid overlapping on mobile
+              }
+            }}
+            className="glass-panel"
+            style={{
+              position: "absolute",
+              top: isMobileView ? "176px" : "84px",
+              right: isMobileView ? "10px" : "20px",
+              zIndex: "9999", // Ensure it sits cleanly above Leaflet overlay tiles
+              transform: "translate3d(0, 0, 0)", // Promote to compositing layer to clear WebKit/iOS Leaflet overlay bugs
+              width: "40px",
+              height: "40px",
+              borderRadius: "12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              border: "1px solid var(--card-border)",
+              color: "var(--primary)",
+              padding: 0,
+              pointerEvents: "auto",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
+            }}
+            title="Show Weather Details"
+          >
+            <Sparkles size={20} />
+          </button>
+        )
       )}
 
       {/* 6. BOTTOM HUD: TIME ZOOM PRISM SCRUBBER ("Now" | "Today" | "Week") */}
@@ -1540,7 +1567,8 @@ export default function Home() {
         bottom: isMobileView ? "10px" : "20px",
         left: isMobileView ? "10px" : "20px",
         right: isMobileView ? "10px" : "20px",
-        zIndex: "10",
+        zIndex: "9999", // Ensure it sits cleanly above Leaflet overlay tiles
+        transform: "translate3d(0, 0, 0)", // Promote to compositing layer to clear WebKit/iOS Leaflet overlay bugs
         display: "flex",
         flexDirection: "column",
         gap: "12px",
@@ -1731,6 +1759,8 @@ export default function Home() {
 
         </div>
       </footer>
+      </>
+      )}
 
     </div>
   );
