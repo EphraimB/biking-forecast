@@ -13,7 +13,8 @@ export default function RouteMap({
   selectedHour = 8,
   customSpeed = 18,
   isDrawingMode = false,
-  onMapClick = null
+  onMapClick = null,
+  unitSystem = "metric"
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -159,16 +160,27 @@ export default function RouteMap({
             poly._path.classList.add(flowClass);
           }
 
+          const isImperial = unitSystem === "imperial";
+          const displayDist = isImperial 
+            ? `${Math.round(seg.distance * 1000 * 3.28084)} ft` 
+            : `${Math.round(seg.distance * 1000)} m`;
+          const displayWind = isImperial 
+            ? `${(windSpeed * 0.621371).toFixed(1)} mph` 
+            : `${windSpeed.toFixed(1)} km/h`;
+          const displayHeadwind = isImperial 
+            ? `${headwind > 0 ? "Headwind" : "Tailwind"} ${(Math.abs(headwind) * 0.621371).toFixed(1)} mph` 
+            : `${headwind > 0 ? "Headwind" : "Tailwind"} ${Math.abs(headwind).toFixed(1)} km/h`;
+
           // Tooltip showing exact parameters
           poly.on("mouseover", function() {
             poly.setStyle({ weight: 7 });
             this.bindTooltip(`
               <div style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; padding: 2px;">
                 <strong style="color: ${color}; font-size: 12px;">${difficulty}</strong><br/>
-                📏 Distance: <strong>${Math.round(seg.distance * 1000)} m</strong><br/>
+                📏 Distance: <strong>${displayDist}</strong><br/>
                 🧭 Bearing: <strong>${Math.round(seg.bearing)}°</strong><br/>
-                💨 Wind: <strong>${windSpeed.toFixed(1)} km/h</strong> (${Math.round(windDir)}°)<br/>
-                🚴 Wind Resistance: <strong>${headwind > 0 ? "Headwind" : "Tailwind"} ${Math.abs(headwind).toFixed(1)} km/h</strong>
+                💨 Wind: <strong>${displayWind}</strong> (${Math.round(windDir)}°)<br/>
+                🚴 Wind Resistance: <strong>${displayHeadwind}</strong>
               </div>
             `, { sticky: true }).openTooltip();
           });
@@ -225,7 +237,7 @@ export default function RouteMap({
       }
     });
 
-  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour]);
+  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem]);
 
   // 3. Extract and animate atmospheric states
   useEffect(() => {

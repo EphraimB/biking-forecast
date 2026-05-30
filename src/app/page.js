@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { 
   Bike, Plus, Trash2, Calendar, Clock, MapPin, Navigation, 
@@ -115,7 +115,8 @@ export default function Home() {
 
   // Client-side ambient weather for "Now" location geocode
   const [userLocation, setUserLocation] = useState(null);
-  const [activeGeocodeTimeout, setActiveGeocodeTimeout] = useState(null);
+  const [unitSystem, setUnitSystem] = useState("metric"); // "metric" | "imperial"
+  const geocodeTimeoutRef = useRef(null);
 
   // Geolocation lookup on boot
   useEffect(() => {
@@ -256,24 +257,37 @@ export default function Home() {
     localStorage.setItem("biking_forecast_data", JSON.stringify(newSchedule));
   };
 
-  // Location Geocoding queries triggered explicitly (resolves instantly)
-  const triggerGeocode = async (query, isStart) => {
+  // Location Geocoding queries with hybrid instant & debounced triggers (CORS/Rate-limit resilient)
+  const triggerGeocode = (query, isStart, forceInstant = false) => {
     if (!query || query.trim().length < 3) {
       if (isStart) setStartResults([]);
       else setEndResults([]);
       return;
     }
 
-    if (isStart) {
-      setIsSearchingStart(true);
-      const res = await geocodeAddress(query);
-      setStartResults(res);
-      setIsSearchingStart(false);
+    if (geocodeTimeoutRef.current) {
+      clearTimeout(geocodeTimeoutRef.current);
+    }
+
+    const runQuery = async () => {
+      if (isStart) {
+        setIsSearchingStart(true);
+        const res = await geocodeAddress(query);
+        setStartResults(res);
+        setIsSearchingStart(false);
+      } else {
+        setIsSearchingEnd(true);
+        const res = await geocodeAddress(query);
+        setEndResults(res);
+        setIsSearchingEnd(false);
+      }
+    };
+
+    if (forceInstant) {
+      runQuery();
     } else {
-      setIsSearchingEnd(true);
-      const res = await geocodeAddress(query);
-      setEndResults(res);
-      setIsSearchingEnd(false);
+      // Debounce for 800ms to strictly comply with Nominatim/Komoot rate limits
+      geocodeTimeoutRef.current = setTimeout(runQuery, 800);
     }
   };
 
@@ -473,6 +487,50 @@ export default function Home() {
             </p>
           </div>
 
+          <div style={{
+            display: "flex",
+            background: "#f1f5f9",
+            padding: "2px",
+            borderRadius: "8px",
+            border: "1px solid rgba(226, 232, 240, 0.8)",
+            boxShadow: "inset 0 1px 2px rgba(0,0,0,0.03)"
+          }}>
+            <button
+              onClick={() => setUnitSystem("metric")}
+              style={{
+                padding: "4px 10px",
+                borderRadius: "6px",
+                border: "none",
+                background: unitSystem === "metric" ? "#ffffff" : "transparent",
+                color: unitSystem === "metric" ? "var(--primary)" : "var(--slate-500)",
+                fontSize: "0.68rem",
+                fontWeight: "800",
+                cursor: "pointer",
+                boxShadow: unitSystem === "metric" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                transition: "all 0.15s ease"
+              }}
+            >
+              Metric
+            </button>
+            <button
+              onClick={() => setUnitSystem("imperial")}
+              style={{
+                padding: "4px 10px",
+                borderRadius: "6px",
+                border: "none",
+                background: unitSystem === "imperial" ? "#ffffff" : "transparent",
+                color: unitSystem === "imperial" ? "var(--primary)" : "var(--slate-500)",
+                fontSize: "0.68rem",
+                fontWeight: "800",
+                cursor: "pointer",
+                boxShadow: unitSystem === "imperial" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                transition: "all 0.15s ease"
+              }}
+            >
+              Imperial
+            </button>
+          </div>
+
           <button 
             onClick={() => setIsAddingTrip(true)}
             style={{
@@ -516,6 +574,7 @@ export default function Home() {
           customSpeed={newSpeed}
           isDrawingMode={isAddingTrip}
           onMapClick={handleMapClick}
+          unitSystem={unitSystem}
         />
       </div>
 
@@ -570,12 +629,15 @@ export default function Home() {
                       type="text"
                       className="hud-input"
                       value={startQuery}
-                      onChange={(e) => setStartQuery(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && triggerGeocode(startQuery, true)}
-                      placeholder="Type start address & press Enter..."
+                      onChange={(e) => {
+                        setStartQuery(e.target.value);
+                        triggerGeocode(e.target.value, true, false); // Debounced search!
+                      }}
+                      onKeyDown={(e) => e.key === "Enter" && triggerGeocode(startQuery, true, true)} // Instant Enter!
+                      placeholder="Type start address..."
                     />
                     <button
-                      onClick={() => triggerGeocode(startQuery, true)}
+                      onClick={() => triggerGeocode(startQuery, true, true)}
                       style={{ position: "absolute", right: "12px", top: "12px", background: "none", border: "none", cursor: "pointer", color: "var(--primary)" }}
                     >
                       <Search size={16} />
@@ -627,12 +689,15 @@ export default function Home() {
                     type="text"
                     className="hud-input"
                     value={endQuery}
-                    onChange={(e) => setEndQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && triggerGeocode(endQuery, false)}
-                    placeholder="Type destination address & press Enter..."
+                    onChange={(e) => {
+                      setEndQuery(e.target.value);
+                      triggerGeocode(e.target.value, false, false); // Debounced search!
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && triggerGeocode(endQuery, false, true)} // Instant Enter!
+                    placeholder="Type destination address..."
                   />
                   <button
-                    onClick={() => triggerGeocode(endQuery, false)}
+                    onClick={() => triggerGeocode(endQuery, false, true)}
                     style={{ position: "absolute", right: "12px", top: "12px", background: "none", border: "none", cursor: "pointer", color: "var(--rose)" }}
                   >
                     <Search size={16} />
@@ -1107,7 +1172,7 @@ export default function Home() {
           </div>
         ) : currentForecast ? (
           <>
-            <ScoreMetric forecast={currentForecast} />
+            <ScoreMetric forecast={currentForecast} unitSystem={unitSystem} />
             
             <WeatherDetails
               weatherResults={weatherResults}
@@ -1122,6 +1187,7 @@ export default function Home() {
                   ? (commuteDirection === "outbound" ? weeklySchedule.commutes[activeCommuteDay]?.outbound?.end : weeklySchedule.commutes[activeCommuteDay]?.return?.end)
                   : (activeRideType === "oneTime" ? weeklySchedule.oneTimeRides.find(r => r.id === activeOneTimeId)?.end : weeklySchedule.leisureRides.find(r => r.id === activeLeisureId)?.end)
               }
+              unitSystem={unitSystem}
             />
           </>
         ) : (
@@ -1133,22 +1199,27 @@ export default function Home() {
             <p style={{ fontSize: "0.78rem", color: "var(--slate-500)", lineHeight: "1.4" }}>
               Map is centered on your current location. Adjust temporal scrubber below to see how regional winds flow.
             </p>
-            {weatherResults.length > 0 && (
-              <div className="glass-card" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", padding: "12px" }}>
-                <div>
-                  <div style={{ fontSize: "0.68rem", color: "var(--slate-400)", fontWeight: "600" }}>TEMPERATURE</div>
-                  <div style={{ fontSize: "1.1rem", fontWeight: "800", color: "var(--slate-800)" }}>
-                    {weatherResults[0]?.hourly?.temperature_2m?.[currentHourIdx]?.toFixed(1)}°C
+            {weatherResults.length > 0 && (() => {
+              const rawTemp = weatherResults[0]?.hourly?.temperature_2m?.[currentHourIdx] ?? 20;
+              const rawWind = weatherResults[0]?.hourly?.wind_speed_10m?.[currentHourIdx] ?? 10;
+              const isImperial = unitSystem === "imperial";
+              return (
+                <div className="glass-card" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", padding: "12px" }}>
+                  <div>
+                    <div style={{ fontSize: "0.68rem", color: "var(--slate-400)", fontWeight: "600" }}>TEMPERATURE</div>
+                    <div style={{ fontSize: "1.1rem", fontWeight: "800", color: "var(--slate-800)" }}>
+                      {isImperial ? `${(rawTemp * 1.8 + 32).toFixed(1)}°F` : `${rawTemp.toFixed(1)}°C`}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "0.68rem", color: "var(--slate-400)", fontWeight: "600" }}>WIND VELOCITY</div>
+                    <div style={{ fontSize: "1.1rem", fontWeight: "800", color: "var(--slate-800)", display: "flex", alignItems: "center", gap: "4px" }}>
+                      💨 {isImperial ? `${(rawWind * 0.621371).toFixed(1)}` : `${rawWind.toFixed(1)}`} <span style={{ fontSize: "0.7rem", fontWeight: "normal" }}>{isImperial ? "mph" : "km/h"}</span>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <div style={{ fontSize: "0.68rem", color: "var(--slate-400)", fontWeight: "600" }}>WIND VELOCITY</div>
-                  <div style={{ fontSize: "1.1rem", fontWeight: "800", color: "var(--slate-800)", display: "flex", alignItems: "center", gap: "4px" }}>
-                    💨 {weatherResults[0]?.hourly?.wind_speed_10m?.[currentHourIdx]?.toFixed(1)} <span style={{ fontSize: "0.7rem", fontWeight: "normal" }}>km/h</span>
-                  </div>
-                </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
       </section>

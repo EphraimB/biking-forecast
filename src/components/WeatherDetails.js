@@ -3,10 +3,11 @@
 import { MapPin, Navigation } from "lucide-react";
 import { WMO_MAP } from "@/utils/weatherScoring";
 
-export default function WeatherDetails({ weatherResults, hourIndex, startLocation, endLocation }) {
+export default function WeatherDetails({ weatherResults, hourIndex, startLocation, endLocation, unitSystem = "metric" }) {
   if (!weatherResults || weatherResults.length === 0) return null;
 
   const numPoints = weatherResults.length;
+  const isImperial = unitSystem === "imperial";
   
   // Format specific sample points to display (Start, Mid, End)
   const displayPoints = [];
@@ -57,6 +58,11 @@ export default function WeatherDetails({ weatherResults, hourIndex, startLocatio
           
           const wmoInfo = WMO_MAP[wmo] || { desc: "Clear", emoji: "☀️" };
 
+          const dispTemp = isImperial ? `${(temp * 1.8 + 32).toFixed(1)}°F` : `${temp.toFixed(1)}°C`;
+          const dispWind = isImperial 
+            ? `${(windSp * 0.621371).toFixed(1)} mph` 
+            : `${windSp.toFixed(1)} km/h`;
+
           return (
             <div key={index} className="glass-card" style={{
               display: "flex",
@@ -82,7 +88,7 @@ export default function WeatherDetails({ weatherResults, hourIndex, startLocatio
                 <span style={{ fontSize: "1.4rem" }}>{wmoInfo.emoji}</span>
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   <span style={{ fontSize: "0.92rem", fontWeight: "800", color: "var(--slate-800)" }}>
-                    {temp.toFixed(1)}°C
+                    {dispTemp}
                   </span>
                   <span style={{ fontSize: "0.68rem", color: "var(--slate-400)" }}>
                     {wmoInfo.desc}
@@ -102,8 +108,8 @@ export default function WeatherDetails({ weatherResults, hourIndex, startLocatio
               <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: "90px" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
                   <span style={{ fontSize: "0.62rem", color: "var(--slate-400)", fontWeight: "600" }}>WIND</span>
-                  <span style={{ fontSize: "0.85rem", fontWeight: "800", color: "var(--slate-800)" }}>
-                    {windSp.toFixed(1)} <span style={{ fontSize: "0.68rem", color: "var(--slate-500)", fontWeight: "normal" }}>km/h</span>
+                  <span style={{ fontSize: "0.85rem", fontWeight: "800", color: "var(--slate-800)", whiteSpace: "nowrap" }}>
+                    {dispWind.split(" ")[0]} <span style={{ fontSize: "0.68rem", color: "var(--slate-500)", fontWeight: "normal" }}>{dispWind.split(" ")[1]}</span>
                   </span>
                 </div>
                 {/* Wind direction compass arrow */}

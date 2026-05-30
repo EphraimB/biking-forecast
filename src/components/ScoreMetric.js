@@ -2,7 +2,7 @@
 
 import { AlertTriangle, ShieldAlert, Sparkles } from "lucide-react";
 
-export default function ScoreMetric({ forecast }) {
+export default function ScoreMetric({ forecast, unitSystem = "metric" }) {
   if (!forecast) return null;
 
   const {
@@ -22,6 +22,24 @@ export default function ScoreMetric({ forecast }) {
     penalties,
     windImpact
   } = forecast;
+
+  const isImperial = unitSystem === "imperial";
+
+  // Dynamic unit conversions
+  const dispTemp = isImperial ? `${(temp * 1.8 + 32).toFixed(1)}°F` : `${temp.toFixed(1)}°C`;
+  const dispDistance = isImperial ? `${(distance * 0.621371).toFixed(1)}` : `${distance}`;
+  const dispDistanceUnit = isImperial ? "mi" : "km";
+  const dispSpeed = isImperial ? `${(speed * 0.621371).toFixed(1)}` : `${speed}`;
+  const dispSpeedUnit = isImperial ? "mph" : "km/h";
+  
+  const headwindValScaled = isImperial ? Math.abs(headwind * 0.621371) : Math.abs(headwind);
+  const headwindUnit = isImperial ? "mph" : "km/h";
+  const dispHeadwindText = headwind > 0 
+    ? `+${headwindValScaled.toFixed(1)} ${headwindUnit} headwind` 
+    : `${headwind < 0 ? "-" : ""}${headwindValScaled.toFixed(1)} ${headwindUnit} tailwind`;
+
+  const dispCrosswind = isImperial ? `${(crosswind * 0.621371).toFixed(1)}` : `${crosswind}`;
+  const dispGusts = isImperial ? `${(gusts * 0.621371).toFixed(1)}` : `${gusts}`;
 
   // Determine score color theme
   let themeColor = "var(--rose)";
@@ -109,13 +127,13 @@ export default function ScoreMetric({ forecast }) {
             <div className="glass-card" style={{ padding: "6px 10px" }}>
               <div style={{ fontSize: "0.62rem", color: "var(--slate-400)", fontWeight: "600" }}>DISTANCE</div>
               <div style={{ fontSize: "0.92rem", fontWeight: "800", color: "var(--slate-800)" }}>
-                {distance} <span style={{ fontSize: "0.7rem", color: "var(--slate-500)", fontWeight: "normal" }}>km</span>
+                {dispDistance} <span style={{ fontSize: "0.7rem", color: "var(--slate-500)", fontWeight: "normal" }}>{dispDistanceUnit}</span>
               </div>
             </div>
             <div className="glass-card" style={{ padding: "6px 10px" }}>
               <div style={{ fontSize: "0.62rem", color: "var(--slate-400)", fontWeight: "600" }}>AVG SPEED</div>
               <div style={{ fontSize: "0.92rem", fontWeight: "800", color: "var(--slate-800)" }}>
-                {speed} <span style={{ fontSize: "0.7rem", color: "var(--slate-500)", fontWeight: "normal" }}>km/h</span>
+                {dispSpeed} <span style={{ fontSize: "0.7rem", color: "var(--slate-500)", fontWeight: "normal" }}>{dispSpeedUnit}</span>
               </div>
             </div>
             <div className="glass-card" style={{ padding: "6px 10px" }}>
@@ -140,21 +158,22 @@ export default function ScoreMetric({ forecast }) {
               fontSize: "0.82rem",
               fontWeight: "800",
               color: headwind > 0 ? "var(--rose)" : headwind < -2 ? "var(--emerald)" : "var(--slate-800)",
-              marginTop: "2px"
+              marginTop: "2px",
+              whiteSpace: "nowrap"
             }}>
-              {headwind > 0 ? `+${headwind}` : `${headwind}`} <span style={{ fontSize: "0.58rem", fontWeight: "normal", color: "var(--slate-400)" }}>km/h</span>
+              {dispHeadwindText.split(" ")[0]} <span style={{ fontSize: "0.58rem", fontWeight: "normal", color: "var(--slate-400)" }}>{headwindUnit} {dispHeadwindText.split(" ").slice(2).join(" ")}</span>
             </div>
           </div>
           <div>
             <div style={{ fontSize: "0.62rem", color: "var(--slate-400)" }}>Crosswind</div>
             <div style={{ fontSize: "0.82rem", fontWeight: "800", color: crosswind > 15 ? "var(--amber)" : "var(--slate-800)", marginTop: "2px" }}>
-              {crosswind} <span style={{ fontSize: "0.58rem", color: "var(--slate-400)", fontWeight: "normal" }}>km/h</span>
+              {dispCrosswind} <span style={{ fontSize: "0.58rem", color: "var(--slate-400)", fontWeight: "normal" }}>{headwindUnit}</span>
             </div>
           </div>
           <div>
             <div style={{ fontSize: "0.62rem", color: "var(--slate-400)" }}>Max Gusts</div>
             <div style={{ fontSize: "0.82rem", fontWeight: "800", color: gusts > 25 ? "var(--rose)" : "var(--slate-800)", marginTop: "2px" }}>
-              {gusts} <span style={{ fontSize: "0.58rem", color: "var(--slate-400)", fontWeight: "normal" }}>km/h</span>
+              {dispGusts} <span style={{ fontSize: "0.58rem", color: "var(--slate-400)", fontWeight: "normal" }}>{headwindUnit}</span>
             </div>
           </div>
         </div>
@@ -169,7 +188,7 @@ export default function ScoreMetric({ forecast }) {
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
             {penalties.temp > 0 && (
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.72rem" }}>
-                <span style={{ color: "var(--slate-500)" }}>🌡️ Sub-optimal Temperature ({temp}°C)</span>
+                <span style={{ color: "var(--slate-500)" }}>🌡️ Sub-optimal Temperature ({dispTemp})</span>
                 <span style={{ color: "var(--amber)", fontWeight: "700" }}>-{penalties.temp} pts</span>
               </div>
             )}
