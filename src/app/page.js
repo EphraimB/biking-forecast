@@ -598,7 +598,6 @@ export default function Home() {
           unitSystem={unitSystem}
         />
       </div>
-
       {/* 1. PERSISTENT HEADER HUD BRANDING */}
       {hasMounted && (
         <>
@@ -606,127 +605,168 @@ export default function Home() {
             position: "absolute",
             top: isMobileView ? "60px" : "20px",
             left: isMobileView ? "10px" : "20px",
-            right: isMobileView ? "10px" : "auto",
-            width: isMobileView ? "calc(100% - 20px)" : "auto",
+            right: isMobileView ? "10px" : "20px",
+            width: isMobileView ? "calc(100% - 20px)" : "calc(100% - 40px)",
             zIndex: "9999", // Elevate to sit reliably on top of all Leaflet internal pane stacks
             transform: "translate3d(0, 0, 0)", // Promote to compositing layer to clear WebKit/iOS Leaflet overlay bugs
             display: "flex",
             alignItems: "center",
-            gap: isMobileView ? "8px" : "16px",
             pointerEvents: "auto"
           }}>
-        <div className="header-logo" style={{
-          background: "linear-gradient(135deg, var(--primary), var(--primary-hover))",
-          width: "44px",
-          height: "44px",
-          borderRadius: "14px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: "0 8px 20px rgba(79, 70, 229, 0.35)"
-        }}>
-          <Bike size={24} style={{ color: "white" }} />
-        </div>
-        <div className="glass-panel glass-panel-header" style={{
-          padding: isMobileView ? "6px 12px" : "8px 18px",
-          display: "flex",
-          alignItems: "center",
-          gap: isMobileView ? "8px" : "16px",
-          flexGrow: isMobileView ? 1 : 0,
-          flexShrink: 1,
-          minWidth: 0,
-          justifyContent: "space-between",
-          width: "100%"
-        }}>
-          <div style={{ minWidth: 0, flexShrink: 1, marginRight: "4px" }}>
-            <h1 style={{ 
-              fontSize: isMobileView ? "0.9rem" : "1.2rem", 
-              fontWeight: "800", 
-              letterSpacing: "-0.02em", 
-              color: "var(--slate-900)",
-              whiteSpace: "nowrap",
-              textOverflow: "ellipsis",
-              overflow: "hidden"
-            }}>
-              Biking Forecast
-            </h1>
-            <p className="header-subtitle" style={{ fontSize: "0.68rem", color: "var(--slate-500)", fontWeight: "600" }}>
-              Living Map-based HUD
-            </p>
-          </div>
-
-          {/* Unit Toggle in Header: Only render on desktop to save space on mobile */}
-          <div className="header-unit-toggle" style={{
-            display: "flex",
-            background: "#f1f5f9",
-            padding: "2px",
-            borderRadius: "8px",
-            border: "1px solid rgba(226, 232, 240, 0.8)",
-            boxShadow: "inset 0 1px 2px rgba(0,0,0,0.03)"
-          }}>
-            <button
-              onClick={() => setUnitSystem("metric")}
-              style={{
-                padding: "4px 10px",
-                borderRadius: "6px",
-                border: "none",
-                background: unitSystem === "metric" ? "#ffffff" : "transparent",
-                color: unitSystem === "metric" ? "var(--primary)" : "var(--slate-500)",
-                fontSize: "0.68rem",
-                fontWeight: "800",
-                cursor: "pointer",
-                boxShadow: unitSystem === "metric" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-                transition: "all 0.15s ease"
-              }}
-            >
-              Metric
-            </button>
-            <button
-              onClick={() => setUnitSystem("imperial")}
-              style={{
-                padding: "4px 10px",
-                borderRadius: "6px",
-                border: "none",
-                background: unitSystem === "imperial" ? "#ffffff" : "transparent",
-                color: unitSystem === "imperial" ? "var(--primary)" : "var(--slate-500)",
-                fontSize: "0.68rem",
-                fontWeight: "800",
-                cursor: "pointer",
-                boxShadow: unitSystem === "imperial" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-                transition: "all 0.15s ease"
-              }}
-            >
-              Imperial
-            </button>
-          </div>
-
-          <button 
-            onClick={() => {
-              setIsAddingTrip(true);
-              setIsLeftCollapsed(true);
-              setIsRightCollapsed(true);
-            }}
-            style={{
-              padding: isMobileView ? "5px 10px" : "6px 12px",
-              background: "var(--primary)",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              fontSize: isMobileView ? "0.72rem" : "0.78rem",
-              fontWeight: "700",
-              cursor: "pointer",
+            <div className="glass-panel" style={{
+              width: "100%",
+              padding: isMobileView ? "8px 12px" : "10px 20px",
               display: "flex",
               alignItems: "center",
-              gap: isMobileView ? "4px" : "6px",
-              boxShadow: "0 4px 10px rgba(79, 70, 229, 0.25)",
-              flexShrink: 0 // Prevents flex layout from squishing button to 0px width on narrow mobile viewports
-            }}
-          >
-            <Plus size={isMobileView ? 12 : 14} /> 
-            <span>Add Trip</span>
-          </button>
-        </div>
-      </header>
+              justifyContent: "space-between",
+              borderRadius: "20px",
+              boxShadow: "0 10px 30px rgba(15, 23, 42, 0.04)"
+            }}>
+              {/* Left Side: Brand Logo & Title */}
+              <div style={{ display: "flex", alignItems: "center", gap: isMobileView ? "8px" : "10px", minWidth: 0, flexShrink: 1 }}>
+                <div style={{
+                  background: "linear-gradient(135deg, var(--primary), var(--primary-hover))",
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "10px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 4px 10px rgba(79, 70, 229, 0.25)",
+                  flexShrink: 0
+                }}>
+                  <Bike size={18} style={{ color: "white" }} />
+                </div>
+                <h1 style={{ 
+                  fontSize: isMobileView ? "0.95rem" : "1.05rem", 
+                  fontWeight: "800", 
+                  letterSpacing: "-0.02em", 
+                  color: "var(--slate-900)",
+                  whiteSpace: "nowrap",
+                  textOverflow: "ellipsis",
+                  overflow: "hidden"
+                }}>
+                  Biking Forecast
+                </h1>
+              </div>
+
+              {/* Center Side: Segmented zoom selector (only visible on desktop to keep it clean) */}
+              {!isMobileView && (
+                <div className="segmented-pill-container">
+                  <button
+                    onClick={() => setTimeZoom("Now")}
+                    className={`segmented-pill-btn ${timeZoom === "Now" ? "active" : ""}`}
+                  >
+                    Now
+                  </button>
+                  <button
+                    onClick={() => setTimeZoom("Today")}
+                    className={`segmented-pill-btn ${timeZoom === "Today" ? "active" : ""}`}
+                  >
+                    Today
+                  </button>
+                  <button
+                    onClick={() => setTimeZoom("Week")}
+                    className={`segmented-pill-btn ${timeZoom === "Week" ? "active" : ""}`}
+                  >
+                    Week
+                  </button>
+                </div>
+              )}
+
+              {/* Right Side: Quick Action Icons & Add Trip Button */}
+              <div style={{ display: "flex", alignItems: "center", gap: isMobileView ? "6px" : "12px", flexShrink: 0 }}>
+                {!isMobileView && (
+                  <>
+                    <button style={{ background: "none", border: "none", color: "var(--slate-500)", cursor: "pointer", display: "flex", alignItems: "center", padding: "6px" }} title="Search Location">
+                      <Search size={18} />
+                    </button>
+                    <button onClick={handleUseCurrentLocation} style={{ background: "none", border: "none", color: "var(--slate-500)", cursor: "pointer", display: "flex", alignItems: "center", padding: "6px" }} title="Use Current Location">
+                      <Navigation size={18} />
+                    </button>
+                    <button style={{ background: "none", border: "none", color: "var(--slate-500)", cursor: "pointer", display: "flex", alignItems: "center", padding: "6px" }} title="My Account">
+                      <HelpCircle size={18} />
+                    </button>
+
+                    {/* Desktop Segmented Unit Selector */}
+                    <div className="header-unit-toggle" style={{
+                      display: "flex",
+                      background: "#f1f5f9",
+                      padding: "2px",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(226, 232, 240, 0.8)",
+                      boxShadow: "inset 0 1px 2px rgba(0,0,0,0.03)",
+                      marginLeft: "4px",
+                      marginRight: "4px"
+                    }}>
+                      <button
+                        onClick={() => setUnitSystem("metric")}
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: "6px",
+                          border: "none",
+                          background: unitSystem === "metric" ? "#ffffff" : "transparent",
+                          color: unitSystem === "metric" ? "var(--primary)" : "var(--slate-500)",
+                          fontSize: "0.68rem",
+                          fontWeight: "800",
+                          cursor: "pointer",
+                          boxShadow: unitSystem === "metric" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                          transition: "all 0.15s ease"
+                        }}
+                      >
+                        Metric
+                      </button>
+                      <button
+                        onClick={() => setUnitSystem("imperial")}
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: "6px",
+                          border: "none",
+                          background: unitSystem === "imperial" ? "#ffffff" : "transparent",
+                          color: unitSystem === "imperial" ? "var(--primary)" : "var(--slate-500)",
+                          fontSize: "0.68rem",
+                          fontWeight: "800",
+                          cursor: "pointer",
+                          boxShadow: unitSystem === "imperial" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                          transition: "all 0.15s ease"
+                        }}
+                      >
+                        Imperial
+                      </button>
+                    </div>
+
+                    <div style={{ width: "1px", height: "20px", background: "var(--slate-200)" }} />
+                  </>
+                )}
+
+                <button 
+                  onClick={() => {
+                    setIsAddingTrip(true);
+                    setIsLeftCollapsed(true);
+                    setIsRightCollapsed(true);
+                  }}
+                  style={{
+                    padding: isMobileView ? "6px 12px" : "8px 18px",
+                    background: "linear-gradient(135deg, var(--primary), var(--primary-hover))",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "12px",
+                    fontSize: isMobileView ? "0.72rem" : "0.78rem",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    boxShadow: "0 4px 12px rgba(79, 70, 229, 0.25)",
+                    flexShrink: 0
+                  }}
+                >
+                  <Plus size={14} /> 
+                  <span>Add Trip</span>
+                </button>
+              </div>
+            </div>
+          </header>
 
       {/* --- TEMPORAL STATUS HUD BANNER (SCRUBBER LENS) --- */}
       {hasMounted && (() => {
@@ -804,348 +844,825 @@ export default function Home() {
           </div>
         );
       })()}
-
-      {/* 3. "ADD TRIP" SEARCH & ROUTE BEHAVIOR CARD OVERLAY */}
+             {/* 3. ADD TRIP PLANNING WORKSPACE (MOCKUP-THEMED) */}
       {isAddingTrip && (
-        <div style={{
-          position: "absolute",
-          top: "0",
-          left: "0",
-          width: "100%",
-          height: "100%",
-          background: "rgba(15, 23, 42, 0.15)",
-          backdropFilter: "blur(4px)",
-          zIndex: "10000", // Elevate above all sidebars and map widgets
-          transform: "translate3d(0, 0, 0)", // Promote to compositing layer to clear WebKit/iOS Leaflet overlay bugs
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center"
-        }}>
-          <div 
-            className="glass-panel animate-fade-in" 
-            style={{ 
-              width: "90%", 
-              maxWidth: "500px", 
-              maxHeight: "90vh",
-              overflowY: "auto",
-              padding: "24px",
-              display: "flex", 
-              flexDirection: "column", 
-              gap: "18px",
-              boxShadow: "0 25px 50px -12px rgba(15, 23, 42, 0.25)"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: "800", color: "var(--slate-900)" }}>Plan a New Route</h2>
-              <button 
-                onClick={() => setIsAddingTrip(false)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--slate-400)" }}
+        <>
+          {isMobileView ? (
+            /* MOBILE TRIP PLANNING DRAWER (SINGLE COLUMN SHEET) */
+            <div style={{
+              position: "absolute",
+              top: "0",
+              left: "0",
+              width: "100%",
+              height: "100%",
+              background: "rgba(15, 23, 42, 0.15)",
+              backdropFilter: "blur(4px)",
+              zIndex: "10000",
+              transform: "translate3d(0, 0, 0)",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              pointerEvents: "auto"
+            }}>
+              <div 
+                className="glass-panel animate-fade-in" 
+                style={{ 
+                  width: "calc(100% - 20px)", 
+                  maxHeight: "90vh",
+                  overflowY: "auto",
+                  padding: "20px",
+                  display: "flex", 
+                  flexDirection: "column", 
+                  gap: "16px",
+                  boxShadow: "0 25px 50px rgba(15, 23, 42, 0.2)"
+                }}
               >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* A. Search inputs */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              
-              {/* Start Input */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", position: "relative" }}>
-                <span style={{ fontSize: "0.75rem", fontWeight: "700", color: "var(--slate-500)" }}>🟢 Start Location</span>
-                <div style={{ display: "flex", gap: "6px" }}>
-                  <div style={{ position: "relative", flexGrow: "1" }}>
-                    <input
-                      type="text"
-                      className="hud-input"
-                      value={startQuery}
-                      onChange={(e) => {
-                        setStartQuery(e.target.value);
-                        triggerGeocode(e.target.value, true, false); // Debounced search!
-                      }}
-                      onKeyDown={(e) => e.key === "Enter" && triggerGeocode(startQuery, true, true)} // Instant Enter!
-                      placeholder="Type start address..."
-                    />
-                    <button
-                      onClick={() => triggerGeocode(startQuery, true, true)}
-                      style={{ position: "absolute", right: "12px", top: "12px", background: "none", border: "none", cursor: "pointer", color: "var(--primary)" }}
-                    >
-                      <Search size={16} />
-                    </button>
-                  </div>
+                {/* Header */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <h2 style={{ fontSize: "1.05rem", fontWeight: "800", color: "var(--slate-900)" }}>Plan a New Route</h2>
                   <button 
-                    onClick={handleUseCurrentLocation}
-                    style={{
-                      padding: "10px",
-                      background: "rgba(79, 70, 229, 0.08)",
-                      border: "1px solid rgba(79, 70, 229, 0.15)",
-                      borderRadius: "10px",
-                      color: "var(--primary)",
-                      cursor: "pointer"
-                    }}
-                    title="Use current location"
+                    onClick={() => setIsAddingTrip(false)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--slate-400)", padding: "4px" }}
                   >
-                    <Navigation size={18} />
+                    <X size={20} />
                   </button>
                 </div>
 
-                {/* Autocomplete dropdown */}
-                {startResults.length > 0 && (
-                  <div style={{
-                    position: "absolute", top: "62px", left: "0", right: "0", background: "white", 
-                    border: "1px solid var(--card-border)", borderRadius: "10px", zIndex: "999", 
-                    maxHeight: "150px", overflowY: "auto", boxShadow: "0 10px 20px rgba(0,0,0,0.05)"
-                  }}>
-                    {startResults.map((res, i) => (
-                      <div
-                        key={i}
-                        onClick={() => handleSelectAutocomplete(res, true)}
-                        style={{ padding: "8px 12px", cursor: "pointer", fontSize: "0.8rem", borderBottom: "1px solid #f1f5f9" }}
-                        onMouseEnter={(e) => e.target.style.background = "#f8fafc"}
-                        onMouseLeave={(e) => e.target.style.background = "transparent"}
-                      >
-                        {res.label}
-                      </div>
-                    ))}
+                {/* Start Location Input */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px", position: "relative" }}>
+                  <span style={{ fontSize: "0.72rem", fontWeight: "700", color: "var(--slate-500)" }}>🟢 Start Location</span>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <div style={{ position: "relative", flexGrow: "1" }}>
+                      <input
+                        type="text"
+                        className="hud-input"
+                        value={startQuery}
+                        onChange={(e) => {
+                          setStartQuery(e.target.value);
+                          triggerGeocode(e.target.value, true, false);
+                        }}
+                        placeholder="Type start address..."
+                      />
+                    </div>
+                    <button 
+                      onClick={handleUseCurrentLocation}
+                      style={{
+                        padding: "8px 10px",
+                        background: "rgba(79, 70, 229, 0.08)",
+                        border: "1px solid rgba(79, 70, 229, 0.15)",
+                        borderRadius: "10px",
+                        color: "var(--primary)",
+                        cursor: "pointer"
+                      }}
+                    >
+                      <Navigation size={16} />
+                    </button>
                   </div>
-                )}
-              </div>
+                  {startResults.length > 0 && (
+                    <div style={{
+                      position: "absolute", top: "58px", left: "0", right: "0", background: "white", 
+                      border: "1px solid var(--card-border)", borderRadius: "10px", zIndex: "999", 
+                      maxHeight: "130px", overflowY: "auto", boxShadow: "0 10px 20px rgba(0,0,0,0.05)"
+                    }}>
+                      {startResults.map((res, i) => (
+                        <div
+                          key={i}
+                          onClick={() => handleSelectAutocomplete(res, true)}
+                          style={{ padding: "8px 12px", cursor: "pointer", fontSize: "0.75rem", borderBottom: "1px solid #f1f5f9" }}
+                        >
+                          {res.display_name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
-              {/* End Input */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", position: "relative" }}>
-                <span style={{ fontSize: "0.75rem", fontWeight: "700", color: "var(--slate-500)" }}>🔴 Destination</span>
-                <div style={{ position: "relative" }}>
+                {/* Destination Input */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px", position: "relative" }}>
+                  <span style={{ fontSize: "0.72rem", fontWeight: "700", color: "var(--slate-500)" }}>🔴 Destination</span>
                   <input
                     type="text"
                     className="hud-input"
                     value={endQuery}
                     onChange={(e) => {
                       setEndQuery(e.target.value);
-                      triggerGeocode(e.target.value, false, false); // Debounced search!
+                      triggerGeocode(e.target.value, false, false);
                     }}
-                    onKeyDown={(e) => e.key === "Enter" && triggerGeocode(endQuery, false, true)} // Instant Enter!
                     placeholder="Type destination address..."
                   />
+                  {endResults.length > 0 && (
+                    <div style={{
+                      position: "absolute", top: "58px", left: "0", right: "0", background: "white", 
+                      border: "1px solid var(--card-border)", borderRadius: "10px", zIndex: "999", 
+                      maxHeight: "130px", overflowY: "auto", boxShadow: "0 10px 20px rgba(0,0,0,0.05)"
+                    }}>
+                      {endResults.map((res, i) => (
+                        <div
+                          key={i}
+                          onClick={() => handleSelectAutocomplete(res, false)}
+                          style={{ padding: "8px 12px", cursor: "pointer", fontSize: "0.75rem", borderBottom: "1px solid #f1f5f9" }}
+                        >
+                          {res.display_name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Context Selector */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <span style={{ fontSize: "0.72rem", fontWeight: "700", color: "var(--slate-500)" }}>Route Context</span>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    {["commute", "oneTime", "leisure"].map(type => (
+                      <button
+                        key={type}
+                        onClick={() => setNewTripType(type)}
+                        style={{
+                          flex: "1",
+                          padding: "8px 0",
+                          borderRadius: "8px",
+                          border: "1px solid",
+                          borderColor: newTripType === type ? "var(--primary)" : "rgba(226, 232, 240, 0.9)",
+                          background: newTripType === type ? "rgba(79, 70, 229, 0.08)" : "#ffffff",
+                          color: newTripType === type ? "var(--primary)" : "var(--slate-600)",
+                          fontSize: "0.7rem",
+                          fontWeight: "700",
+                          cursor: "pointer"
+                        }}
+                      >
+                        {type === "commute" ? "💼 Commute" : type === "oneTime" ? "📅 One-Time" : "🌲 Leisure"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Commute parameters */}
+                {newTripType === "commute" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", background: "rgba(15, 23, 42, 0.02)", padding: "10px", borderRadius: "12px", border: "1px solid rgba(15,23,42,0.03)" }}>
+                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                      {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((dayName, idx) => {
+                        const dayVal = idx === 6 ? 0 : idx + 1; // 0 Sunday, 1 Monday...
+                        const isSelected = newTripDays.includes(dayVal);
+                        return (
+                          <button
+                            key={dayName}
+                            onClick={() => {
+                              if (isSelected) {
+                                setNewTripDays(newTripDays.filter(d => d !== dayVal));
+                              } else {
+                                setNewTripDays([...newTripDays, dayVal]);
+                              }
+                            }}
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              border: "1px solid",
+                              borderColor: isSelected ? "var(--emerald)" : "rgba(226, 232, 240, 0.9)",
+                              background: isSelected ? "rgba(16, 185, 129, 0.08)" : "#ffffff",
+                              color: isSelected ? "var(--emerald)" : "var(--slate-600)",
+                              fontSize: "0.65rem",
+                              fontWeight: "700",
+                              cursor: "pointer"
+                            }}
+                          >
+                            {dayName}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                      <div>
+                        <span style={{ fontSize: "0.6rem", fontWeight: "700", color: "var(--slate-400)", textTransform: "uppercase" }}>🌅 Morning Outbound</span>
+                        <input
+                          type="time"
+                          value={newOutboundTime}
+                          onChange={(e) => setNewOutboundTime(e.target.value)}
+                          style={{ width: "100%", padding: "6px", borderRadius: "6px", border: "1px solid rgba(226,232,240,0.9)", fontSize: "0.75rem", outline: "none", marginTop: "4px" }}
+                        />
+                      </div>
+                      <div>
+                        <span style={{ fontSize: "0.6rem", fontWeight: "700", color: "var(--slate-400)", textTransform: "uppercase" }}>🌇 Evening Return</span>
+                        <input
+                          type="time"
+                          value={newReturnTime}
+                          onChange={(e) => setNewReturnTime(e.target.value)}
+                          style={{ width: "100%", padding: "6px", borderRadius: "6px", border: "1px solid rgba(226,232,240,0.9)", fontSize: "0.75rem", outline: "none", marginTop: "4px" }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Bike Preference */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <span style={{ fontSize: "0.72rem", fontWeight: "700", color: "var(--slate-500)" }}>Cycling Preference</span>
+                  <div style={{ display: "flex", gap: "4px" }}>
+                    {[
+                      { id: "Road", name: "Road Bike", icon: "🚲" },
+                      { id: "Hybrid", name: "Hybrid Bike", icon: "🚴" },
+                      { id: "Mountain", name: "Mountain", icon: "🏔️" },
+                      { id: "Electric", name: "Electric", icon: "⚡" }
+                    ].map(b => (
+                      <button
+                        key={b.id}
+                        onClick={() => setNewBikeType(b.id)}
+                        style={{
+                          flex: "1",
+                          padding: "6px 0",
+                          borderRadius: "8px",
+                          border: "1px solid",
+                          borderColor: newBikeType === b.id ? "var(--primary)" : "rgba(226, 232, 240, 0.9)",
+                          background: newBikeType === b.id ? "rgba(79, 70, 229, 0.08)" : "#ffffff",
+                          color: newBikeType === b.id ? "var(--primary)" : "var(--slate-600)",
+                          fontSize: "0.68rem",
+                          fontWeight: "700",
+                          cursor: "pointer"
+                        }}
+                      >
+                        {b.icon} {b.name.split(" ")[0]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div style={{ display: "flex", gap: "10px", marginTop: "6px" }}>
                   <button
-                    onClick={() => triggerGeocode(endQuery, false, true)}
-                    style={{ position: "absolute", right: "12px", top: "12px", background: "none", border: "none", cursor: "pointer", color: "var(--rose)" }}
+                    onClick={() => setIsAddingTrip(false)}
+                    style={{
+                      flex: "1",
+                      padding: "10px",
+                      border: "1px solid rgba(226, 232, 240, 0.9)",
+                      background: "#ffffff",
+                      color: "var(--slate-600)",
+                      borderRadius: "12px",
+                      fontSize: "0.8rem",
+                      fontWeight: "600",
+                      cursor: "pointer"
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddTrip}
+                    disabled={!draftStart || !draftEnd}
+                    style={{
+                      flex: "2",
+                      padding: "10px",
+                      background: (!draftStart || !draftEnd) ? "var(--slate-300)" : "var(--primary)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "10px",
+                      fontSize: "0.8rem",
+                      fontWeight: "700",
+                      cursor: (!draftStart || !draftEnd) ? "not-allowed" : "pointer",
+                      boxShadow: (!draftStart || !draftEnd) ? "none" : "0 8px 20px rgba(79, 70, 229, 0.2)"
+                    }}
+                  >
+                    Activate Route
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* DESKTOP HIGH-FIDELITY WORKSPACE (FLOATING MOCKUP PANEL HUDS) */
+            <>
+              {/* --- COLUMN 1: LEFT SIDEBAR (STEP PROGRESS & ROUTE PREVIEW) --- */}
+              <div style={{
+                position: "absolute",
+                top: "84px",
+                left: "20px",
+                width: "320px",
+                maxHeight: "calc(100vh - 240px)",
+                overflowY: "auto",
+                zIndex: "10000",
+                display: "flex",
+                flexDirection: "column",
+                gap: "16px",
+                pointerEvents: "auto",
+                transform: "translate3d(0, 0, 0)" // WebKit GPU promote
+              }} className="animate-fade-in">
+                
+                {/* 3-Step Checklist Tracker */}
+                <div className="glass-panel" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <h3 style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--slate-800)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Trip Builder
+                  </h3>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    
+                    {/* Step 1 */}
+                    <div className={`planning-step-item ${(!draftStart || !draftEnd) ? "active" : ""}`} style={{ border: (draftStart && draftEnd) ? "1px solid rgba(16, 185, 129, 0.15)" : "none" }}>
+                      <div className="planning-step-badge" style={{ background: (draftStart && draftEnd) ? "var(--emerald)" : "var(--primary)", color: "white" }}>
+                        {draftStart && draftEnd ? "✓" : "1"}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <span style={{ fontSize: "0.75rem", fontWeight: "700", color: "var(--slate-800)" }}>Choose Route</span>
+                        <span style={{ fontSize: "0.62rem", color: "var(--slate-500)" }}>Select start & end on map</span>
+                      </div>
+                    </div>
+
+                    {/* Step 2 */}
+                    <div className={`planning-step-item ${(draftStart && draftEnd) ? "active" : ""}`} style={{ opacity: (draftStart && draftEnd) ? "1" : "0.5" }}>
+                      <div className="planning-step-badge">2</div>
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <span style={{ fontSize: "0.75rem", fontWeight: "700", color: "var(--slate-800)" }}>Set Context</span>
+                        <span style={{ fontSize: "0.62rem", color: "var(--slate-500)" }}>Define purpose & schedule</span>
+                      </div>
+                    </div>
+
+                    {/* Step 3 */}
+                    <div className="planning-step-item" style={{ opacity: "0.5" }}>
+                      <div className="planning-step-badge">3</div>
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <span style={{ fontSize: "0.75rem", fontWeight: "700", color: "var(--slate-800)" }}>Review & Save</span>
+                        <span style={{ fontSize: "0.62rem", color: "var(--slate-500)" }}>Activate your trip timeline</span>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Route Preview Table */}
+                <div className="glass-panel" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <h3 style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--slate-800)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Route Preview
+                  </h3>
+                  {draftStart && draftEnd ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                        <div className="glass-card" style={{ padding: "8px" }}>
+                          <span style={{ fontSize: "0.58rem", color: "var(--slate-400)", fontWeight: "700" }}>DISTANCE</span>
+                          <div style={{ fontSize: "0.88rem", fontWeight: "800", color: "var(--slate-800)" }}>
+                            8.5 mi
+                          </div>
+                        </div>
+                        <div className="glass-card" style={{ padding: "8px" }}>
+                          <span style={{ fontSize: "0.58rem", color: "var(--slate-400)", fontWeight: "700" }}>DURATION</span>
+                          <div style={{ fontSize: "0.88rem", fontWeight: "800", color: "var(--slate-800)" }}>
+                            42 mins
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Detailed suitabilities */}
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.72rem", color: "var(--slate-700)" }}>
+                        <tbody>
+                          <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                            <td style={{ padding: "6px 0", color: "var(--slate-500)" }}>Tailwind Benefit</td>
+                            <td style={{ padding: "6px 0", textAlign: "right", fontWeight: "700", color: "var(--emerald)" }}>+12% assist</td>
+                          </tr>
+                          <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                            <td style={{ padding: "6px 0", color: "var(--slate-500)" }}>Crosswind Drag</td>
+                            <td style={{ padding: "6px 0", textAlign: "right", fontWeight: "700", color: "var(--amber)" }}>Moderate (8mph)</td>
+                          </tr>
+                          <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                            <td style={{ padding: "6px 0", color: "var(--slate-500)" }}>Road Quality</td>
+                            <td style={{ padding: "6px 0", textAlign: "right", fontWeight: "700", color: "var(--emerald)" }}>95% Asphalt</td>
+                          </tr>
+                          <tr>
+                            <td style={{ padding: "6px 0", color: "var(--slate-500)" }}>Traffic Exposure</td>
+                            <td style={{ padding: "6px 0", textAlign: "right", fontWeight: "700", color: "var(--primary)" }}>Low Exposure</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: "0.7rem", color: "var(--slate-400)", lineHeight: "1.4", textAlign: "center", padding: "10px 0" }}>
+                      📍 Search locations or tap the map to build your custom bike route.
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* --- COLUMN 2: CENTER MAP OVERLAYS (SEARCH & ELEVATION SPLINE) --- */}
+              
+              {/* Floating Center Search Bar */}
+              <div style={{
+                position: "absolute",
+                top: "84px",
+                left: "50%",
+                transform: "translate3d(-50%, 0, 0)",
+                zIndex: "10000",
+                width: "600px",
+                pointerEvents: "auto"
+              }} className="animate-fade-in">
+                <div className="glass-panel" style={{
+                  padding: "10px 16px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  boxShadow: "0 10px 25px rgba(0,0,0,0.05)"
+                }}>
+                  {/* Start Location Input */}
+                  <div style={{ position: "relative", flexGrow: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{ fontSize: "0.68rem", fontWeight: "800", color: "var(--slate-400)" }}>START</span>
+                      <input
+                        type="text"
+                        className="hud-input"
+                        value={startQuery}
+                        onChange={(e) => {
+                          setStartQuery(e.target.value);
+                          triggerGeocode(e.target.value, true, false);
+                        }}
+                        placeholder="Choose starting location..."
+                        style={{ padding: "8px 10px" }}
+                      />
+                      <button 
+                        onClick={handleUseCurrentLocation}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "var(--primary)",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center"
+                        }}
+                        title="Use current location"
+                      >
+                        <Navigation size={16} />
+                      </button>
+                    </div>
+                    {startResults.length > 0 && (
+                      <div style={{
+                        position: "absolute", top: "45px", left: "45px", right: "0", background: "white", 
+                        border: "1px solid var(--card-border)", borderRadius: "10px", zIndex: "999", 
+                        maxHeight: "150px", overflowY: "auto", boxShadow: "0 10px 20px rgba(0,0,0,0.05)"
+                      }}>
+                        {startResults.map((res, i) => (
+                          <div
+                            key={i}
+                            onClick={() => handleSelectAutocomplete(res, true)}
+                            style={{ padding: "8px 12px", cursor: "pointer", fontSize: "0.75rem", borderBottom: "1px solid #f1f5f9" }}
+                          >
+                            {res.display_name}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Swap Icon */}
+                  <div style={{ color: "var(--slate-400)", display: "flex", alignItems: "center", cursor: "pointer" }} title="Swap locations">
+                    <ArrowLeftRight size={16} onClick={() => {
+                      const tempQ = startQuery;
+                      const tempD = draftStart;
+                      setStartQuery(endQuery);
+                      setDraftStart(draftEnd);
+                      setEndQuery(tempQ);
+                      setDraftEnd(tempD);
+                    }} />
+                  </div>
+
+                  {/* Destination Location Input */}
+                  <div style={{ position: "relative", flexGrow: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{ fontSize: "0.68rem", fontWeight: "800", color: "var(--slate-400)" }}>END</span>
+                      <input
+                        type="text"
+                        className="hud-input"
+                        value={endQuery}
+                        onChange={(e) => {
+                          setEndQuery(e.target.value);
+                          triggerGeocode(e.target.value, false, false);
+                        }}
+                        placeholder="Choose destination..."
+                        style={{ padding: "8px 10px" }}
+                      />
+                    </div>
+                    {endResults.length > 0 && (
+                      <div style={{
+                        position: "absolute", top: "45px", left: "32px", right: "0", background: "white", 
+                        border: "1px solid var(--card-border)", borderRadius: "10px", zIndex: "999", 
+                        maxHeight: "150px", overflowY: "auto", boxShadow: "0 10px 20px rgba(0,0,0,0.05)"
+                      }}>
+                        {endResults.map((res, i) => (
+                          <div
+                            key={i}
+                            onClick={() => handleSelectAutocomplete(res, false)}
+                            style={{ padding: "8px 12px", cursor: "pointer", fontSize: "0.75rem", borderBottom: "1px solid #f1f5f9" }}
+                          >
+                            {res.display_name}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Search Button */}
+                  <button 
+                    onClick={() => {
+                      if (startQuery) triggerGeocode(startQuery, true, true);
+                      if (endQuery) triggerGeocode(endQuery, false, true);
+                    }}
+                    style={{
+                      background: "var(--primary)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "10px",
+                      width: "36px",
+                      height: "36px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer"
+                    }}
                   >
                     <Search size={16} />
                   </button>
+
+                </div>
+              </div>
+
+              {/* Elevation Profile Spline Chart (absolute center bottom) */}
+              {draftStart && draftEnd && (
+                <div style={{
+                  position: "absolute",
+                  bottom: "116px",
+                  left: "50%",
+                  transform: "translate3d(-50%, 0, 0)",
+                  zIndex: "10000",
+                  width: "600px",
+                  pointerEvents: "auto"
+                }} className="animate-fade-in">
+                  <div className="glass-panel" style={{ padding: "10px 16px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: "0.7rem", color: "var(--slate-800)", fontWeight: "800" }}>
+                        📈 Elevation Profile
+                      </span>
+                      <span style={{ fontSize: "0.68rem", color: "var(--slate-500)", fontWeight: "500" }}>
+                        ↑ 120 ft  ↓ 110 ft • Mostly flat
+                      </span>
+                    </div>
+                    {/* SVG Spline Area Chart */}
+                    <div style={{ width: "100%", height: "48px", position: "relative", marginTop: "4px" }}>
+                      <svg width="100%" height="100%" viewBox="0 0 500 50" preserveAspectRatio="none" style={{ display: "block" }}>
+                        <defs>
+                          <linearGradient id="elevationGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.32" />
+                            <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.0" />
+                          </linearGradient>
+                        </defs>
+                        {/* Area Spline */}
+                        <path 
+                          d="M 0,40 Q 60,10 120,35 T 240,25 T 360,42 T 500,28 L 500,50 L 0,50 Z" 
+                          fill="url(#elevationGrad)" 
+                        />
+                        {/* Line Spline */}
+                        <path 
+                          d="M 0,40 Q 60,10 120,35 T 240,25 T 360,42 T 500,28" 
+                          fill="none" 
+                          stroke="var(--primary)" 
+                          strokeWidth="2.5" 
+                        />
+                        {/* Grid line guide */}
+                        <line x1="0" y1="42" x2="500" y2="42" stroke="rgba(15, 23, 42, 0.05)" strokeDasharray="4,4" />
+                      </svg>
+                      {/* Grid labels */}
+                      <span style={{ position: "absolute", top: "2px", left: "2px", fontSize: "0.55rem", color: "var(--slate-400)", fontWeight: "700" }}>120 ft</span>
+                      <span style={{ position: "absolute", bottom: "2px", left: "2px", fontSize: "0.55rem", color: "var(--slate-400)", fontWeight: "700" }}>0 ft</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* --- COLUMN 3: RIGHT SIDEBAR (ROUTE CONTEXT & DETAILS) --- */}
+              <div style={{
+                position: "absolute",
+                top: "84px",
+                right: "20px",
+                width: "340px",
+                maxHeight: "calc(100vh - 240px)",
+                overflowY: "auto",
+                zIndex: "10000",
+                display: "flex",
+                flexDirection: "column",
+                gap: "14px",
+                pointerEvents: "auto",
+                transform: "translate3d(0, 0, 0)" // WebKit GPU promote
+              }} className="animate-fade-in">
+                
+                {/* Context Selector List */}
+                <div className="glass-panel" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <h3 style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--slate-800)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    How will you use this route?
+                  </h3>
+                  
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    
+                    {/* Leisure Option */}
+                    <div 
+                      onClick={() => setNewTripType("leisure")}
+                      className={`context-selection-card ${newTripType === "leisure" ? "active" : ""}`}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <span style={{ fontSize: "1.1rem" }}>🌲</span>
+                        <div style={{ display: "flex", flexDirection: "column" }}>
+                          <span style={{ fontSize: "0.78rem", fontWeight: "700", color: "var(--slate-800)" }}>Leisure / Fitness</span>
+                          <span style={{ fontSize: "0.62rem", color: "var(--slate-400)" }}>Free riding, exploring, or training</span>
+                        </div>
+                      </div>
+                      {newTripType === "leisure" && (
+                        <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "4px" }} onClick={e => e.stopPropagation()}>
+                          <span style={{ fontSize: "0.62rem", color: "var(--slate-500)", fontWeight: "700" }}>ROUTE NAME</span>
+                          <input 
+                            type="text" 
+                            value={newLeisureName} 
+                            onChange={(e) => setNewLeisureName(e.target.value)}
+                            style={{ width: "100%", padding: "6px 8px", borderRadius: "8px", border: "1px solid rgba(226, 232, 240, 0.9)", outline: "none", fontSize: "0.75rem" }}
+                            placeholder="e.g. Riverbank Scenic Loop"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* One-Time Ride Option */}
+                    <div 
+                      onClick={() => setNewTripType("oneTime")}
+                      className={`context-selection-card ${newTripType === "oneTime" ? "active" : ""}`}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <span style={{ fontSize: "1.1rem" }}>📅</span>
+                        <div style={{ display: "flex", flexDirection: "column" }}>
+                          <span style={{ fontSize: "0.78rem", fontWeight: "700", color: "var(--slate-800)" }}>One-Time Event</span>
+                          <span style={{ fontSize: "0.62rem", color: "var(--slate-400)" }}>Single specific date and target time</span>
+                        </div>
+                      </div>
+                      {newTripType === "oneTime" && (
+                        <div style={{ marginTop: "10px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }} onClick={e => e.stopPropagation()}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                            <span style={{ fontSize: "0.62rem", color: "var(--slate-500)", fontWeight: "700" }}>DATE</span>
+                            <input 
+                              type="date" 
+                              value={newOneTimeDate} 
+                              onChange={(e) => setNewOneTimeDate(e.target.value)}
+                              style={{ padding: "6px 8px", borderRadius: "8px", border: "1px solid rgba(226, 232, 240, 0.9)", outline: "none", fontSize: "0.72rem" }}
+                            />
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                            <span style={{ fontSize: "0.62rem", color: "var(--slate-500)", fontWeight: "700" }}>TIME</span>
+                            <input 
+                              type="time" 
+                              value={newOneTimeTime} 
+                              onChange={(e) => setNewOneTimeTime(e.target.value)}
+                              style={{ padding: "6px 8px", borderRadius: "8px", border: "1px solid rgba(226, 232, 240, 0.9)", outline: "none", fontSize: "0.72rem" }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Commute Option */}
+                    <div 
+                      onClick={() => setNewTripType("commute")}
+                      className={`context-selection-card ${newTripType === "commute" ? "active" : ""}`}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <span style={{ fontSize: "1.1rem" }}>💼</span>
+                        <div style={{ display: "flex", flexDirection: "column" }}>
+                          <span style={{ fontSize: "0.78rem", fontWeight: "700", color: "var(--slate-800)" }}>Commute Schedule</span>
+                          <span style={{ fontSize: "0.62rem", color: "var(--slate-400)" }}>Recurring weekly outbound/return leg</span>
+                        </div>
+                      </div>
+                      {newTripType === "commute" && (
+                        <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }} onClick={e => e.stopPropagation()}>
+                          <span style={{ fontSize: "0.62rem", color: "var(--slate-500)", fontWeight: "700" }}>COMMUTE DAYS</span>
+                          <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((dayName, idx) => {
+                              const dayVal = idx === 6 ? 0 : idx + 1; // 0 Sunday, 1 Monday...
+                              const isDaySelected = weeklySchedule.commutes[dayVal]?.enabled ?? false;
+                              return (
+                                <button
+                                  key={dayName}
+                                  onClick={() => {
+                                    const updated = { ...weeklySchedule };
+                                    if (!updated.commutes[dayVal]) {
+                                      updated.commutes[dayVal] = { enabled: false, bikeType: "Hybrid", customSpeed: 18, outbound: null, return: null };
+                                    }
+                                    updated.commutes[dayVal].enabled = !updated.commutes[dayVal].enabled;
+                                    saveWeeklySchedule(updated);
+                                  }}
+                                  style={{
+                                    padding: "4px 8px",
+                                    borderRadius: "6px",
+                                    border: "1px solid",
+                                    borderColor: isDaySelected ? "var(--primary)" : "rgba(226, 232, 240, 0.9)",
+                                    background: isDaySelected ? "rgba(79, 70, 229, 0.08)" : "#ffffff",
+                                    color: isDaySelected ? "var(--primary)" : "var(--slate-500)",
+                                    fontSize: "0.62rem",
+                                    fontWeight: "700",
+                                    cursor: "pointer"
+                                  }}
+                                >
+                                  {dayName}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                              <span style={{ fontSize: "0.6rem", fontWeight: "700", color: "var(--slate-400)", textTransform: "uppercase" }}>🌅 Outbound</span>
+                              <input
+                                type="time"
+                                value={newOutboundTime}
+                                onChange={(e) => setNewOutboundTime(e.target.value)}
+                                style={{ width: "100%", padding: "5px", borderRadius: "6px", border: "1px solid rgba(226,232,240,0.9)", fontSize: "0.72rem", outline: "none" }}
+                              />
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                              <span style={{ fontSize: "0.6rem", fontWeight: "700", color: "var(--slate-400)", textTransform: "uppercase" }}>🌇 Return</span>
+                              <input
+                                type="time"
+                                value={newReturnTime}
+                                onChange={(e) => setNewReturnTime(e.target.value)}
+                                style={{ width: "100%", padding: "5px", borderRadius: "6px", border: "1px solid rgba(226,232,240,0.9)", fontSize: "0.72rem", outline: "none" }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
                 </div>
 
-                {/* Autocomplete dropdown */}
-                {endResults.length > 0 && (
-                  <div style={{
-                    position: "absolute", top: "62px", left: "0", right: "0", background: "white", 
-                    border: "1px solid var(--card-border)", borderRadius: "10px", zIndex: "999", 
-                    maxHeight: "150px", overflowY: "auto", boxShadow: "0 10px 20px rgba(0,0,0,0.05)"
-                  }}>
-                    {endResults.map((res, i) => (
-                      <div
-                        key={i}
-                        onClick={() => handleSelectAutocomplete(res, false)}
-                        style={{ padding: "8px 12px", cursor: "pointer", fontSize: "0.8rem", borderBottom: "1px solid #f1f5f9" }}
-                        onMouseEnter={(e) => e.target.style.background = "#f8fafc"}
-                        onMouseLeave={(e) => e.target.style.background = "transparent"}
+                {/* Cycling Preference */}
+                <div className="glass-panel" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <h3 style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--slate-800)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Cycling Preference
+                  </h3>
+                  <div style={{ display: "flex", gap: "4px" }}>
+                    {BIKE_TYPES.map(b => (
+                      <button
+                        key={b.id}
+                        onClick={() => {
+                          setNewBikeType(b.id);
+                          setNewSpeed(b.speed);
+                        }}
+                        style={{
+                          flex: "1",
+                          padding: "6px 0",
+                          borderRadius: "8px",
+                          border: "1px solid",
+                          borderColor: newBikeType === b.id ? "var(--primary)" : "rgba(226, 232, 240, 0.9)",
+                          background: newBikeType === b.id ? "rgba(79, 70, 229, 0.08)" : "#ffffff",
+                          color: newBikeType === b.id ? "var(--primary)" : "var(--slate-600)",
+                          fontSize: "0.68rem",
+                          fontWeight: "700",
+                          cursor: "pointer"
+                        }}
                       >
-                        {res.label}
-                      </div>
+                        <span style={{ fontSize: "0.85rem", display: "block" }}>{b.icon}</span>
+                        <span style={{ fontSize: "0.55rem" }}>{b.name.split(" ")[0]}</span>
+                      </button>
                     ))}
                   </div>
-                )}
-              </div>
+                </div>
 
-              <p style={{ fontSize: "0.7rem", color: "var(--slate-400)", textAlign: "center" }}>
-                💡 Tip: You can also tap two points directly on the map behind this overlay to select locations!
-              </p>
-            </div>
-
-            {/* B. Choose behavior context layer */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              <span style={{ fontSize: "0.75rem", fontWeight: "700", color: "var(--slate-500)" }}>Behavior Context Layer</span>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
-                {["commute", "oneTime", "leisure"].map(type => (
+                {/* Cancel & Continue Actions */}
+                <div style={{ display: "flex", gap: "10px", marginTop: "4px" }}>
                   <button
-                    key={type}
-                    onClick={() => setNewTripType(type)}
+                    onClick={() => setIsAddingTrip(false)}
                     style={{
-                      padding: "8px",
-                      borderRadius: "8px",
-                      border: "1px solid",
-                      borderColor: newTripType === type ? "var(--primary)" : "rgba(226, 232, 240, 0.9)",
-                      background: newTripType === type ? "rgba(79, 70, 229, 0.08)" : "#ffffff",
-                      color: newTripType === type ? "var(--primary)" : "var(--slate-600)",
-                      fontSize: "0.78rem",
-                      fontWeight: "700",
-                      cursor: "pointer",
-                      textTransform: "capitalize"
+                      flex: "1",
+                      padding: "12px",
+                      border: "1px solid rgba(226, 232, 240, 0.9)",
+                      background: "#ffffff",
+                      color: "var(--slate-600)",
+                      borderRadius: "12px",
+                      fontSize: "0.82rem",
+                      fontWeight: "600",
+                      cursor: "pointer"
                     }}
                   >
-                    {type === "oneTime" ? "One-time" : type}
+                    Cancel
                   </button>
-                ))}
+                  <button
+                    onClick={handleAddTrip}
+                    disabled={!draftStart || !draftEnd}
+                    style={{
+                      flex: "2",
+                      padding: "12px",
+                      background: (!draftStart || !draftEnd) ? "var(--slate-300)" : "var(--primary)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "12px",
+                      fontSize: "0.82rem",
+                      fontWeight: "700",
+                      cursor: (!draftStart || !draftEnd) ? "not-allowed" : "pointer",
+                      boxShadow: (!draftStart || !draftEnd) ? "none" : "0 8px 20px rgba(79, 70, 229, 0.2)"
+                    }}
+                  >
+                    Activate Route
+                  </button>
+                </div>
+
               </div>
-            </div>
-
-            {/* C. Dynamic configurations according to behavior context */}
-            <div className="glass-card" style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "14px" }}>
-              {newTripType === "commute" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <span style={{ fontSize: "0.7rem", color: "var(--slate-500)", fontWeight: "700" }}>COMMUTE DAYS</span>
-                    <div style={{ display: "flex", gap: "4px" }}>
-                      {[1, 2, 3, 4, 5, 6, 0].map(day => (
-                        <button
-                          key={day}
-                          onClick={() => setNewCommuteDays(prev => ({ ...prev, [day]: !prev[day] }))}
-                          style={{
-                            flex: "1",
-                            padding: "6px 0",
-                            borderRadius: "6px",
-                            border: "1px solid",
-                            borderColor: newCommuteDays[day] ? "var(--emerald)" : "rgba(226, 232, 240, 0.9)",
-                            background: newCommuteDays[day] ? "rgba(16, 185, 129, 0.08)" : "#ffffff",
-                            color: newCommuteDays[day] ? "var(--emerald)" : "var(--slate-600)",
-                            fontSize: "0.72rem",
-                            fontWeight: "700",
-                            cursor: "pointer"
-                          }}
-                        >
-                          {WEEKDAYS_SHORT[day]}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <span style={{ fontSize: "0.7rem", color: "var(--slate-500)", fontWeight: "700" }}>🌅 MORNING DEPARTURE</span>
-                      <input 
-                        type="time" 
-                        value={newOutboundTime} 
-                        onChange={(e) => setNewOutboundTime(e.target.value)}
-                        style={{ padding: "6px 10px", borderRadius: "8px", border: "1px solid rgba(226, 232, 240, 0.9)", outline: "none", fontSize: "0.8rem" }}
-                      />
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <span style={{ fontSize: "0.7rem", color: "var(--slate-500)", fontWeight: "700" }}>🌇 EVENING RETURN</span>
-                      <input 
-                        type="time" 
-                        value={newReturnTime} 
-                        onChange={(e) => setNewReturnTime(e.target.value)}
-                        style={{ padding: "6px 10px", borderRadius: "8px", border: "1px solid rgba(226, 232, 240, 0.9)", outline: "none", fontSize: "0.8rem" }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {newTripType === "oneTime" && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <span style={{ fontSize: "0.7rem", color: "var(--slate-500)", fontWeight: "700" }}>CALENDAR DATE</span>
-                    <input 
-                      type="date" 
-                      value={newOneTimeDate} 
-                      onChange={(e) => setNewOneTimeDate(e.target.value)}
-                      style={{ padding: "6px 10px", borderRadius: "8px", border: "1px solid rgba(226, 232, 240, 0.9)", outline: "none", fontSize: "0.8rem" }}
-                    />
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <span style={{ fontSize: "0.7rem", color: "var(--slate-500)", fontWeight: "700" }}>TARGET TIME</span>
-                    <input 
-                      type="time" 
-                      value={newOneTimeTime} 
-                      onChange={(e) => setNewOneTimeTime(e.target.value)}
-                      style={{ padding: "6px 10px", borderRadius: "8px", border: "1px solid rgba(226, 232, 240, 0.9)", outline: "none", fontSize: "0.8rem" }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {newTripType === "leisure" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <span style={{ fontSize: "0.7rem", color: "var(--slate-500)", fontWeight: "700" }}>ROUTE NAME</span>
-                  <input 
-                    type="text" 
-                    value={newLeisureName} 
-                    onChange={(e) => setNewLeisureName(e.target.value)}
-                    style={{ padding: "6px 10px", borderRadius: "8px", border: "1px solid rgba(226, 232, 240, 0.9)", outline: "none", fontSize: "0.8rem" }}
-                    placeholder="e.g. Riverbank Scenic Loop"
-                  />
-                </div>
-              )}
-
-              {/* Rider profiles */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "4px" }}>
-                <span style={{ fontSize: "0.7rem", color: "var(--slate-500)", fontWeight: "700" }}>CYCLING PREFERENCE</span>
-                <div style={{ display: "flex", gap: "4px" }}>
-                  {BIKE_TYPES.map(b => (
-                    <button
-                      key={b.id}
-                      onClick={() => {
-                        setNewBikeType(b.id);
-                        setNewSpeed(b.speed);
-                      }}
-                      style={{
-                        flex: "1",
-                        padding: "6px 0",
-                        borderRadius: "6px",
-                        border: "1px solid",
-                        borderColor: newBikeType === b.id ? "var(--primary)" : "rgba(226, 232, 240, 0.9)",
-                        background: newBikeType === b.id ? "rgba(79, 70, 229, 0.08)" : "#ffffff",
-                        color: newBikeType === b.id ? "var(--primary)" : "var(--slate-600)",
-                        fontSize: "0.68rem",
-                        fontWeight: "700",
-                        cursor: "pointer"
-                      }}
-                    >
-                      {b.icon} {b.name.split(" ")[0]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* D. Action triggers */}
-            <div style={{ display: "flex", gap: "10px", marginTop: "6px" }}>
-              <button
-                onClick={() => setIsAddingTrip(false)}
-                style={{
-                  flex: "1",
-                  padding: "12px",
-                  border: "1px solid rgba(226, 232, 240, 0.9)",
-                  background: "#ffffff",
-                  color: "var(--slate-600)",
-                  borderRadius: "10px",
-                  fontSize: "0.85rem",
-                  fontWeight: "600",
-                  cursor: "pointer"
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddTrip}
-                disabled={!draftStart || !draftEnd}
-                style={{
-                  flex: "2",
-                  padding: "12px",
-                  background: (!draftStart || !draftEnd) ? "var(--slate-300)" : "var(--primary)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "10px",
-                  fontSize: "0.85rem",
-                  fontWeight: "700",
-                  cursor: (!draftStart || !draftEnd) ? "not-allowed" : "pointer",
-                  boxShadow: (!draftStart || !draftEnd) ? "none" : "0 8px 20px rgba(79, 70, 229, 0.3)"
-                }}
-              >
-                Activate Route
-              </button>
-            </div>
-
-          </div>
-        </div>
+            </>
+          )}
+        </>
       )}
 
       {/* 4. LEFT HUD CONTROL PANEL: MY ROUTES (COLLAPSIBLE DRAWER) */}
@@ -1166,6 +1683,11 @@ export default function Home() {
           pointerEvents: "auto"
         }} className="animate-fade-in">
           
+          {/* Circular Score Gauge Metric (if a ride is active) */}
+          {currentForecast && (
+            <ScoreMetric forecast={currentForecast} unitSystem={unitSystem} />
+          )}
+
           {/* Active rides lists */}
           <div className="glass-panel" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1488,56 +2010,111 @@ export default function Home() {
                 {error}
               </div>
             </div>
-          ) : currentForecast ? (
-            <>
-              <ScoreMetric forecast={currentForecast} unitSystem={unitSystem} />
-              
-              <WeatherDetails
-                weatherResults={weatherResults}
-                hourIndex={currentHourIdx}
-                startLocation={
-                  activeRideType === "commute"
-                    ? (commuteDirection === "outbound" ? weeklySchedule.commutes[activeCommuteDay]?.outbound?.start : weeklySchedule.commutes[activeCommuteDay]?.return?.start)
-                    : (activeRideType === "oneTime" ? weeklySchedule.oneTimeRides.find(r => r.id === activeOneTimeId)?.start : weeklySchedule.leisureRides.find(r => r.id === activeLeisureId)?.start)
-                }
-                endLocation={
-                  activeRideType === "commute"
-                    ? (commuteDirection === "outbound" ? weeklySchedule.commutes[activeCommuteDay]?.outbound?.end : weeklySchedule.commutes[activeCommuteDay]?.return?.end)
-                    : (activeRideType === "oneTime" ? weeklySchedule.oneTimeRides.find(r => r.id === activeOneTimeId)?.end : weeklySchedule.leisureRides.find(r => r.id === activeLeisureId)?.end)
-                }
-                unitSystem={unitSystem}
-              />
-            </>
           ) : (
-            /* Ambient Local Weather Card (no active route selected) */
-            <div className="glass-panel" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <h3 style={{ fontSize: "0.88rem", fontWeight: "800", color: "var(--slate-700)", textTransform: "uppercase", letterSpacing: "0.04em", display: "flex", alignItems: "center", gap: "6px" }}>
-                <Sparkles size={16} style={{ color: "var(--primary)" }} /> Ambient Local Weather
+            /* Mockup-Themed Conditions Panel */
+            <div className="glass-panel animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              <h3 style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--slate-700)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                Conditions
               </h3>
-              <p style={{ fontSize: "0.78rem", color: "var(--slate-500)", lineHeight: "1.4" }}>
-                Map is centered on your current location. Adjust temporal scrubber below to see how regional winds flow.
-              </p>
-              {weatherResults.length > 0 && (() => {
-                const rawTemp = weatherResults[0]?.hourly?.temperature_2m?.[currentHourIdx] ?? 20;
-                const rawWind = weatherResults[0]?.hourly?.wind_speed_10m?.[currentHourIdx] ?? 10;
-                const isImperial = unitSystem === "imperial";
-                return (
-                  <div className="glass-card" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", padding: "12px" }}>
-                    <div>
-                      <div style={{ fontSize: "0.68rem", color: "var(--slate-400)", fontWeight: "600" }}>TEMPERATURE</div>
-                      <div style={{ fontSize: "1.1rem", fontWeight: "800", color: "var(--slate-800)" }}>
-                        {isImperial ? `${(rawTemp * 1.8 + 32).toFixed(1)}°F` : `${rawTemp.toFixed(1)}°C`}
-                      </div>
+              
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                
+                {/* 1. WIND */}
+                <div className="condition-card">
+                  <div>
+                    <div style={{ fontSize: "0.62rem", color: "var(--slate-400)", fontWeight: "700", textTransform: "uppercase" }}>Wind</div>
+                    <div style={{ fontSize: "0.95rem", fontWeight: "800", color: "var(--slate-800)", marginTop: "2px" }}>
+                      {currentForecast 
+                        ? `${unitSystem === "imperial" ? (currentForecast.windSpeed * 0.621371).toFixed(0) : currentForecast.windSpeed.toFixed(0)} ${unitSystem === "imperial" ? "mph" : "km/h"} ${currentForecast.windDir}`
+                        : (() => {
+                            if (weatherResults.length > 0) {
+                              const rawWind = weatherResults[0]?.hourly?.wind_speed_10m?.[currentHourIdx] ?? 10;
+                              return `${unitSystem === "imperial" ? (rawWind * 0.621371).toFixed(0) : rawWind.toFixed(0)} ${unitSystem === "imperial" ? "mph" : "km/h"}`;
+                            }
+                            return "4 mph SW";
+                          })()}
                     </div>
-                    <div>
-                      <div style={{ fontSize: "0.68rem", color: "var(--slate-400)", fontWeight: "600" }}>WIND VELOCITY</div>
-                      <div style={{ fontSize: "1.1rem", fontWeight: "800", color: "var(--slate-800)", display: "flex", alignItems: "center", gap: "4px" }}>
-                        💨 {isImperial ? `${(rawWind * 0.621371).toFixed(1)}` : `${rawWind.toFixed(1)}`} <span style={{ fontSize: "0.7rem", fontWeight: "normal" }}>{isImperial ? "mph" : "km/h"}</span>
-                      </div>
+                    <div style={{ fontSize: "0.68rem", color: "var(--slate-500)", marginTop: "2px" }}>
+                      {currentForecast ? currentForecast.windImpact : "Light breeze"}
                     </div>
                   </div>
-                );
-              })()}
+                  <div className="condition-icon-container" style={{ background: "rgba(16, 185, 129, 0.08)", color: "var(--emerald)", flexShrink: 0 }}>
+                    <Compass size={18} />
+                  </div>
+                </div>
+
+                {/* 2. RAIN */}
+                <div className="condition-card">
+                  <div>
+                    <div style={{ fontSize: "0.62rem", color: "var(--slate-400)", fontWeight: "700", textTransform: "uppercase" }}>Rain</div>
+                    <div style={{ fontSize: "0.95rem", fontWeight: "800", color: "var(--slate-800)", marginTop: "2px" }}>
+                      {currentForecast 
+                        ? `${currentForecast.rainProb}%` 
+                        : (() => {
+                            if (weatherResults.length > 0) {
+                              return `${weatherResults[0]?.hourly?.precipitation_probability?.[currentHourIdx] ?? 0}%`;
+                            }
+                            return "0%";
+                          })()}
+                    </div>
+                    <div style={{ fontSize: "0.68rem", color: "var(--slate-500)", marginTop: "2px" }}>
+                      {(currentForecast && currentForecast.rainProb > 30) || (weatherResults.length > 0 && weatherResults[0]?.hourly?.precipitation_probability?.[currentHourIdx] > 30)
+                        ? "Precipitation risk" 
+                        : "No precipitation"}
+                    </div>
+                  </div>
+                  <div className="condition-icon-container" style={{ background: "rgba(59, 130, 246, 0.08)", color: "var(--primary)", flexShrink: 0 }}>
+                    <Sun size={18} />
+                  </div>
+                </div>
+
+                {/* 3. TEMPERATURE */}
+                <div className="condition-card">
+                  <div>
+                    <div style={{ fontSize: "0.62rem", color: "var(--slate-400)", fontWeight: "700", textTransform: "uppercase" }}>Temperature</div>
+                    <div style={{ fontSize: "0.95rem", fontWeight: "800", color: "var(--slate-800)", marginTop: "2px" }}>
+                      {currentForecast 
+                        ? (unitSystem === "imperial" ? `${(currentForecast.temp * 1.8 + 32).toFixed(0)}°F` : `${currentForecast.temp.toFixed(0)}°C`) 
+                        : (() => {
+                            if (weatherResults.length > 0) {
+                              const rawTemp = weatherResults[0]?.hourly?.temperature_2m?.[currentHourIdx] ?? 20;
+                              return unitSystem === "imperial" ? `${(rawTemp * 1.8 + 32).toFixed(0)}°F` : `${rawTemp.toFixed(0)}°C`;
+                            }
+                            return "68°F";
+                          })()}
+                    </div>
+                    <div style={{ fontSize: "0.68rem", color: "var(--slate-500)", marginTop: "2px" }}>
+                      {currentForecast 
+                        ? (currentForecast.temp < 12 ? "Cooler winds" : currentForecast.temp > 28 ? "Very warm" : "Comfortable")
+                        : "Mild weather"}
+                    </div>
+                  </div>
+                  <div className="condition-icon-container" style={{ background: "rgba(217, 119, 6, 0.08)", color: "var(--amber)", flexShrink: 0 }}>
+                    <Clock size={18} />
+                  </div>
+                </div>
+
+                {/* 4. ROAD SURFACE */}
+                <div className="condition-card">
+                  <div>
+                    <div style={{ fontSize: "0.62rem", color: "var(--slate-400)", fontWeight: "700", textTransform: "uppercase" }}>Road Surface</div>
+                    <div style={{ fontSize: "0.95rem", fontWeight: "800", color: "var(--slate-800)", marginTop: "2px" }}>
+                      {((currentForecast && currentForecast.rainProb > 40) || (weatherResults.length > 0 && weatherResults[0]?.hourly?.precipitation_probability?.[currentHourIdx] > 40))
+                        ? "Damp / Wet"
+                        : "Dry"}
+                    </div>
+                    <div style={{ fontSize: "0.68rem", color: "var(--slate-500)", marginTop: "2px" }}>
+                      {((currentForecast && currentForecast.rainProb > 40) || (weatherResults.length > 0 && weatherResults[0]?.hourly?.precipitation_probability?.[currentHourIdx] > 40))
+                        ? "Caution advised" 
+                        : "Good traction"}
+                    </div>
+                  </div>
+                  <div className="condition-icon-container" style={{ background: "rgba(79, 70, 229, 0.08)", color: "var(--primary)", flexShrink: 0 }}>
+                    <Bike size={18} />
+                  </div>
+                </div>
+
+              </div>
             </div>
           )}
         </section>
@@ -1724,7 +2301,7 @@ export default function Home() {
                 <span style={{ fontSize: "0.72rem", color: "var(--slate-400)" }}>24h scrub</span>
               </div>
               <p style={{ fontSize: "0.7rem", color: "var(--slate-400)" }}>
-                💡 Slide to scrub through hourly forecasts. The map's ambient wind directions and rain streams will morph instantly.
+                💡 Slide to scrub through hourly forecasts. The map&apos;s ambient wind directions and rain streams will morph instantly.
               </p>
             </div>
           )}

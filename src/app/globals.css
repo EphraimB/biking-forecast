@@ -1,25 +1,25 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --card-bg: rgba(255, 255, 255, 0.94);
-  --card-border: rgba(226, 232, 240, 0.9);
+  --background: #eef2f6;
+  --foreground: #1e293b;
+  --card-bg: rgba(255, 255, 255, 0.72);
+  --card-border: rgba(255, 255, 255, 0.5);
   
   --primary: #4f46e5;
-  --primary-glow: rgba(79, 70, 229, 0.15);
-  --primary-hover: #4338ca;
+  --primary-glow: rgba(79, 70, 229, 0.1);
+  --primary-hover: #3b31d9;
   
   --emerald: #10b981;
-  --emerald-glow: rgba(16, 185, 129, 0.15);
+  --emerald-glow: rgba(16, 185, 129, 0.1);
   
   --amber: #d97706;
-  --amber-glow: rgba(217, 119, 6, 0.15);
+  --amber-glow: rgba(217, 119, 6, 0.1);
   
   --rose: #e11d48;
-  --rose-glow: rgba(225, 29, 72, 0.15);
+  --rose-glow: rgba(225, 29, 72, 0.1);
   
-  --slate-100: #f1f5f9;
+  --slate-100: #f8fafc;
   --slate-200: #e2e8f0;
   --slate-300: #cbd5e1;
   --slate-400: #94a3b8;
@@ -76,32 +76,33 @@ body {
 .glass-panel {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-radius: 20px;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: 24px;
   padding: 20px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.02);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.04), 0 1px 10px rgba(15, 23, 42, 0.01), inset 0 1px 0 rgba(255, 255, 255, 0.65);
   transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.22s, box-shadow 0.22s;
 }
 
 .glass-panel:hover {
-  border-color: rgba(79, 70, 229, 0.2);
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08), 0 1px 5px rgba(15, 23, 42, 0.03);
+  border-color: rgba(79, 70, 229, 0.25);
+  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.08), 0 1px 15px rgba(15, 23, 42, 0.02), inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .glass-card {
-  background: #ffffff;
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 16px;
   padding: 12px 16px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.01);
-  transition: all 0.2s ease-in-out;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.02), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .glass-card:hover {
-  background: #f8fafc;
-  border-color: rgba(79, 70, 229, 0.15);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.03);
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(79, 70, 229, 0.2);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transform: translateY(-1px);
 }
 
 /* Atmospheric HUD Overlays on Map Container */
@@ -416,4 +417,120 @@ body {
     padding: 10px 12px !important;
     border-radius: 14px !important;
   }
+}
+
+/* Premium Segmented Controls (Now, Today, Week selector) */
+.segmented-pill-container {
+  display: flex;
+  background: rgba(15, 23, 42, 0.05);
+  padding: 4px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.03);
+  align-items: center;
+  gap: 2px;
+}
+
+.segmented-pill-btn {
+  padding: 6px 16px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--slate-600);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.segmented-pill-btn:hover {
+  color: var(--slate-900);
+}
+
+.segmented-pill-btn.active {
+  background: #ffffff;
+  color: var(--primary);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+/* Premium Sidebar Conditions cards list */
+.condition-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 16px;
+  transition: all 0.2s ease;
+}
+
+.condition-card:hover {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(79, 70, 229, 0.15);
+  transform: translateX(2px);
+}
+
+.condition-icon-container {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.02);
+}
+
+/* Multi-step trip planner list */
+.planning-step-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.planning-step-item.active {
+  background: rgba(79, 70, 229, 0.06);
+  border: 1px solid rgba(79, 70, 229, 0.1);
+}
+
+.planning-step-badge {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--slate-500);
+}
+
+.planning-step-item.active .planning-step-badge {
+  background: var(--primary);
+  color: white;
+}
+
+/* Context selector check boxes */
+.context-selection-card {
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 16px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  background: white;
+}
+
+.context-selection-card:hover {
+  border-color: rgba(79, 70, 229, 0.2);
+  background: #f8fafc;
+  transform: translateY(-1px);
+}
+
+.context-selection-card.active {
+  border-color: var(--primary);
+  background: rgba(79, 70, 229, 0.03);
+  box-shadow: 0 4px 15px rgba(79, 70, 229, 0.04);
 }
