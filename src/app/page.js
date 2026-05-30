@@ -118,6 +118,11 @@ export default function Home() {
   const [unitSystem, setUnitSystem] = useState("metric"); // "metric" | "imperial"
   const geocodeTimeoutRef = useRef(null);
 
+  // Responsive & collapsible panel state variables
+  const [isMobileView, setIsMobileView] = useState(false);
+  const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
+  const [isRightCollapsed, setIsRightCollapsed] = useState(false);
+
   // Geolocation lookup on boot
   useEffect(() => {
     // Load weeklySchedule from localStorage
@@ -151,6 +156,110 @@ export default function Home() {
     const currHour = new Date().getHours();
     setSelectedHour(currHour);
   }, []);
+
+  // Responsive mobile size listener
+  useEffect(() => {
+    const handleResize = () => {
+      const isMobile = window.innerWidth < 768;
+      setIsMobileView(isMobile);
+      // Auto-collapse sidebars on mobile, expand on desktop
+      setIsLeftCollapsed(isMobile);
+      setIsRightCollapsed(isMobile);
+    };
+    
+    handleResize(); // Initial sizing
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Helper to get 0-6 day offset from today for a given weekday (1 = Monday, ..., 0 = Sunday)
+  const getDayOffsetFromDayOfWeek = (targetDayOfWeek) => {
+    const todayDayOfWeek = new Date().getDay(); // 0 is Sunday, 1 is Monday, etc.
+    let offset = targetDayOfWeek - todayDayOfWeek;
+    if (offset < 0) {
+      offset += 7;
+    }
+    return offset;
+  };
+
+  // Helper to compile scheduled day & hour parameters for active selections
+  const getScheduledDayAndHour = () => {
+    let dayOffset = null;
+    let hour = null;
+    let label = "";
+
+    if (activeRideType === "commute") {
+      const dayConfig = weeklySchedule.commutes[activeCommuteDay];
+      if (dayConfig && dayConfig.enabled) {
+        dayOffset = getDayOffsetFromDayOfWeek(activeCommuteDay);
+        const timeStr = commuteDirection === "outbound" 
+          ? dayConfig.outbound?.time 
+          : dayConfig.return?.time;
+        if (timeStr) {
+          hour = parseInt(timeStr.split(":")[0]);
+        }
+        label = `${WEEKDAYS_FULL[activeCommuteDay]} Commute (${commuteDirection === "outbound" ? "Morning Leg" : "Evening Leg"} - ${timeStr || "N/A"})`;
+      }
+    } else if (activeRideType === "oneTime") {
+      const ride = weeklySchedule.oneTimeRides.find(r => r.id === activeOneTimeId);
+      if (ride) {
+        try {
+          const rideDate = new Date(ride.date + "T00:00:00");
+          const todayDate = new Date();
+          todayDate.setHours(0, 0, 0, 0);
+          const diffTime = rideDate - todayDate;
+          const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+          dayOffset = Math.max(0, Math.min(6, diffDays));
+        } catch (e) {
+          dayOffset = 0;
+        }
+        const timeStr = ride.time;
+        if (timeStr) {
+          hour = parseInt(timeStr.split(":")[0]);
+        }
+        label = `One-Time Ride (${ride.date} at ${timeStr || "N/A"})`;
+      }
+    } else if (activeRideType === "leisure") {
+      const ride = weeklySchedule.leisureRides.find(r => r.id === activeLeisureId);
+      if (ride) {
+        label = `Leisure: ${ride.name}`;
+      }
+    }
+
+    return { dayOffset, hour, label };
+  };
+
+  // Snapping Ref and Effect to sync temporal sliders when active ride changes
+  const lastActiveRideRef = useRef({ type: null, day: null, dir: null, oneTimeId: null, leisureId: null });
+  
+  useEffect(() => {
+    const currentRide = {
+      type: activeRideType,
+      day: activeCommuteDay,
+      dir: commuteDirection,
+      oneTimeId: activeOneTimeId,
+      leisureId: activeLeisureId
+    };
+    
+    const hasRideChanged = 
+      currentRide.type !== lastActiveRideRef.current.type ||
+      currentRide.day !== lastActiveRideRef.current.day ||
+      currentRide.dir !== lastActiveRideRef.current.dir ||
+      currentRide.oneTimeId !== lastActiveRideRef.current.oneTimeId ||
+      currentRide.leisureId !== lastActiveRideRef.current.leisureId;
+      
+    if (hasRideChanged) {
+      const { dayOffset, hour } = getScheduledDayAndHour();
+      if (dayOffset !== null) {
+        setSelectedDay(dayOffset);
+      }
+      if (hour !== null) {
+        setSelectedHour(hour);
+        setTimeZoom("Today"); // Automatically snap into Today view to show scrubber directly
+      }
+      lastActiveRideRef.current = currentRide;
+    }
+  }, [activeRideType, activeCommuteDay, commuteDirection, activeOneTimeId, activeLeisureId, weeklySchedule]);
 
   // Fetch single-point weather when no route is planned to animate the ambient HUD
   const fetchAmbientWeather = async (lat, lon) => {
@@ -452,39 +561,46 @@ export default function Home() {
       {/* 1. PERSISTENT HEADER HUD BRANDING */}
       <header style={{
         position: "absolute",
-        top: "20px",
-        left: "20px",
+        top: isMobileView ? "10px" : "20px",
+        left: isMobileView ? "10px" : "20px",
+        right: isMobileView ? "10px" : "auto",
         zIndex: "10",
         display: "flex",
         alignItems: "center",
-        gap: "16px",
+        gap: isMobileView ? "8px" : "16px",
         pointerEvents: "auto"
       }}>
-        <div style={{
-          background: "linear-gradient(135deg, var(--primary), var(--primary-hover))",
-          width: "44px",
-          height: "44px",
-          borderRadius: "14px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: "0 8px 20px rgba(79, 70, 229, 0.35)"
-        }}>
-          <Bike size={24} style={{ color: "white" }} />
-        </div>
+        {!isMobileView && (
+          <div style={{
+            background: "linear-gradient(135deg, var(--primary), var(--primary-hover))",
+            width: "44px",
+            height: "44px",
+            borderRadius: "14px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 8px 20px rgba(79, 70, 229, 0.35)"
+          }}>
+            <Bike size={24} style={{ color: "white" }} />
+          </div>
+        )}
         <div className="glass-panel" style={{
-          padding: "8px 18px",
+          padding: isMobileView ? "6px 12px" : "8px 18px",
           display: "flex",
           alignItems: "center",
-          gap: "16px"
+          gap: isMobileView ? "10px" : "16px",
+          flexGrow: isMobileView ? 1 : 0,
+          justifyContent: "space-between"
         }}>
           <div>
-            <h1 style={{ fontSize: "1.2rem", fontWeight: "800", letterSpacing: "-0.02em", color: "var(--slate-900)" }}>
+            <h1 style={{ fontSize: isMobileView ? "1.0rem" : "1.2rem", fontWeight: "800", letterSpacing: "-0.02em", color: "var(--slate-900)" }}>
               Biking Forecast
             </h1>
-            <p style={{ fontSize: "0.68rem", color: "var(--slate-500)", fontWeight: "600" }}>
-              Living Map-based HUD
-            </p>
+            {!isMobileView && (
+              <p style={{ fontSize: "0.68rem", color: "var(--slate-500)", fontWeight: "600" }}>
+                Living Map-based HUD
+              </p>
+            )}
           </div>
 
           <div style={{
@@ -498,12 +614,12 @@ export default function Home() {
             <button
               onClick={() => setUnitSystem("metric")}
               style={{
-                padding: "4px 10px",
+                padding: isMobileView ? "4px 8px" : "4px 10px",
                 borderRadius: "6px",
                 border: "none",
                 background: unitSystem === "metric" ? "#ffffff" : "transparent",
                 color: unitSystem === "metric" ? "var(--primary)" : "var(--slate-500)",
-                fontSize: "0.68rem",
+                fontSize: isMobileView ? "0.62rem" : "0.68rem",
                 fontWeight: "800",
                 cursor: "pointer",
                 boxShadow: unitSystem === "metric" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
@@ -515,12 +631,12 @@ export default function Home() {
             <button
               onClick={() => setUnitSystem("imperial")}
               style={{
-                padding: "4px 10px",
+                padding: isMobileView ? "4px 8px" : "4px 10px",
                 borderRadius: "6px",
                 border: "none",
                 background: unitSystem === "imperial" ? "#ffffff" : "transparent",
                 color: unitSystem === "imperial" ? "var(--primary)" : "var(--slate-500)",
-                fontSize: "0.68rem",
+                fontSize: isMobileView ? "0.62rem" : "0.68rem",
                 fontWeight: "800",
                 cursor: "pointer",
                 boxShadow: unitSystem === "imperial" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
@@ -534,12 +650,12 @@ export default function Home() {
           <button 
             onClick={() => setIsAddingTrip(true)}
             style={{
-              padding: "6px 12px",
+              padding: isMobileView ? "6px 10px" : "6px 12px",
               background: "var(--primary)",
               color: "white",
               border: "none",
               borderRadius: "8px",
-              fontSize: "0.78rem",
+              fontSize: isMobileView ? "0.72rem" : "0.78rem",
               fontWeight: "700",
               cursor: "pointer",
               display: "flex",
@@ -548,13 +664,13 @@ export default function Home() {
               boxShadow: "0 4px 10px rgba(79, 70, 229, 0.25)"
             }}
           >
-            <Plus size={14} /> Add Trip
+            <Plus size={14} /> {isMobileView ? "Add" : "Add Trip"}
           </button>
         </div>
       </header>
 
-      {/* 2. CORE INTERACTIVE LEAFLET ENVIRONMENT */}
-      <div style={{ width: "100%", height: "100%" }}>
+      {/* 2. CORE INTERACTIVE LEAFLET ENVIRONMENT (ABSOLUTE MAP BACKDROP) */}
+      <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: "1" }}>
         <RouteMap
           coordinates={routeCoordinates}
           startLocation={
@@ -577,6 +693,82 @@ export default function Home() {
           unitSystem={unitSystem}
         />
       </div>
+
+      {/* --- TEMPORAL STATUS HUD BANNER (SCRUBBER LENS) --- */}
+      {(() => {
+        const { dayOffset: schedDay, hour: schedHour, label: schedLabel } = getScheduledDayAndHour();
+        if (!schedLabel) return null;
+        const isScrubbedAway = schedDay !== null && schedHour !== null && (selectedDay !== schedDay || selectedHour !== schedHour);
+        
+        return (
+          <div style={{
+            position: "absolute",
+            top: isMobileView ? "68px" : "84px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: "10",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            pointerEvents: "auto",
+            width: "max-content",
+            maxWidth: "calc(100% - 20px)"
+          }}>
+            <div className="glass-panel" style={{
+              padding: "6px 14px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
+              borderRadius: "20px",
+              border: isScrubbedAway ? "1px solid rgba(217, 119, 6, 0.3)" : "1px solid rgba(16, 185, 129, 0.3)",
+              background: "var(--card-bg)"
+            }}>
+              <span style={{
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background: isScrubbedAway ? "var(--amber)" : "var(--emerald)",
+                display: "inline-block",
+                boxShadow: isScrubbedAway ? "none" : "0 0 8px var(--emerald)",
+                animation: isScrubbedAway ? "none" : "pulse-grow 2s infinite"
+              }}></span>
+              <span style={{ fontSize: "0.72rem", fontWeight: "800", color: "var(--slate-800)" }}>
+                {isScrubbedAway ? "Free Scrubbing Mode" : "Viewing Scheduled Ride"}
+              </span>
+              <span style={{ fontSize: "0.68rem", color: "var(--slate-500)", fontWeight: "500" }}>
+                ({schedLabel})
+              </span>
+              {isScrubbedAway && (
+                <button
+                  onClick={() => {
+                    if (schedDay !== null) setSelectedDay(schedDay);
+                    if (schedHour !== null) setSelectedHour(schedHour);
+                    setTimeZoom("Today");
+                  }}
+                  style={{
+                    padding: "3px 10px",
+                    background: "var(--primary)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "12px",
+                    fontSize: "0.65rem",
+                    fontWeight: "800",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    boxShadow: "0 2px 6px rgba(79, 70, 229, 0.2)",
+                    marginLeft: "4px"
+                  }}
+                >
+                  🔄 Snap to Schedule
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 3. "ADD TRIP" SEARCH & ROUTE BEHAVIOR CARD OVERLAY */}
       {isAddingTrip && (
@@ -920,88 +1112,93 @@ export default function Home() {
         </div>
       )}
 
-      {/* 4. LEFT HUD CONTROL PANEL: MY ROUTES (COLLAPSIBLE) */}
-      <section style={{
-        position: "absolute",
-        top: "84px",
-        left: "20px",
-        width: "320px",
-        maxHeight: "calc(100vh - 240px)",
-        overflowY: "auto",
-        zIndex: "10",
-        display: "flex",
-        flexDirection: "column",
-        gap: "12px",
-        pointerEvents: "auto"
-      }} className="animate-fade-in">
-        
-        {/* Active rides lists */}
-        <div className="glass-panel" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-          <h3 style={{ fontSize: "0.88rem", fontWeight: "800", color: "var(--slate-700)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-            My Active Routes
-          </h3>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            
-            {/* COMMUTES LIST */}
-            <div>
-              <div style={{ fontSize: "0.72rem", color: "var(--slate-400)", fontWeight: "700", marginBottom: "4px" }}>RECURRING COMMUTES</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                {Object.keys(weeklySchedule.commutes).filter(k => weeklySchedule.commutes[k].enabled).map(dayIdx => {
-                  const dayConfig = weeklySchedule.commutes[dayIdx];
-                  const isActive = activeRideType === "commute" && activeCommuteDay === parseInt(dayIdx);
-                  return (
-                    <div
-                      key={dayIdx}
-                      onClick={() => {
-                        setActiveRideType("commute");
-                        setActiveCommuteDay(parseInt(dayIdx));
-                      }}
-                      style={{
-                        padding: "8px 10px",
-                        borderRadius: "8px",
-                        border: "1px solid",
-                        borderColor: isActive ? "var(--primary)" : "rgba(226, 232, 240, 0.8)",
-                        background: isActive ? "rgba(79, 70, 229, 0.05)" : "#ffffff",
-                        cursor: "pointer",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center"
-                      }}
-                    >
-                      <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                        <span style={{ fontSize: "0.78rem", fontWeight: "700", color: "var(--slate-800)" }}>
-                          {WEEKDAYS_FULL[dayIdx]} Commute
-                        </span>
-                        <span style={{ fontSize: "0.65rem", color: "var(--slate-400)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", width: "200px" }}>
-                          {dayConfig.outbound?.start?.label.split(",")[0]} ➔ {dayConfig.outbound?.end?.label.split(",")[0]}
-                        </span>
-                      </div>
-                      <button 
-                        onClick={(e) => handleDeleteRide("commute", dayIdx, e)}
-                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--rose)" }}
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+      {/* 4. LEFT HUD CONTROL PANEL: MY ROUTES (COLLAPSIBLE DRAWER) */}
+      {isLeftCollapsed ? (
+        <button
+          onClick={() => {
+            setIsLeftCollapsed(false);
+            if (isMobileView) {
+              setIsRightCollapsed(true); // Close right drawer to avoid overlapping on mobile
+            }
+          }}
+          className="glass-panel"
+          style={{
+            position: "absolute",
+            top: isMobileView ? "124px" : "84px",
+            left: isMobileView ? "10px" : "20px",
+            zIndex: "10",
+            width: "40px",
+            height: "40px",
+            borderRadius: "12px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            border: "1px solid var(--card-border)",
+            color: "var(--primary)",
+            padding: 0,
+            pointerEvents: "auto",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
+          }}
+          title="Show Routes"
+        >
+          <ChevronRight size={20} />
+        </button>
+      ) : (
+        <section style={{
+          position: "absolute",
+          top: isMobileView ? "124px" : "84px",
+          left: isMobileView ? "10px" : "20px",
+          right: isMobileView ? "10px" : "auto",
+          width: isMobileView ? "auto" : "320px",
+          maxHeight: isMobileView ? "calc(100vh - 300px)" : "calc(100vh - 240px)",
+          overflowY: "auto",
+          zIndex: "10",
+          display: "flex",
+          flexDirection: "column",
+          gap: "12px",
+          pointerEvents: "auto"
+        }} className="animate-fade-in">
+          
+          {/* Active rides lists */}
+          <div className="glass-panel" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ fontSize: "0.88rem", fontWeight: "800", color: "var(--slate-700)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                My Active Routes
+              </h3>
+              <button 
+                onClick={() => setIsLeftCollapsed(true)}
+                style={{ 
+                  background: "none", 
+                  border: "none", 
+                  cursor: "pointer", 
+                  color: "var(--slate-400)",
+                  padding: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}
+                title="Collapse Panel"
+              >
+                <X size={16} />
+              </button>
             </div>
 
-            {/* ONE-TIME RIDES */}
-            {weeklySchedule.oneTimeRides.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              
+              {/* COMMUTES LIST */}
               <div>
-                <div style={{ fontSize: "0.72rem", color: "var(--slate-400)", fontWeight: "700", marginBottom: "4px" }}>ONE-TIME RIDES</div>
+                <div style={{ fontSize: "0.72rem", color: "var(--slate-400)", fontWeight: "700", marginBottom: "4px" }}>RECURRING COMMUTES</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  {weeklySchedule.oneTimeRides.map(ride => {
-                    const isActive = activeRideType === "oneTime" && activeOneTimeId === ride.id;
+                  {Object.keys(weeklySchedule.commutes).filter(k => weeklySchedule.commutes[k].enabled).map(dayIdx => {
+                    const dayConfig = weeklySchedule.commutes[dayIdx];
+                    const isActive = activeRideType === "commute" && activeCommuteDay === parseInt(dayIdx);
                     return (
                       <div
-                        key={ride.id}
+                        key={dayIdx}
                         onClick={() => {
-                          setActiveRideType("oneTime");
-                          setActiveOneTimeId(ride.id);
+                          setActiveRideType("commute");
+                          setActiveCommuteDay(parseInt(dayIdx));
                         }}
                         style={{
                           padding: "8px 10px",
@@ -1017,14 +1214,14 @@ export default function Home() {
                       >
                         <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                           <span style={{ fontSize: "0.78rem", fontWeight: "700", color: "var(--slate-800)" }}>
-                            Errand / Ride ({ride.date.split("-")[1]}/{ride.date.split("-")[2]})
+                            {WEEKDAYS_FULL[dayIdx]} Commute
                           </span>
-                          <span style={{ fontSize: "0.65rem", color: "var(--slate-400)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", width: "200px" }}>
-                            {ride.start?.label.split(",")[0]} ➔ {ride.end?.label.split(",")[0]}
+                          <span style={{ fontSize: "0.65rem", color: "var(--slate-400)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", width: isMobileView ? "140px" : "200px" }}>
+                            {dayConfig.outbound?.start?.label.split(",")[0]} ➔ {dayConfig.outbound?.end?.label.split(",")[0]}
                           </span>
                         </div>
                         <button 
-                          onClick={(e) => handleDeleteRide("oneTime", ride.id, e)}
+                          onClick={(e) => handleDeleteRide("commute", dayIdx, e)}
                           style={{ background: "none", border: "none", cursor: "pointer", color: "var(--rose)" }}
                         >
                           <Trash2 size={12} />
@@ -1034,202 +1231,305 @@ export default function Home() {
                   })}
                 </div>
               </div>
-            )}
 
-            {/* LEISURE PATHS */}
-            {weeklySchedule.leisureRides.length > 0 && (
-              <div>
-                <div style={{ fontSize: "0.72rem", color: "var(--slate-400)", fontWeight: "700", marginBottom: "4px" }}>LEISURE PATHS</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  {weeklySchedule.leisureRides.map(ride => {
-                    const isActive = activeRideType === "leisure" && activeLeisureId === ride.id;
-                    return (
-                      <div
-                        key={ride.id}
-                        onClick={() => {
-                          setActiveRideType("leisure");
-                          setActiveLeisureId(ride.id);
-                        }}
-                        style={{
-                          padding: "8px 10px",
-                          borderRadius: "8px",
-                          border: "1px solid",
-                          borderColor: isActive ? "var(--primary)" : "rgba(226, 232, 240, 0.8)",
-                          background: isActive ? "rgba(79, 70, 229, 0.05)" : "#ffffff",
-                          cursor: "pointer",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center"
-                        }}
-                      >
-                        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                          <span style={{ fontSize: "0.78rem", fontWeight: "700", color: "var(--slate-800)" }}>
-                            {ride.name}
-                          </span>
-                          <span style={{ fontSize: "0.65rem", color: "var(--slate-400)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", width: "200px" }}>
-                            {ride.start?.label.split(",")[0]} ➔ {ride.end?.label.split(",")[0]}
-                          </span>
-                        </div>
-                        <button 
-                          onClick={(e) => handleDeleteRide("leisure", ride.id, e)}
-                          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--rose)" }}
+              {/* ONE-TIME RIDES */}
+              {weeklySchedule.oneTimeRides.length > 0 && (
+                <div>
+                  <div style={{ fontSize: "0.72rem", color: "var(--slate-400)", fontWeight: "700", marginBottom: "4px" }}>ONE-TIME RIDES</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    {weeklySchedule.oneTimeRides.map(ride => {
+                      const isActive = activeRideType === "oneTime" && activeOneTimeId === ride.id;
+                      return (
+                        <div
+                          key={ride.id}
+                          onClick={() => {
+                            setActiveRideType("oneTime");
+                            setActiveOneTimeId(ride.id);
+                          }}
+                          style={{
+                            padding: "8px 10px",
+                            borderRadius: "8px",
+                            border: "1px solid",
+                            borderColor: isActive ? "var(--primary)" : "rgba(226, 232, 240, 0.8)",
+                            background: isActive ? "rgba(79, 70, 229, 0.05)" : "#ffffff",
+                            cursor: "pointer",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center"
+                          }}
                         >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    );
-                  })}
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                            <span style={{ fontSize: "0.78rem", fontWeight: "700", color: "var(--slate-800)" }}>
+                              Errand / Ride ({ride.date.split("-")[1]}/{ride.date.split("-")[2]})
+                            </span>
+                            <span style={{ fontSize: "0.65rem", color: "var(--slate-400)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", width: isMobileView ? "140px" : "200px" }}>
+                              {ride.start?.label.split(",")[0]} ➔ {ride.end?.label.split(",")[0]}
+                            </span>
+                          </div>
+                          <button 
+                            onClick={(e) => handleDeleteRide("oneTime", ride.id, e)}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--rose)" }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
+              )}
+
+              {/* LEISURE PATHS */}
+              {weeklySchedule.leisureRides.length > 0 && (
+                <div>
+                  <div style={{ fontSize: "0.72rem", color: "var(--slate-400)", fontWeight: "700", marginBottom: "4px" }}>LEISURE PATHS</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    {weeklySchedule.leisureRides.map(ride => {
+                      const isActive = activeRideType === "leisure" && activeLeisureId === ride.id;
+                      return (
+                        <div
+                          key={ride.id}
+                          onClick={() => {
+                            setActiveRideType("leisure");
+                            setActiveLeisureId(ride.id);
+                          }}
+                          style={{
+                            padding: "8px 10px",
+                            borderRadius: "8px",
+                            border: "1px solid",
+                            borderColor: isActive ? "var(--primary)" : "rgba(226, 232, 240, 0.8)",
+                            background: isActive ? "rgba(79, 70, 229, 0.05)" : "#ffffff",
+                            cursor: "pointer",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center"
+                          }}
+                        >
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                            <span style={{ fontSize: "0.78rem", fontWeight: "700", color: "var(--slate-800)" }}>
+                              {ride.name}
+                            </span>
+                            <span style={{ fontSize: "0.65rem", color: "var(--slate-400)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", width: isMobileView ? "140px" : "200px" }}>
+                              {ride.start?.label.split(",")[0]} ➔ {ride.end?.label.split(",")[0]}
+                            </span>
+                          </div>
+                          <button 
+                            onClick={(e) => handleDeleteRide("leisure", ride.id, e)}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--rose)" }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Outbound vs. Return commute leg toggler if commute active */}
+            {activeRideType === "commute" && (
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "4px",
+                background: "#f1f5f9",
+                padding: "4px",
+                borderRadius: "10px",
+                marginTop: "4px"
+              }}>
+                <button
+                  onClick={() => setCommuteDirection("outbound")}
+                  style={{
+                    padding: "6px 0",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: commuteDirection === "outbound" ? "#ffffff" : "transparent",
+                    color: commuteDirection === "outbound" ? "var(--primary)" : "var(--slate-500)",
+                    fontSize: "0.75rem",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "4px",
+                    boxShadow: commuteDirection === "outbound" ? "0 2px 5px rgba(0,0,0,0.05)" : "none"
+                  }}
+                >
+                  🌅 Morning Leg
+                </button>
+                <button
+                  onClick={() => setCommuteDirection("return")}
+                  style={{
+                    padding: "6px 0",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: commuteDirection === "return" ? "#ffffff" : "transparent",
+                    color: commuteDirection === "return" ? "var(--primary)" : "var(--slate-500)",
+                    fontSize: "0.75rem",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "4px",
+                    boxShadow: commuteDirection === "return" ? "0 2px 5px rgba(0,0,0,0.05)" : "none"
+                  }}
+                >
+                  🌇 Evening Leg
+                </button>
               </div>
             )}
 
           </div>
+        </section>
+      )}
 
-          {/* Outbound vs. Return commute leg toggler if commute active */}
-          {activeRideType === "commute" && (
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "4px",
-              background: "#f1f5f9",
-              padding: "4px",
-              borderRadius: "10px",
-              marginTop: "4px"
-            }}>
-              <button
-                onClick={() => setCommuteDirection("outbound")}
-                style={{
-                  padding: "6px 0",
-                  borderRadius: "8px",
-                  border: "none",
-                  background: commuteDirection === "outbound" ? "#ffffff" : "transparent",
-                  color: commuteDirection === "outbound" ? "var(--primary)" : "var(--slate-500)",
-                  fontSize: "0.75rem",
-                  fontWeight: "700",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "4px",
-                  boxShadow: commuteDirection === "outbound" ? "0 2px 5px rgba(0,0,0,0.05)" : "none"
-                }}
-              >
-                🌅 Morning Leg
-              </button>
-              <button
-                onClick={() => setCommuteDirection("return")}
-                style={{
-                  padding: "6px 0",
-                  borderRadius: "8px",
-                  border: "none",
-                  background: commuteDirection === "return" ? "#ffffff" : "transparent",
-                  color: commuteDirection === "return" ? "var(--primary)" : "var(--slate-500)",
-                  fontSize: "0.75rem",
-                  fontWeight: "700",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "4px",
-                  boxShadow: commuteDirection === "return" ? "0 2px 5px rgba(0,0,0,0.05)" : "none"
-                }}
-              >
-                🌇 Evening Leg
-              </button>
+      {/* 5. RIGHT HUD PANEL: SUITABILITY SCORE GAUGE & METRICS (COLLAPSIBLE DRAWER) */}
+      {isRightCollapsed ? (
+        <button
+          onClick={() => {
+            setIsRightCollapsed(false);
+            if (isMobileView) {
+              setIsLeftCollapsed(true); // Close left drawer to avoid overlapping on mobile
+            }
+          }}
+          className="glass-panel"
+          style={{
+            position: "absolute",
+            top: isMobileView ? "124px" : "84px",
+            right: isMobileView ? "10px" : "20px",
+            zIndex: "10",
+            width: "40px",
+            height: "40px",
+            borderRadius: "12px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            border: "1px solid var(--card-border)",
+            color: "var(--primary)",
+            padding: 0,
+            pointerEvents: "auto",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
+          }}
+          title="Show Weather Details"
+        >
+          <Sparkles size={20} />
+        </button>
+      ) : (
+        <section style={{
+          position: "absolute",
+          top: isMobileView ? "124px" : "84px",
+          right: isMobileView ? "10px" : "20px",
+          left: isMobileView ? "10px" : "auto",
+          width: isMobileView ? "auto" : "360px",
+          maxHeight: isMobileView ? "calc(100vh - 300px)" : "calc(100vh - 240px)",
+          overflowY: "auto",
+          zIndex: "10",
+          display: "flex",
+          flexDirection: "column",
+          gap: "16px",
+          pointerEvents: "auto"
+        }} className="animate-fade-in">
+          
+          <div className="glass-panel" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px" }}>
+            <span style={{ fontSize: "0.78rem", fontWeight: "800", color: "var(--slate-700)", textTransform: "uppercase", letterSpacing: "0.04em", display: "flex", alignItems: "center", gap: "6px" }}>
+              📊 Stats & Suitability
+            </span>
+            <button 
+              onClick={() => setIsRightCollapsed(true)}
+              style={{ 
+                background: "none", 
+                border: "none", 
+                cursor: "pointer", 
+                color: "var(--slate-400)",
+                padding: "4px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}
+              title="Collapse Panel"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {isLoading ? (
+            <div className="glass-panel" style={{ textAlign: "center", padding: "30px", color: "var(--slate-500)" }}>
+              <Bike size={24} style={{ color: "var(--primary)", animation: "spin 2s linear infinite", margin: "0 auto 10px auto" }} />
+              <span style={{ fontSize: "0.85rem", fontWeight: "600" }}>Recalculating routing segments & winds...</span>
+            </div>
+          ) : error ? (
+            <div className="glass-panel" style={{ display: "flex", gap: "10px", background: "rgba(225, 29, 72, 0.05)", borderColor: "rgba(225, 29, 72, 0.2)", color: "var(--rose)", fontSize: "0.82rem" }}>
+              <ShieldAlert size={18} style={{ flexShrink: "0" }} />
+              <div>
+                <strong style={{ display: "block", marginBottom: "4px" }}>Routing pipeline anomaly</strong>
+                {error}
+              </div>
+            </div>
+          ) : currentForecast ? (
+            <>
+              <ScoreMetric forecast={currentForecast} unitSystem={unitSystem} />
+              
+              <WeatherDetails
+                weatherResults={weatherResults}
+                hourIndex={currentHourIdx}
+                startLocation={
+                  activeRideType === "commute"
+                    ? (commuteDirection === "outbound" ? weeklySchedule.commutes[activeCommuteDay]?.outbound?.start : weeklySchedule.commutes[activeCommuteDay]?.return?.start)
+                    : (activeRideType === "oneTime" ? weeklySchedule.oneTimeRides.find(r => r.id === activeOneTimeId)?.start : weeklySchedule.leisureRides.find(r => r.id === activeLeisureId)?.start)
+                }
+                endLocation={
+                  activeRideType === "commute"
+                    ? (commuteDirection === "outbound" ? weeklySchedule.commutes[activeCommuteDay]?.outbound?.end : weeklySchedule.commutes[activeCommuteDay]?.return?.end)
+                    : (activeRideType === "oneTime" ? weeklySchedule.oneTimeRides.find(r => r.id === activeOneTimeId)?.end : weeklySchedule.leisureRides.find(r => r.id === activeLeisureId)?.end)
+                }
+                unitSystem={unitSystem}
+              />
+            </>
+          ) : (
+            /* Ambient Local Weather Card (no active route selected) */
+            <div className="glass-panel" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <h3 style={{ fontSize: "0.88rem", fontWeight: "800", color: "var(--slate-700)", textTransform: "uppercase", letterSpacing: "0.04em", display: "flex", alignItems: "center", gap: "6px" }}>
+                <Sparkles size={16} style={{ color: "var(--primary)" }} /> Ambient Local Weather
+              </h3>
+              <p style={{ fontSize: "0.78rem", color: "var(--slate-500)", lineHeight: "1.4" }}>
+                Map is centered on your current location. Adjust temporal scrubber below to see how regional winds flow.
+              </p>
+              {weatherResults.length > 0 && (() => {
+                const rawTemp = weatherResults[0]?.hourly?.temperature_2m?.[currentHourIdx] ?? 20;
+                const rawWind = weatherResults[0]?.hourly?.wind_speed_10m?.[currentHourIdx] ?? 10;
+                const isImperial = unitSystem === "imperial";
+                return (
+                  <div className="glass-card" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", padding: "12px" }}>
+                    <div>
+                      <div style={{ fontSize: "0.68rem", color: "var(--slate-400)", fontWeight: "600" }}>TEMPERATURE</div>
+                      <div style={{ fontSize: "1.1rem", fontWeight: "800", color: "var(--slate-800)" }}>
+                        {isImperial ? `${(rawTemp * 1.8 + 32).toFixed(1)}°F` : `${rawTemp.toFixed(1)}°C`}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "0.68rem", color: "var(--slate-400)", fontWeight: "600" }}>WIND VELOCITY</div>
+                      <div style={{ fontSize: "1.1rem", fontWeight: "800", color: "var(--slate-800)", display: "flex", alignItems: "center", gap: "4px" }}>
+                        💨 {isImperial ? `${(rawWind * 0.621371).toFixed(1)}` : `${rawWind.toFixed(1)}`} <span style={{ fontSize: "0.7rem", fontWeight: "normal" }}>{isImperial ? "mph" : "km/h"}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
-
-        </div>
-      </section>
-
-      {/* 5. RIGHT HUD PANEL: SUITABILITY SCORE GAUGE & METRICS */}
-      <section style={{
-        position: "absolute",
-        top: "20px",
-        right: "20px",
-        width: "360px",
-        maxHeight: "calc(100vh - 240px)",
-        overflowY: "auto",
-        zIndex: "10",
-        display: "flex",
-        flexDirection: "column",
-        gap: "16px",
-        pointerEvents: "auto"
-      }} className="animate-fade-in">
-        
-        {isLoading ? (
-          <div className="glass-panel" style={{ textAlign: "center", padding: "30px", color: "var(--slate-500)" }}>
-            <Bike size={24} style={{ color: "var(--primary)", animation: "spin 2s linear infinite", margin: "0 auto 10px auto" }} />
-            <span style={{ fontSize: "0.85rem", fontWeight: "600" }}>Recalculating routing segments & winds...</span>
-          </div>
-        ) : error ? (
-          <div className="glass-panel" style={{ display: "flex", gap: "10px", background: "rgba(225, 29, 72, 0.05)", borderColor: "rgba(225, 29, 72, 0.2)", color: "var(--rose)", fontSize: "0.82rem" }}>
-            <ShieldAlert size={18} style={{ flexShrink: "0" }} />
-            <div>
-              <strong style={{ display: "block", marginBottom: "4px" }}>Routing pipeline anomaly</strong>
-              {error}
-            </div>
-          </div>
-        ) : currentForecast ? (
-          <>
-            <ScoreMetric forecast={currentForecast} unitSystem={unitSystem} />
-            
-            <WeatherDetails
-              weatherResults={weatherResults}
-              hourIndex={currentHourIdx}
-              startLocation={
-                activeRideType === "commute"
-                  ? (commuteDirection === "outbound" ? weeklySchedule.commutes[activeCommuteDay]?.outbound?.start : weeklySchedule.commutes[activeCommuteDay]?.return?.start)
-                  : (activeRideType === "oneTime" ? weeklySchedule.oneTimeRides.find(r => r.id === activeOneTimeId)?.start : weeklySchedule.leisureRides.find(r => r.id === activeLeisureId)?.start)
-              }
-              endLocation={
-                activeRideType === "commute"
-                  ? (commuteDirection === "outbound" ? weeklySchedule.commutes[activeCommuteDay]?.outbound?.end : weeklySchedule.commutes[activeCommuteDay]?.return?.end)
-                  : (activeRideType === "oneTime" ? weeklySchedule.oneTimeRides.find(r => r.id === activeOneTimeId)?.end : weeklySchedule.leisureRides.find(r => r.id === activeLeisureId)?.end)
-              }
-              unitSystem={unitSystem}
-            />
-          </>
-        ) : (
-          /* Ambient Local Weather Card (no active route selected) */
-          <div className="glass-panel" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <h3 style={{ fontSize: "0.88rem", fontWeight: "800", color: "var(--slate-700)", textTransform: "uppercase", letterSpacing: "0.04em", display: "flex", alignItems: "center", gap: "6px" }}>
-              <Sparkles size={16} style={{ color: "var(--primary)" }} /> Ambient Local Weather
-            </h3>
-            <p style={{ fontSize: "0.78rem", color: "var(--slate-500)", lineHeight: "1.4" }}>
-              Map is centered on your current location. Adjust temporal scrubber below to see how regional winds flow.
-            </p>
-            {weatherResults.length > 0 && (() => {
-              const rawTemp = weatherResults[0]?.hourly?.temperature_2m?.[currentHourIdx] ?? 20;
-              const rawWind = weatherResults[0]?.hourly?.wind_speed_10m?.[currentHourIdx] ?? 10;
-              const isImperial = unitSystem === "imperial";
-              return (
-                <div className="glass-card" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", padding: "12px" }}>
-                  <div>
-                    <div style={{ fontSize: "0.68rem", color: "var(--slate-400)", fontWeight: "600" }}>TEMPERATURE</div>
-                    <div style={{ fontSize: "1.1rem", fontWeight: "800", color: "var(--slate-800)" }}>
-                      {isImperial ? `${(rawTemp * 1.8 + 32).toFixed(1)}°F` : `${rawTemp.toFixed(1)}°C`}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: "0.68rem", color: "var(--slate-400)", fontWeight: "600" }}>WIND VELOCITY</div>
-                    <div style={{ fontSize: "1.1rem", fontWeight: "800", color: "var(--slate-800)", display: "flex", alignItems: "center", gap: "4px" }}>
-                      💨 {isImperial ? `${(rawWind * 0.621371).toFixed(1)}` : `${rawWind.toFixed(1)}`} <span style={{ fontSize: "0.7rem", fontWeight: "normal" }}>{isImperial ? "mph" : "km/h"}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        )}
-      </section>
+        </section>
+      )}
 
       {/* 6. BOTTOM HUD: TIME ZOOM PRISM SCRUBBER ("Now" | "Today" | "Week") */}
       <footer style={{
         position: "absolute",
-        bottom: "20px",
-        left: "20px",
-        right: "20px",
+        bottom: isMobileView ? "10px" : "20px",
+        left: isMobileView ? "10px" : "20px",
+        right: isMobileView ? "10px" : "20px",
         zIndex: "10",
         display: "flex",
         flexDirection: "column",
@@ -1240,11 +1540,11 @@ export default function Home() {
         <div className="glass-panel" style={{
           display: "flex",
           flexDirection: "column",
-          gap: "14px",
-          padding: "16px 20px"
+          gap: isMobileView ? "10px" : "14px",
+          padding: isMobileView ? "10px 14px" : "16px 20px"
         }}>
           {/* Header row: time options pills */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <Clock size={16} style={{ color: "var(--primary)" }} />
               <span style={{ fontSize: "0.8rem", fontWeight: "800", color: "var(--slate-700)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
@@ -1256,8 +1556,8 @@ export default function Home() {
             <div style={{
               display: "flex",
               background: "#f1f5f9",
-              padding: "4px",
-              borderRadius: "10px"
+              padding: "2px",
+              borderRadius: "8px"
             }}>
               {["Now", "Today", "Week"].map(zoom => (
                 <button
@@ -1273,12 +1573,12 @@ export default function Home() {
                     }
                   }}
                   style={{
-                    padding: "6px 14px",
-                    borderRadius: "8px",
+                    padding: isMobileView ? "4px 8px" : "6px 14px",
+                    borderRadius: "6px",
                     border: "none",
                     background: timeZoom === zoom ? "#ffffff" : "transparent",
                     color: timeZoom === zoom ? "var(--primary)" : "var(--slate-500)",
-                    fontSize: "0.78rem",
+                    fontSize: isMobileView ? "0.7rem" : "0.78rem",
                     fontWeight: "800",
                     cursor: "pointer",
                     boxShadow: timeZoom === zoom ? "0 2px 5px rgba(0,0,0,0.05)" : "none",
@@ -1333,7 +1633,7 @@ export default function Home() {
             <div style={{
               display: "grid",
               gridTemplateColumns: "repeat(7, 1fr)",
-              gap: "8px"
+              gap: isMobileView ? "4px" : "8px"
             }}>
               {Array.from({ length: 7 }).map((_, idx) => {
                 const date = new Date();
@@ -1353,7 +1653,7 @@ export default function Home() {
                       border: "1px solid",
                       borderColor: isActive ? "var(--primary)" : "rgba(226, 232, 240, 0.9)",
                       borderRadius: "10px",
-                      padding: "8px 4px",
+                      padding: isMobileView ? "4px 2px" : "8px 4px",
                       textAlign: "center",
                       cursor: "pointer",
                       display: "flex",
@@ -1362,10 +1662,10 @@ export default function Home() {
                       transition: "all 0.18s ease"
                     }}
                   >
-                    <span style={{ fontSize: "0.75rem", fontWeight: "800", color: isActive ? "var(--primary)" : "var(--slate-600)" }}>
+                    <span style={{ fontSize: isMobileView ? "0.62rem" : "0.75rem", fontWeight: "800", color: isActive ? "var(--primary)" : "var(--slate-600)" }}>
                       {idx === 0 ? "Today" : dayName}
                     </span>
-                    <span style={{ fontSize: "0.62rem", color: "var(--slate-400)" }}>
+                    <span style={{ fontSize: isMobileView ? "0.5rem" : "0.62rem", color: "var(--slate-400)" }}>
                       {dateStr}
                     </span>
                   </div>
