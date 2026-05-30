@@ -730,6 +730,7 @@ export default function Home() {
 
       {/* --- TEMPORAL STATUS HUD BANNER (SCRUBBER LENS) --- */}
       {hasMounted && (() => {
+        if (isAddingTrip) return null; // Hide status banner during active trip planning overlay
         const { dayOffset: schedDay, hour: schedHour, label: schedLabel } = getScheduledDayAndHour();
         if (!schedLabel) return null;
         const isScrubbedAway = schedDay !== null && schedHour !== null && (selectedDay !== schedDay || selectedHour !== schedHour);
