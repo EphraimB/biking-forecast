@@ -64,6 +64,15 @@ export default function RouteMap({
     return directions[val % 16];
   };
 
+  const getWindCompass = (deg) => {
+    const directions = [
+      "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", 
+      "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"
+    ];
+    const val = Math.floor(((deg % 360 + 360) % 360) / 22.5 + 0.5) % 16;
+    return directions[val];
+  };
+
   // Real-time HUD environmental states
   const [ambientTemp, setAmbientTemp] = useState(20);
   const [ambientRain, setAmbientRain] = useState(0);
@@ -324,7 +333,7 @@ export default function RouteMap({
                       <polygon points="22,20 18,25 26,25" fill="${color}" style="filter: drop-shadow(0 0 2px ${color});"/>
                     </g>
                   </svg>
-                  <span style="font-size: 8px; font-weight: 700; color: var(--hud-text-primary); margin-top: 4px; text-align: center;">${displayWind}</span>
+                  <span style="font-size: 8px; font-weight: 700; color: var(--hud-text-primary); margin-top: 4px; text-align: center;">${displayWind} ${getWindCompass(windDir)}</span>
                 </div>
               </div>
               
