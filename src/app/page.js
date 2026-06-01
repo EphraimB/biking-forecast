@@ -747,7 +747,12 @@ export default function Home() {
     const hourIdx = selectedDayOffset * 24 + selectedHour;
     
     // Average scores across segments
-    return calculateCommuteScore(hourIdx, routeSegments, newSpeed, weatherResults);
+    return calculateCommuteScore(
+      hourIdx, 
+      activeRouteData.segments, 
+      activeRouteData.speed, 
+      activeRouteData.weatherResults
+    );
   };
 
   const activeForecast = getActiveForecast();
@@ -780,6 +785,8 @@ export default function Home() {
   const get7DayCommuteData = () => {
     if (weatherResults.length === 0 && Object.keys(scheduledRoutesWeather).length === 0) return [];
     
+    const isAnyDayScheduled = Object.values(weeklySchedule).some(sched => sched.routeId !== null);
+    
     const ribbonDays = [];
     for (let offset = 0; offset < 7; offset++) {
       const targetDate = new Date();
@@ -788,10 +795,10 @@ export default function Home() {
       
       const daySched = weeklySchedule[dayOfWeek] || { routeId: null, outbound: "08:00", return: "17:30" };
 
-      let activeCoords = routeCoordinates;
-      let activeSegs = routeSegments;
-      let activeWeather = weatherResults;
-      let activeSpeed = newSpeed;
+      let activeCoords = null;
+      let activeSegs = null;
+      let activeWeather = null;
+      let activeSpeed = 18;
 
       const boundRouteId = daySched.routeId;
       const boundRoute = savedRoutes.find(r => r.id === boundRouteId);
@@ -802,6 +809,12 @@ export default function Home() {
         activeSegs = boundWeatherEntry.segments;
         activeWeather = boundWeatherEntry.weather;
         activeSpeed = boundRoute.speed || 18;
+      } else if (!isAnyDayScheduled) {
+        // Fall back to active draft route only if there are no days scheduled in the Weekly Commute Planner
+        activeCoords = routeCoordinates;
+        activeSegs = routeSegments;
+        activeWeather = weatherResults;
+        activeSpeed = newSpeed;
       }
 
       if (activeWeather && activeWeather.length > 0) {
@@ -860,8 +873,8 @@ export default function Home() {
         ribbonDays.push({
           offset,
           label: getRollingDayLabel(offset),
-          outbound: { score: 100, duration: 0, departure: "--:--", arrival: "--:--" },
-          return: { score: 100, duration: 0, departure: "--:--", arrival: "--:--" },
+          outbound: { score: 100, duration: 0, departure: null, arrival: null },
+          return: { score: 100, duration: 0, departure: null, arrival: null },
           routeId: boundRouteId,
           routeName: boundRoute ? boundRoute.name : "Active Route"
         });
@@ -1402,6 +1415,14 @@ export default function Home() {
                     if (hasOutbound || hasReturn) {
                       setSelectedDayOffset(day.offset);
                       setHudState(3); // Enter Single-Day Scrub state
+                      
+                      // Default snap: Outbound AM hour
+                      const targetDate = new Date();
+                      targetDate.setDate(targetDate.getDate() + day.offset);
+                      const dayOfWeek = targetDate.getDay();
+                      const daySched = weeklySchedule[dayOfWeek] || { outbound: "08:00", return: "17:30" };
+                      const outboundHour = parseInt(daySched.outbound.split(":")[0]);
+                      setSelectedHour(outboundHour);
                     } else {
                       // Helpfully prompt route setup
                       setHudState(1);
@@ -1429,7 +1450,24 @@ export default function Home() {
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
                     
                     {/* AM Outbound Biking Forecast */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%", alignItems: "center", background: "rgba(255,255,255,0.03)", padding: "6px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div 
+                      onClick={(e) => {
+                        if (hasOutbound || hasReturn) {
+                          e.stopPropagation();
+                          setSelectedDayOffset(day.offset);
+                          setHudState(3);
+                          const targetDate = new Date();
+                          targetDate.setDate(targetDate.getDate() + day.offset);
+                          const dayOfWeek = targetDate.getDay();
+                          const daySched = weeklySchedule[dayOfWeek] || { outbound: "08:00", return: "17:30" };
+                          const outboundHour = parseInt(daySched.outbound.split(":")[0]);
+                          setSelectedHour(outboundHour);
+                        } else {
+                          setHudState(1);
+                        }
+                      }}
+                      style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%", alignItems: "center", background: "rgba(255,255,255,0.03)", padding: "6px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.05)", cursor: "pointer" }}
+                    >
                       <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center", fontSize: "0.68rem", fontWeight: "700" }}>
                         <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.6rem" }}>🌅 AM</span>
                         {hasOutbound ? (
@@ -1463,7 +1501,24 @@ export default function Home() {
                     </div>
 
                     {/* PM Return Biking Forecast */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%", alignItems: "center", background: "rgba(255,255,255,0.03)", padding: "6px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div 
+                      onClick={(e) => {
+                        if (hasOutbound || hasReturn) {
+                          e.stopPropagation();
+                          setSelectedDayOffset(day.offset);
+                          setHudState(3);
+                          const targetDate = new Date();
+                          targetDate.setDate(targetDate.getDate() + day.offset);
+                          const dayOfWeek = targetDate.getDay();
+                          const daySched = weeklySchedule[dayOfWeek] || { outbound: "08:00", return: "17:30" };
+                          const returnHour = parseInt(daySched.return.split(":")[0]);
+                          setSelectedHour(returnHour);
+                        } else {
+                          setHudState(1);
+                        }
+                      }}
+                      style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%", alignItems: "center", background: "rgba(255,255,255,0.03)", padding: "6px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.05)", cursor: "pointer" }}
+                    >
                       <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center", fontSize: "0.68rem", fontWeight: "700" }}>
                         <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.6rem" }}>🌇 PM</span>
                         {hasReturn ? (
@@ -1528,6 +1583,63 @@ export default function Home() {
                   <span style={{ fontSize: "0.78rem", fontWeight: "700", width: "64px" }}>
                     {selectedHour.toString().padStart(2, "0")}:00 {selectedHour >= 12 ? "PM" : "AM"}
                   </span>
+                </div>
+
+                {/* Outbound / Return Quick Snapper Toggle */}
+                <div style={{ 
+                  display: "flex", 
+                  background: "rgba(255,255,255,0.05)", 
+                  padding: "2px", 
+                  borderRadius: "8px", 
+                  border: "1px solid var(--hud-border)",
+                  flexShrink: 0
+                }}>
+                  <button 
+                    onClick={() => {
+                      const daySched = weeklySchedule[currentDayOfWeek] || { outbound: "08:00", return: "17:30" };
+                      const outboundHour = parseInt(daySched.outbound.split(":")[0]);
+                      setSelectedHour(outboundHour);
+                    }}
+                    style={{ 
+                      background: selectedHour === parseInt((weeklySchedule[currentDayOfWeek]?.outbound || "08:00").split(":")[0]) ? "var(--color-emerald)" : "transparent",
+                      border: "none",
+                      borderRadius: "6px",
+                      color: "var(--hud-text-primary)",
+                      fontSize: "0.68rem",
+                      fontWeight: "800",
+                      padding: "4px 8px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      transition: "all var(--duration-fluid) var(--ease-premium)"
+                    }}
+                  >
+                    🌅 AM
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const daySched = weeklySchedule[currentDayOfWeek] || { outbound: "08:00", return: "17:30" };
+                      const returnHour = parseInt(daySched.return.split(":")[0]);
+                      setSelectedHour(returnHour);
+                    }}
+                    style={{ 
+                      background: selectedHour === parseInt((weeklySchedule[currentDayOfWeek]?.return || "17:30").split(":")[0]) ? "var(--color-emerald)" : "transparent",
+                      border: "none",
+                      borderRadius: "6px",
+                      color: "var(--hud-text-primary)",
+                      fontSize: "0.68rem",
+                      fontWeight: "800",
+                      padding: "4px 8px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      transition: "all var(--duration-fluid) var(--ease-premium)"
+                    }}
+                  >
+                    🌇 PM
+                  </button>
                 </div>
 
                 {/* Scrubber Range Input */}
