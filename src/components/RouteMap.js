@@ -422,7 +422,7 @@ export default function RouteMap({
             width: "100%",
             height: "100%",
             pointerEvents: "none",
-            transform: `rotate(${ambientWindDir}deg)`,
+            transform: `rotate(${(ambientWindDir + 90) % 360}deg)`,
             opacity: weatherResults.length > 0 ? Math.min(0.40, 0.08 + (ambientWindSpeed / 45)) : 0.08,
             transition: "opacity 1.2s ease, transform 1.2s ease"
           }}
