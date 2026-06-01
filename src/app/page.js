@@ -870,7 +870,7 @@ export default function Home() {
 
   // Get active forecast details for Top HUD bubbles
   const getActiveForecast = () => {
-    if (activeRouteData.weatherResults.length === 0) return null;
+    if (!activeRouteData || !activeRouteData.segments || activeRouteData.segments.length === 0 || !activeRouteData.weatherResults || activeRouteData.weatherResults.length === 0) return null;
     
     let hourIdx;
     if (hudState === 3) {
@@ -906,7 +906,7 @@ export default function Home() {
 
   // 4. Debug Console Logger for Route-Specific Weather and Scores
   useEffect(() => {
-    if (!activeForecast || !activeRouteData || !activeRouteData.weatherResults || activeRouteData.weatherResults.length === 0) return;
+    if (!activeForecast || !activeForecast.penalties || !activeRouteData || !activeRouteData.weatherResults || activeRouteData.weatherResults.length === 0) return;
 
     let hourIdx;
     if (hudState === 3) {

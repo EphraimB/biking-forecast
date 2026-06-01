@@ -85,7 +85,25 @@ export function calculateSegmentSpeed(segment, windSpeed, windDir, baseSpeed) {
  */
 export function calculateCommuteScore(hourIndex, routeSegments, baseSpeed, weatherResults, preferences = {}) {
   if (!routeSegments || routeSegments.length === 0 || !weatherResults || weatherResults.length === 0) {
-    return { score: 0, duration: 0, speed: baseSpeed, windImpact: "None" };
+    return {
+      score: 0,
+      duration: 0,
+      speed: baseSpeed,
+      distance: 0,
+      headwind: 0,
+      crosswind: 0,
+      windSpeed: 0,
+      windDir: 0,
+      gusts: 0,
+      temp: 20,
+      rainProb: 0,
+      precip: 0,
+      weatherCode: 0,
+      wmoDesc: "Clear",
+      wmoEmoji: "☀️",
+      penalties: { temp: 0, rain: 0, wind: 0, wmo: 0 },
+      windImpact: "None"
+    };
   }
   
   const numSamples = weatherResults.length;
