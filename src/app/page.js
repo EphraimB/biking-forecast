@@ -100,6 +100,7 @@ export default function Home() {
   // Dynamic Packing Drawer Scope (🎒 checklist toggle)
   const [isPackingOpen, setIsPackingOpen] = useState(false);
   const [packingList, setPackingList] = useState([]);
+  const [isRiderConfigOpen, setIsRiderConfigOpen] = useState(false);
 
   // Adaptive Unit Toggle (📐 Metric / Imperial)
   const [unitSystem, setUnitSystem] = useState("metric");
@@ -412,8 +413,6 @@ export default function Home() {
   const handleLoadSavedRoute = (route) => {
     setDraftStart(route.start);
     setDraftEnd(route.end);
-    setNewBikeType(route.bikeType || "Hybrid");
-    setNewSpeed(route.speed || 18);
     
     if (route.coordinates && route.segments) {
       setRouteCoordinates(route.coordinates);
@@ -424,7 +423,7 @@ export default function Home() {
       }).catch(e => console.error("Error fetching weather for loaded route:", e));
       setHudState(2);
     } else {
-      loadRouteDetails(route.start, route.end, route.bikeType || "Hybrid", route.speed || 18);
+      loadRouteDetails(route.start, route.end, newBikeType, newSpeed);
     }
     
     setIsSavedHubOpen(false);
@@ -519,7 +518,7 @@ export default function Home() {
     const result = calculateDepartureTimeForArrival(
       targetDate,
       segments,
-      route.speed || 18,
+      newSpeed,
       boundWeatherEntry.weather
     );
     
@@ -556,7 +555,7 @@ export default function Home() {
     const commuteDetails = calculateCommuteScore(
       hourIdx,
       getReturnSegments(boundWeatherEntry.segments),
-      route.speed || 18,
+      newSpeed,
       boundWeatherEntry.weather
     );
     
@@ -602,8 +601,8 @@ export default function Home() {
                 route.start.lon, 
                 route.end.lat, 
                 route.end.lon, 
-                route.bikeType || "Hybrid", 
-                route.speed || 18
+                newBikeType, 
+                newSpeed
               );
               coords = decodePolyline6(routeData.shape);
               dist = routeData.distance;
@@ -650,7 +649,7 @@ export default function Home() {
         weatherResults: boundWeatherEntry.weather,
         startLocation: boundRoute.start,
         endLocation: boundRoute.end,
-        speed: boundRoute.speed || 18,
+        speed: newSpeed,
         name: boundRoute.name
       };
     }
@@ -803,11 +802,21 @@ export default function Home() {
     }
   }, [selectedDayOffset, selectedHour, isPackingOpen, weeklySchedule, scheduledRoutesWeather]);
 
+  const toggleRiderConfig = () => {
+    if (!isRiderConfigOpen) {
+      setIsWeeklyPlannerOpen(false);
+      setIsPackingOpen(false);
+      setIsSavedHubOpen(false);
+    }
+    setIsRiderConfigOpen(!isRiderConfigOpen);
+  };
+
   // Toggle checklist open/closed with mutual exclusion
   const togglePackingList = () => {
     if (!isPackingOpen) {
       setIsWeeklyPlannerOpen(false);
       setIsSavedHubOpen(false);
+      setIsRiderConfigOpen(false);
     }
     setIsPackingOpen(!isPackingOpen);
   };
@@ -816,6 +825,7 @@ export default function Home() {
     if (!isWeeklyPlannerOpen) {
       setIsPackingOpen(false);
       setIsSavedHubOpen(false);
+      setIsRiderConfigOpen(false);
     }
     setIsWeeklyPlannerOpen(!isWeeklyPlannerOpen);
   };
@@ -824,6 +834,7 @@ export default function Home() {
     if (!isSavedHubOpen) {
       setIsWeeklyPlannerOpen(false);
       setIsPackingOpen(false);
+      setIsRiderConfigOpen(false);
     }
     setIsSavedHubOpen(!isSavedHubOpen);
   };
@@ -1056,7 +1067,7 @@ export default function Home() {
         activeCoords = boundWeatherEntry.coordinates;
         activeSegs = boundWeatherEntry.segments;
         activeWeather = boundWeatherEntry.weather;
-        activeSpeed = boundRoute.speed || 18;
+        activeSpeed = newSpeed;
       } else if (!isAnyDayScheduled && routeCoordinates && routeCoordinates.length > 0 && weatherResults && weatherResults.length > 0) {
         // Fall back to active custom route planned on the map ONLY if there are no days scheduled in the Weekly Commute Planner
         activeCoords = routeCoordinates;
@@ -1382,8 +1393,83 @@ export default function Home() {
       </div>
 
       {/* Right Side: Unit Toggle, Ambient Weather & Gear Check HUD */}
-      <div style={{ display: "flex", gap: "10px", alignItems: "center" }} className="hud-top-right">
+      <div style={{ display: "flex", gap: "10px", alignItems: "center", position: "relative" }} className="hud-top-right">
         
+        {/* Rider Configuration Bubble */}
+        <button 
+          className="hud-bubble" 
+          onClick={toggleRiderConfig}
+          style={{ padding: "10px 14px", fontSize: "0.78rem", fontWeight: "800", cursor: "pointer", border: isRiderConfigOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)", background: "rgba(15,23,42,0.85)", pointerEvents: "auto" }}
+          title="Rider Profile Configurations"
+        >
+          <span>🚴</span> <span className="mobile-hide">RIDER PROFILE</span>
+        </button>
+
+        {/* Expanded Rider Configurations Glass Card */}
+        {isRiderConfigOpen && (
+          <div 
+            className="hud-card hud-card-responsive" 
+            style={{ 
+              position: "absolute", 
+              top: "54px", 
+              right: 0, 
+              width: "290px", 
+              display: "flex", 
+              flexDirection: "column", 
+              gap: "16px", 
+              border: "1px solid rgba(255, 255, 255, 0.15)",
+              pointerEvents: "auto",
+              background: "rgba(10, 15, 30, 0.97)",
+              backdropFilter: "blur(20px)",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.5)",
+              zIndex: 10000
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hud-border)", paddingBottom: "8px" }}>
+              <h4 style={{ fontFamily: "var(--font-heading)", fontSize: "0.95rem", fontWeight: "800", display: "flex", alignItems: "center", gap: "6px" }}>
+                🚴 Rider Configurator
+              </h4>
+              <button onClick={() => setIsRiderConfigOpen(false)} style={{ background: "none", border: "none", color: "var(--hud-text-secondary)", cursor: "pointer" }}><X size={14} /></button>
+            </div>
+            
+            {/* Bike Selection */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <span style={{ fontSize: "0.74rem", color: "var(--hud-text-secondary)" }}>Bicycle Profile</span>
+              <select 
+                className="hud-input" 
+                value={newBikeType}
+                onChange={(e) => {
+                  setNewBikeType(e.target.value);
+                  const defaultSpeeds = { Road: 24, Hybrid: 18, Mountain: 16, E_Bike: 25 };
+                  setNewSpeed(defaultSpeeds[e.target.value] || 18);
+                }}
+                style={{ background: "#111827", border: "1px solid var(--hud-border)" }}
+              >
+                <option value="Road">🚴 Road Bike</option>
+                <option value="Hybrid">🚲 Hybrid / Commuter</option>
+                <option value="Mountain">🚵 Mountain Bike</option>
+                <option value="E_Bike">⚡ Electric Bike</option>
+              </select>
+            </div>
+
+            {/* Speed Slider */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.74rem" }}>
+                <span style={{ color: "var(--hud-text-secondary)" }}>Base Speed</span>
+                <span>{unitSystem === "imperial" ? `${Math.round(newSpeed * 0.621371)} mph` : `${newSpeed} km/h`}</span>
+              </div>
+              <input 
+                type="range" 
+                min="10" 
+                max="35" 
+                value={newSpeed}
+                onChange={(e) => setNewSpeed(parseInt(e.target.value))}
+                style={{ accentColor: "var(--color-emerald)", cursor: "pointer" }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Metric / Imperial Toggling Bubble */}
         <button 
           className="hud-bubble" 
@@ -1548,56 +1634,8 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Direct Pin Tapping Note */}
-              <p style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)", textAlign: "center" }}>
-                💡 Or tap start/end coordinates directly on the map.
-              </p>
-            </div>
-          </div>
-
-          {/* Center Right: Route config overlays */}
-          <div style={{ position: "absolute", bottom: "30px", right: "20px", width: "320px" }} className="hud-slide-bottom hud-config-card">
-            <div className="hud-card" style={{ display: "flex", flexDirection: "column", gap: "16px", pointerEvents: "auto" }}>
-              <h4 style={{ fontFamily: "var(--font-heading)", fontWeight: "800", fontSize: "0.95rem" }}>🚴 Rider Configurations</h4>
-              
-              {/* Bike Selection */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <span style={{ fontSize: "0.74rem", color: "var(--hud-text-secondary)" }}>Bicycle Profile</span>
-                <select 
-                  className="hud-input" 
-                  value={newBikeType}
-                  onChange={(e) => {
-                    setNewBikeType(e.target.value);
-                    const defaultSpeeds = { Road: 24, Hybrid: 18, Mountain: 16, E_Bike: 25 };
-                    setNewSpeed(defaultSpeeds[e.target.value] || 18);
-                  }}
-                  style={{ background: "#111827", border: "1px solid var(--hud-border)" }}
-                >
-                  <option value="Road">🚴 Road Bike</option>
-                  <option value="Hybrid">🚲 Hybrid / Commuter</option>
-                  <option value="Mountain">🚵 Mountain Bike</option>
-                  <option value="E_Bike">⚡ Electric Bike</option>
-                </select>
-              </div>
-
-              {/* Speed Slider */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.74rem" }}>
-                  <span style={{ color: "var(--hud-text-secondary)" }}>Base Speed</span>
-                  <span>{unitSystem === "imperial" ? `${Math.round(newSpeed * 0.621371)} mph` : `${newSpeed} km/h`}</span>
-                </div>
-                <input 
-                  type="range" 
-                  min="10" 
-                  max="35" 
-                  value={newSpeed}
-                  onChange={(e) => setNewSpeed(parseInt(e.target.value))}
-                  style={{ accentColor: "var(--color-emerald)", cursor: "pointer" }}
-                />
-              </div>
-
               {/* Save Route Persistence Toggle */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px", borderTop: "1px solid var(--hud-border)", paddingTop: "12px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", borderTop: "1px solid var(--hud-border)", paddingTop: "12px", marginTop: "4px" }}>
                 <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.78rem", cursor: "pointer" }}>
                   <input 
                     type="checkbox" 
@@ -1632,10 +1670,15 @@ export default function Home() {
                   }
                   loadRouteDetails(draftStart, draftEnd, newBikeType, newSpeed);
                 }}
-                style={{ width: "100%", justifyContent: "center", padding: "12px", fontSize: "0.85rem", cursor: "pointer" }}
+                style={{ width: "100%", justifyContent: "center", padding: "12px", fontSize: "0.85rem", cursor: "pointer", marginTop: "4px" }}
               >
                 {isLoading ? "Analyzing..." : "Confirm & Map HUD"}
               </button>
+
+              {/* Direct Pin Tapping Note */}
+              <p style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)", textAlign: "center" }}>
+                💡 Or tap start/end coordinates directly on the map.
+              </p>
             </div>
           </div>
         </div>
