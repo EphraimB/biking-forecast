@@ -1184,8 +1184,11 @@ export default function Home() {
         ------------------------------------------------------------- 
       */}
       
-      {/* Top Left: Unified Navigation & Controls Hub */}
-      <div style={{ position: "absolute", top: "20px", left: "20px", zIndex: 9999, display: "flex", gap: "10px" }} className="hud-slide-top hud-top-left">
+      {/* Top Controls: Unified Full-Width HUD Container */}
+      <div className="hud-top-container">
+        
+        {/* Left Side: Unified Navigation & Controls Hub */}
+        <div style={{ display: "flex", gap: "10px" }} className="hud-top-left">
         
         {/* State 0: Enter Route Search bubble */}
         {hudState === 0 && (
@@ -1345,8 +1348,8 @@ export default function Home() {
         )}
       </div>
 
-      {/* Top Right: Unit Toggle, Ambient Weather & Gear Check HUD */}
-      <div style={{ position: "absolute", top: "20px", right: "20px", zIndex: 9999, display: "flex", gap: "10px", alignItems: "center" }} className="hud-slide-top hud-top-right">
+      {/* Right Side: Unit Toggle, Ambient Weather & Gear Check HUD */}
+      <div style={{ display: "flex", gap: "10px", alignItems: "center" }} className="hud-top-right">
         
         {/* Metric / Imperial Toggling Bubble */}
         <button 
@@ -1426,6 +1429,8 @@ export default function Home() {
           </>
         )}
       </div>
+
+    </div>
 
 
 
