@@ -121,7 +121,28 @@ export default function RouteMap({
     layersRef.current.telemetries = [];
 
     import("leaflet").then((L) => {
-      const currentHourIdx = selectedDay * 24 + selectedHour;
+      let currentHourIdx;
+      if (hudState === 3) {
+        // If actively scrubbing the timeline in State 3, sync with the scrubber values
+        currentHourIdx = selectedDay * 24 + selectedHour;
+      } else {
+        // If in ambient state (State 0, 1, or 2), display the actual current local hour
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = (now.getMonth() + 1).toString().padStart(2, "0");
+        const date = now.getDate().toString().padStart(2, "0");
+        const hour = now.getHours().toString().padStart(2, "0");
+        const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
+        
+        // Find hour index in the first weather station's hourly time array
+        const firstHourly = weatherResults[0]?.hourly;
+        let matchedIdx = firstHourly?.time?.indexOf(currentHourStr);
+        if (matchedIdx === -1 || matchedIdx === undefined) {
+          matchedIdx = now.getHours(); // Fallback to current local hour index
+        }
+        currentHourIdx = matchedIdx;
+      }
+
       const numSamples = weatherResults.length;
 
       if (routeSegments && routeSegments.length > 0 && weatherResults.length > 0) {
@@ -208,8 +229,8 @@ export default function RouteMap({
             <div style="font-size: 11px; padding: 2px; line-height: 1.5; color: var(--hud-text-primary); font-family: var(--font-body);">
               <strong style="color: ${color}; font-size: 12.5px; font-family: var(--font-heading); display: block; margin-bottom: 4px;">${difficulty}</strong>
               📏 Distance: <strong>${displayDist}</strong><br/>
-              🧭 Bearing: <strong>${getCompassDirection(seg.bearing)} (${Math.round(seg.bearing)}°)</strong><br/>
-              💨 Wind: <strong>${displayWind} ${getCompassDirection(windDir)} (${Math.round(windDir)}°)</strong><br/>
+              🧭 Bearing: <strong>${getCompassDirection(seg.bearing)}</strong><br/>
+              💨 Wind: <strong>${displayWind} ${getCompassDirection(windDir)}</strong><br/>
               🚴 Resistance: <strong>${displayHeadwind}</strong>
             </div>
           `, { 
@@ -375,7 +396,7 @@ export default function RouteMap({
       }
     });
 
-  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem]);
+  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState]);
 
   // 3. Sync and animate ambient atmospheric weather values
   useEffect(() => {

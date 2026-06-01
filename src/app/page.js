@@ -290,8 +290,11 @@ export default function Home() {
   };
 
   const getWindCompassDirection = (degrees) => {
-    const directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-    const index = Math.round(degrees / 45) % 8;
+    const directions = [
+      "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", 
+      "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"
+    ];
+    const index = Math.floor((degrees / 22.5) + 0.5) % 16;
     return directions[index];
   };
 
@@ -794,8 +797,12 @@ export default function Home() {
 
   // Get dynamic ambient weather based on timeline scrub position
   const getDynamicAmbientWeather = () => {
-    if (!ambientWeatherForecast) return ambientWeather;
-    const hourly = ambientWeatherForecast.hourly;
+    const activeWeatherSource = (activeRouteData && activeRouteData.weatherResults && activeRouteData.weatherResults.length > 0)
+      ? activeRouteData.weatherResults[0]
+      : ambientWeatherForecast;
+
+    if (!activeWeatherSource) return ambientWeather;
+    const hourly = activeWeatherSource.hourly;
     if (!hourly) return ambientWeather;
     
     let hourIdx;
@@ -831,7 +838,27 @@ export default function Home() {
   // Get active forecast details for Top HUD bubbles
   const getActiveForecast = () => {
     if (activeRouteData.weatherResults.length === 0) return null;
-    const hourIdx = selectedDayOffset * 24 + selectedHour;
+    
+    let hourIdx;
+    if (hudState === 3) {
+      // If actively scrubbing the timeline in State 3, sync with the scrubber values
+      hourIdx = selectedDayOffset * 24 + selectedHour;
+    } else {
+      // If in ambient state (State 0, 1, or 2), display the actual current local hour
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = (now.getMonth() + 1).toString().padStart(2, "0");
+      const date = now.getDate().toString().padStart(2, "0");
+      const hour = now.getHours().toString().padStart(2, "0");
+      const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
+      
+      const firstHourly = activeRouteData.weatherResults[0]?.hourly;
+      let currentHourIdx = firstHourly?.time?.indexOf(currentHourStr);
+      if (currentHourIdx === -1 || currentHourIdx === undefined) {
+        currentHourIdx = now.getHours(); // Fallback to current local hour index
+      }
+      hourIdx = currentHourIdx;
+    }
     
     // Average scores across segments
     return calculateCommuteScore(
@@ -848,11 +875,31 @@ export default function Home() {
   useEffect(() => {
     if (!activeForecast || !activeRouteData || !activeRouteData.weatherResults || activeRouteData.weatherResults.length === 0) return;
 
-    const hourIdx = selectedDayOffset * 24 + selectedHour;
+    let hourIdx;
+    if (hudState === 3) {
+      hourIdx = selectedDayOffset * 24 + selectedHour;
+    } else {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = (now.getMonth() + 1).toString().padStart(2, "0");
+      const date = now.getDate().toString().padStart(2, "0");
+      const hour = now.getHours().toString().padStart(2, "0");
+      const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
+      
+      const firstHourly = activeRouteData.weatherResults[0]?.hourly;
+      let currentHourIdx = firstHourly?.time?.indexOf(currentHourStr);
+      if (currentHourIdx === -1 || currentHourIdx === undefined) {
+        currentHourIdx = now.getHours(); // Fallback to current local hour index
+      }
+      hourIdx = currentHourIdx;
+    }
+
     const targetDate = new Date();
     targetDate.setDate(targetDate.getDate() + selectedDayOffset);
     const dateFormatted = targetDate.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-    const timeFormatted = `${selectedHour.toString().padStart(2, "0")}:00 ${selectedHour >= 12 ? "PM" : "AM"}`;
+    
+    const activeHourNumber = hourIdx % 24;
+    const timeFormatted = `${activeHourNumber.toString().padStart(2, "0")}:00 ${activeHourNumber >= 12 ? "PM" : "AM"}`;
 
     const numPoints = activeRouteData.weatherResults.length;
     
@@ -977,8 +1024,8 @@ export default function Home() {
         activeSegs = boundWeatherEntry.segments;
         activeWeather = boundWeatherEntry.weather;
         activeSpeed = boundRoute.speed || 18;
-      } else if (!isAnyDayScheduled) {
-        // Fall back to active draft route only if there are no days scheduled in the Weekly Commute Planner
+      } else if (!isAnyDayScheduled && routeCoordinates && routeCoordinates.length > 0 && weatherResults && weatherResults.length > 0) {
+        // Fall back to active custom route planned on the map ONLY if there are no days scheduled in the Weekly Commute Planner
         activeCoords = routeCoordinates;
         activeSegs = routeSegments;
         activeWeather = weatherResults;
@@ -1041,8 +1088,8 @@ export default function Home() {
         ribbonDays.push({
           offset,
           label: getRollingDayLabel(offset),
-          outbound: { score: 100, duration: 0, departure: null, arrival: null },
-          return: { score: 100, duration: 0, departure: null, arrival: null },
+          outbound: { score: null, duration: 0, departure: null, arrival: null },
+          return: { score: null, duration: 0, departure: null, arrival: null },
           routeId: boundRouteId,
           routeName: boundRoute ? boundRoute.name : "Active Route"
         });
@@ -1562,7 +1609,7 @@ export default function Home() {
         <div 
           style={{ 
             position: "absolute", 
-            bottom: "20px", 
+            bottom: "30px", 
             left: "20px", 
             right: "20px", 
             width: "calc(100% - 40px)", 
@@ -1583,7 +1630,7 @@ export default function Home() {
           <div 
             className="hud-card ribbon-container" 
             style={{ 
-              padding: "12px", 
+              padding: "8px 10px", 
               display: "flex", 
               justifyContent: "space-between", 
               alignItems: "center", 
@@ -1595,8 +1642,8 @@ export default function Home() {
           >
             {ribbonDaysData.map((day) => {
               const isSelected = hudState === 3 && selectedDayOffset === day.offset;
-              const hasOutbound = day.outbound && day.outbound.departure !== null;
-              const hasReturn = day.return && day.return.departure !== null;
+              const hasOutbound = day.outbound && day.outbound.departure !== null && day.outbound.score !== null;
+              const hasReturn = day.return && day.return.departure !== null && day.return.score !== null;
               
               return (
                 <div 
@@ -1622,14 +1669,14 @@ export default function Home() {
                   style={{ 
                     flex: 1, 
                     borderRadius: "14px", 
-                    padding: "8px 6px", 
+                    padding: "6px 4px", 
                     background: isSelected ? "rgba(255,255,255,0.08)" : "transparent",
                     border: isSelected ? "1px solid var(--hud-border-glow)" : "1px solid transparent",
                     cursor: "pointer",
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
-                    gap: "8px",
+                    gap: "5px",
                     transition: "all var(--duration-fluid) var(--ease-premium)"
                   }}
                 >
@@ -1638,7 +1685,7 @@ export default function Home() {
                   </span>
 
                   {/* DUAL RIDE TRACKS (Top: Outbound AM, Bottom: Return PM) */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
                     
                     {/* AM Outbound Biking Forecast */}
                     <div 
@@ -1657,7 +1704,7 @@ export default function Home() {
                           setHudState(1);
                         }
                       }}
-                      style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%", alignItems: "center", background: "rgba(255,255,255,0.03)", padding: "6px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.05)", cursor: "pointer" }}
+                      style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%", alignItems: "center", background: "rgba(255,255,255,0.03)", padding: "4px 6px", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.05)", cursor: "pointer" }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center", fontSize: "0.68rem", fontWeight: "700" }}>
                         <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.6rem" }}>🌅 AM</span>
@@ -1678,7 +1725,7 @@ export default function Home() {
                       </div>
                       {hasOutbound ? (
                         <>
-                          <div style={{ fontSize: "0.62rem", fontWeight: "700", color: "var(--hud-text-primary)", marginTop: "2px" }}>
+                          <div style={{ fontSize: "0.62rem", fontWeight: "700", color: "var(--hud-text-primary)", marginTop: "1px" }}>
                             {day.outbound.departure.replace(" AM", "a").replace(" PM", "p")}
                             <span className="mobile-hide"> → {day.outbound.arrival.replace(" AM", "a").replace(" PM", "p")}</span>
                           </div>
@@ -1687,7 +1734,9 @@ export default function Home() {
                           </div>
                         </>
                       ) : (
-                        <div style={{ fontSize: "0.58rem", color: "var(--hud-text-secondary)", fontStyle: "italic", marginTop: "2px" }}>No Route</div>
+                        <div style={{ fontSize: "0.58rem", color: "var(--hud-text-secondary)", fontStyle: "italic", marginTop: "2px" }}>
+                          {day.routeId ? "Loading..." : "No Route"}
+                        </div>
                       )}
                     </div>
 
@@ -1708,7 +1757,7 @@ export default function Home() {
                           setHudState(1);
                         }
                       }}
-                      style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%", alignItems: "center", background: "rgba(255,255,255,0.03)", padding: "6px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.05)", cursor: "pointer" }}
+                      style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%", alignItems: "center", background: "rgba(255,255,255,0.03)", padding: "4px 6px", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.05)", cursor: "pointer" }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center", fontSize: "0.68rem", fontWeight: "700" }}>
                         <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.6rem" }}>🌇 PM</span>
@@ -1729,7 +1778,7 @@ export default function Home() {
                       </div>
                       {hasReturn ? (
                         <>
-                          <div style={{ fontSize: "0.62rem", fontWeight: "700", color: "var(--hud-text-primary)", marginTop: "2px" }}>
+                          <div style={{ fontSize: "0.62rem", fontWeight: "700", color: "var(--hud-text-primary)", marginTop: "1px" }}>
                             {day.return.departure.replace(" AM", "a").replace(" PM", "p")}
                             <span className="mobile-hide"> → {day.return.arrival.replace(" AM", "a").replace(" PM", "p")}</span>
                           </div>
@@ -1738,7 +1787,9 @@ export default function Home() {
                           </div>
                         </>
                       ) : (
-                        <div style={{ fontSize: "0.58rem", color: "var(--hud-text-secondary)", fontStyle: "italic", marginTop: "2px" }}>No Route</div>
+                        <div style={{ fontSize: "0.58rem", color: "var(--hud-text-secondary)", fontStyle: "italic", marginTop: "2px" }}>
+                          {day.routeId ? "Loading..." : "No Route"}
+                        </div>
                       )}
                     </div>
 
