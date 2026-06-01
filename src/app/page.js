@@ -128,6 +128,7 @@ export default function Home() {
 
   // Ambient Local WeatherHUD Info
   const [userLocation, setUserLocation] = useState(null);
+  const [weatherLocationName, setWeatherLocationName] = useState("Resolving GPS...");
   const [ambientWeather, setAmbientWeather] = useState(null);
   const [ambientWeatherForecast, setAmbientWeatherForecast] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -157,11 +158,15 @@ export default function Home() {
 
     // Restore Global View-State Caching (Reload Survival)
     const cachedState = localStorage.getItem("hud_active_view_state");
+    let restoredHour = false;
     if (cachedState) {
       try {
         const state = JSON.parse(cachedState);
         if (state.selectedDayOffset !== undefined) setSelectedDayOffset(state.selectedDayOffset);
-        if (state.selectedHour !== undefined) setSelectedHour(state.selectedHour);
+        if (state.selectedHour !== undefined) {
+          setSelectedHour(state.selectedHour);
+          restoredHour = true;
+        }
         if (state.newBikeType !== undefined) setNewBikeType(state.newBikeType);
         if (state.newSpeed !== undefined) setNewSpeed(state.newSpeed);
         if (state.unitSystem !== undefined) setUnitSystem(state.unitSystem);
@@ -191,18 +196,25 @@ export default function Home() {
       }
     }
 
+    if (!restoredHour) {
+      const currentHour = new Date().getHours();
+      setSelectedHour(Math.max(6, Math.min(20, currentHour)));
+    }
+
     // Centered location default ambient lookup
     if (typeof window !== "undefined" && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const loc = { lat: position.coords.latitude, lon: position.coords.longitude };
           setUserLocation(loc);
+          setWeatherLocationName("Live GPS");
           fetchAmbientWeather(loc.lat, loc.lon);
         },
         () => {
           // Central Park Fallback
           const fallback = { lat: 40.7851, lon: -73.9682 };
           setUserLocation(fallback);
+          setWeatherLocationName("Central Park");
           fetchAmbientWeather(fallback.lat, fallback.lon);
         }
       );
@@ -235,14 +247,42 @@ export default function Home() {
       const weather = await fetchRouteWeather(dummyCoords, 1);
       if (weather && weather.length > 0) {
         const hourly = weather[0]?.hourly;
-        const currentHour = new Date().getHours();
+        
+        // Robust string-based local hour matching to avoid timezone index mismatches
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = (now.getMonth() + 1).toString().padStart(2, "0");
+        const date = now.getDate().toString().padStart(2, "0");
+        const hour = now.getHours().toString().padStart(2, "0");
+        const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
+        
+        let currentHourIdx = hourly?.time?.indexOf(currentHourStr);
+        if (currentHourIdx === -1 || currentHourIdx === undefined) {
+          currentHourIdx = now.getHours(); // Fallback to current local hour index if not found
+        }
+        
+        const resolvedTemp = hourly?.temperature_2m?.[currentHourIdx] ?? 22;
+        const resolvedWindSpeed = hourly?.wind_speed_10m?.[currentHourIdx] ?? 12;
+        const resolvedWindDirDeg = hourly?.wind_direction_10m?.[currentHourIdx] ?? 0;
+        const resolvedWindCompass = getWindCompassDirection(resolvedWindDirDeg);
+
         setAmbientWeather({
-          temp: hourly?.temperature_2m?.[currentHour] ?? 22,
-          windSpeed: hourly?.wind_speed_10m?.[currentHour] ?? 12,
-          windDir: getWindCompassDirection(hourly?.wind_direction_10m?.[currentHour] ?? 0),
+          temp: resolvedTemp,
+          windSpeed: resolvedWindSpeed,
+          windDir: resolvedWindCompass,
           desc: "Perfect Local Conditions"
         });
         setAmbientWeatherForecast(weather[0]);
+
+        console.log(`☀️ [Ambient Weather HUD] Resolved values for: ${weatherLocationName || "GPS Location"}`, {
+          coordinates: { lat, lon },
+          matchedTime: currentHourStr,
+          arrayIndex: currentHourIdx,
+          celsius: `${resolvedTemp.toFixed(1)}°C`,
+          fahrenheit: `${Math.round(resolvedTemp * 1.8 + 32)}°F`,
+          wind: `${resolvedWindSpeed.toFixed(1)} km/h (${Math.round(resolvedWindSpeed * 0.621371)} mph)`,
+          windCompass: `${resolvedWindCompass} (${resolvedWindDirDeg}°)`
+        });
       }
     } catch (e) {
       console.error("Ambient weather fetch error:", e);
@@ -254,6 +294,17 @@ export default function Home() {
     const index = Math.round(degrees / 45) % 8;
     return directions[index];
   };
+
+  // Update ambient weather dynamically when the planned route's start location changes
+  useEffect(() => {
+    if (draftStart && draftStart.lat && draftStart.lon) {
+      // Crop coordinate strings to avoid super long labels in tooltips
+      const label = draftStart.label || "Planned Route";
+      const shortLabel = label.split(",")[0] || "Route Start";
+      setWeatherLocationName(shortLabel);
+      fetchAmbientWeather(draftStart.lat, draftStart.lon);
+    }
+  }, [draftStart]);
 
   // Autocomplete Geocoding Debouncing
   const triggerGeocode = (query, isStart) => {
@@ -746,7 +797,27 @@ export default function Home() {
     if (!ambientWeatherForecast) return ambientWeather;
     const hourly = ambientWeatherForecast.hourly;
     if (!hourly) return ambientWeather;
-    const hourIdx = selectedDayOffset * 24 + selectedHour;
+    
+    let hourIdx;
+    if (hudState === 3) {
+      // If actively scrubbing the timeline in State 3, sync with the scrubber values
+      hourIdx = selectedDayOffset * 24 + selectedHour;
+    } else {
+      // If in ambient state (State 0, 1, or 2), display the actual current local hour
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = (now.getMonth() + 1).toString().padStart(2, "0");
+      const date = now.getDate().toString().padStart(2, "0");
+      const hour = now.getHours().toString().padStart(2, "0");
+      const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
+      
+      let currentHourIdx = hourly.time?.indexOf(currentHourStr);
+      if (currentHourIdx === -1 || currentHourIdx === undefined) {
+        currentHourIdx = now.getHours(); // Fallback to current local hour index
+      }
+      hourIdx = currentHourIdx;
+    }
+
     return {
       temp: hourly.temperature_2m?.[hourIdx] ?? (ambientWeather?.temp ?? 22),
       windSpeed: hourly.wind_speed_10m?.[hourIdx] ?? (ambientWeather?.windSpeed ?? 12),
@@ -772,6 +843,87 @@ export default function Home() {
   };
 
   const activeForecast = getActiveForecast();
+
+  // 4. Debug Console Logger for Route-Specific Weather and Scores
+  useEffect(() => {
+    if (!activeForecast || !activeRouteData || !activeRouteData.weatherResults || activeRouteData.weatherResults.length === 0) return;
+
+    const hourIdx = selectedDayOffset * 24 + selectedHour;
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + selectedDayOffset);
+    const dateFormatted = targetDate.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+    const timeFormatted = `${selectedHour.toString().padStart(2, "0")}:00 ${selectedHour >= 12 ? "PM" : "AM"}`;
+
+    const numPoints = activeRouteData.weatherResults.length;
+    
+    const getDetailedCompassDirection = (deg) => {
+      const directions = [
+        "North (N)", "North-Northeast (NNE)", "Northeast (NE)", "East-Northeast (ENE)", 
+        "East (E)", "East-Southeast (ESE)", "Southeast (SE)", "South-Southeast (SSE)", 
+        "South (S)", "South-Southwest (SSW)", "Southwest (SW)", "West-Southwest (WSW)", 
+        "West (W)", "West-Northwest (WNW)", "Northwest (NW)", "North-Northwest (NNW)"
+      ];
+      const val = Math.floor((deg / 22.5) + 0.5);
+      return directions[val % 16];
+    };
+
+    const stationLogs = activeRouteData.weatherResults.map((station, idx) => {
+      const hourly = station?.hourly;
+      if (!hourly) return null;
+      const temp = hourly.temperature_2m?.[hourIdx] ?? 20;
+      const humidity = hourly.relative_humidity_2m?.[hourIdx] ?? 0;
+      const windSp = hourly.wind_speed_10m?.[hourIdx] ?? 0;
+      const windDi = hourly.wind_direction_10m?.[hourIdx] ?? 0;
+      const rain = hourly.precipitation_probability?.[hourIdx] ?? 0;
+      const precip = hourly.precipitation?.[hourIdx] ?? 0;
+      const wmo = hourly.weather_code?.[hourIdx] ?? 0;
+      
+      const role = idx === 0 ? "🟢 Route Origin" : idx === numPoints - 1 ? "🔴 Route Destination" : `🟡 Station #${idx + 1}`;
+      const compassText = getDetailedCompassDirection(windDi);
+
+      return {
+        "Route Station Point": role,
+        "Coordinates": `${station.latitude.toFixed(4)}, ${station.longitude.toFixed(4)}`,
+        "Temperature": `${temp.toFixed(1)}°C (${Math.round(temp * 1.8 + 32)}°F)`,
+        "Humidity": `${humidity}%`,
+        "Rain Chance": `${rain}%`,
+        "Precipitation": `${precip.toFixed(1)} mm`,
+        "Wind Speed": `${windSp.toFixed(1)} km/h (${Math.round(windSp * 0.621371)} mph)`,
+        "Wind Direction": `${compassText} (${windDi}°)`,
+        "Weather Condition": `${WMO_MAP[wmo]?.desc || "Clear"} ${WMO_MAP[wmo]?.emoji || "☀️"} (Code: ${wmo})`
+      };
+    }).filter(Boolean);
+
+    console.group(`🚲 [Biking Forecast Debugger] Score and Weather for: ${activeRouteData.name || "Active Route"}`);
+    console.log(`📅 Target Time: ${dateFormatted} at ${timeFormatted} (Hour Offset Index: ${hourIdx})`);
+    console.log(`📍 Start Location:`, activeRouteData.startLocation?.label || "Unknown");
+    console.log(`📍 End Location:`, activeRouteData.endLocation?.label || "Unknown");
+    console.log(`⚡ Base Speed: ${activeRouteData.speed} km/h (${Math.round(activeRouteData.speed * 0.621371)} mph)`);
+    
+    console.group("🌦️ Weather Station Readings along Route (Hourly Interpolations)");
+    console.table(stationLogs);
+    console.groupEnd();
+
+    console.group("🔢 Suitability Score & Deduction Breakdown");
+    console.log(`🎯 Final Suitability Score: ${activeForecast.score}/100`);
+    console.log(`📉 Penalty Breakdown:`, {
+      "🌡️ Temperature Penalty": `${activeForecast.penalties.temp} pts (Temp: ${activeForecast.temp.toFixed(1)}°C)`,
+      "🌧️ Rain/Precip Penalty": `${activeForecast.penalties.rain} pts (Precip: ${activeForecast.precip.toFixed(1)} mm, Prob: ${activeForecast.rainProb}%)`,
+      "💨 Wind/Gusts Penalty": `${activeForecast.penalties.wind} pts (Gusts: ${activeForecast.gusts.toFixed(1)} km/h, Avg Headwind: ${activeForecast.headwind.toFixed(1)} km/h)`,
+      "☁️ General Weather Penalty": `${activeForecast.penalties.wmo} pts (${activeForecast.wmoEmoji} ${activeForecast.wmoDesc})`
+    });
+    console.groupEnd();
+
+    console.group("🌬️ Wind Aware Commute Metrics");
+    console.log(`💨 Wind Flow Impact: ${activeForecast.windImpact}`);
+    console.log(`🚴 Adjusted Average Riding Speed: ${activeForecast.speed.toFixed(1)} km/h (${Math.round(activeForecast.speed * 0.621371)} mph)`);
+    console.log(`⏱️ Estimated Ride Duration: ${activeForecast.duration} minutes (Distance: ${activeForecast.distance.toFixed(1)} km)`);
+    console.log(`🧭 Average Headwind component: ${activeForecast.headwind.toFixed(1)} km/h (Tailwind if negative)`);
+    console.log(`🧭 Average Crosswind component: ${activeForecast.crosswind.toFixed(1)} km/h`);
+    console.groupEnd();
+
+    console.groupEnd();
+  }, [activeForecast, activeRouteData, selectedDayOffset, selectedHour]);
 
   const selectedDayDate = new Date();
   selectedDayDate.setDate(selectedDayDate.getDate() + selectedDayOffset);
@@ -1158,7 +1310,7 @@ export default function Home() {
         </button>
 
         {dynamicAmbientWeather && (
-          <div className="hud-bubble" style={{ pointerEvents: "none" }}>
+          <div className="hud-bubble" style={{ pointerEvents: "auto", cursor: "help" }} title={`Location: ${weatherLocationName}`}>
             <SunDim size={16} style={{ color: "var(--color-amber)", animation: "spin 12s linear infinite" }} />
             <span style={{ fontSize: "0.82rem", fontWeight: "600" }}>
               {formatTemp(dynamicAmbientWeather.temp)}

@@ -273,6 +273,9 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance) {
     // Request WMO weather codes, temp, humidity, precipitation probability, wind speed, wind direction, wind gusts
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&hourly=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index&timezone=auto`;
     
+    console.log(`🌐 [Open-Meteo API] Fetching weather forecast for ${numSamples} coordinates:`, sampledPoints);
+    console.log(`🔗 [Open-Meteo API] Request URL: ${url}`);
+
     const response = await fetch(url);
     
     if (!response.ok) {
@@ -284,10 +287,51 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance) {
     // Ensure it's returned as an array, as Open-Meteo returns a single object if there's only 1 coordinate requested
     // but an array of objects if multiple points are requested.
     const weatherArray = Array.isArray(data) ? data : [data];
+    
+    // Dynamically match the current hour to print relevant console log metrics rather than hardcoded midnight (hour 0)
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = (now.getMonth() + 1).toString().padStart(2, "0");
+    const date = now.getDate().toString().padStart(2, "0");
+    const hour = now.getHours().toString().padStart(2, "0");
+    const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
+    
+    let currentHourIdx = weatherArray[0]?.hourly?.time?.indexOf(currentHourStr);
+    if (currentHourIdx === -1 || currentHourIdx === undefined) {
+      currentHourIdx = now.getHours(); // Fallback to current local hour index
+    }
+    
+    console.log(`✅ [Open-Meteo API] Successfully retrieved weather data for ${weatherArray.length} point(s). Sampled current hour (${currentHourStr}) metrics:`, {
+      temp: `${weatherArray[0]?.hourly?.temperature_2m?.[currentHourIdx]}°C`,
+      humidity: `${weatherArray[0]?.hourly?.relative_humidity_2m?.[currentHourIdx]}%`,
+      windSpeed: `${weatherArray[0]?.hourly?.wind_speed_10m?.[currentHourIdx]} km/h`,
+      windDir: `${weatherArray[0]?.hourly?.wind_direction_10m?.[currentHourIdx]}°`
+    });
+
     return weatherArray;
   } catch (error) {
     console.warn(`Open-Meteo weather fetch failed: ${error.message || error}. Serving dynamic offline mathematical forecast.`);
     // Return high-fidelity mock forecast fallback
-    return sampledPoints.map(p => generateMockWeather(p[0], p[1]));
+    const mockData = sampledPoints.map(p => generateMockWeather(p[0], p[1]));
+    
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = (now.getMonth() + 1).toString().padStart(2, "0");
+    const date = now.getDate().toString().padStart(2, "0");
+    const hour = now.getHours().toString().padStart(2, "0");
+    const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
+    
+    let currentHourIdx = mockData[0]?.hourly?.time?.indexOf(currentHourStr);
+    if (currentHourIdx === -1 || currentHourIdx === undefined) {
+      currentHourIdx = now.getHours(); // Fallback
+    }
+
+    console.log(`⚠️ [Open-Meteo API] Fetch failed. Serving dynamic mock data for ${mockData.length} point(s). Sampled current hour (${currentHourStr}) metrics:`, {
+      temp: `${mockData[0]?.hourly?.temperature_2m?.[currentHourIdx]}°C`,
+      windSpeed: `${mockData[0]?.hourly?.wind_speed_10m?.[currentHourIdx]} km/h`,
+      windDir: `${mockData[0]?.hourly?.wind_direction_10m?.[currentHourIdx]}°`
+    });
+
+    return mockData;
   }
 }
