@@ -422,6 +422,101 @@ export default function Home() {
     setWeeklySchedule(updatedSchedule);
   };
 
+  const getReturnSegments = (segments) => {
+    if (!segments) return [];
+    return [...segments].reverse().map(seg => ({
+      ...seg,
+      bearing: (seg.bearing + 180) % 360
+    }));
+  };
+
+  const formatTimeToAMPM = (timeStr) => {
+    if (!timeStr) return "";
+    const [h, m] = timeStr.split(":").map(Number);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const displayH = h % 12 === 0 ? 12 : h % 12;
+    const displayM = m.toString().padStart(2, "0");
+    return `${displayH}:${displayM} ${ampm}`;
+  };
+
+  const getSuggestedDeparture = (routeId, day, targetArrivalTimeStr, isReturn = false) => {
+    const route = savedRoutes.find(r => r.id === routeId);
+    const boundWeatherEntry = scheduledRoutesWeather[routeId];
+    if (!route || !boundWeatherEntry) return { timeStr: targetArrivalTimeStr, duration: 0, score: 0 };
+    
+    // Construct Date object for target arrival
+    const targetDate = new Date();
+    const currentDay = targetDate.getDay(); // 0 = Sunday, 1 = Monday...
+    let dayOffset = day - currentDay;
+    if (dayOffset < 0) dayOffset += 7; // Ensure rolling future day
+    
+    targetDate.setDate(targetDate.getDate() + dayOffset);
+    
+    const [h, m] = targetArrivalTimeStr.split(":").map(Number);
+    targetDate.setHours(h, m, 0, 0);
+    
+    const segments = isReturn 
+      ? getReturnSegments(boundWeatherEntry.segments) 
+      : boundWeatherEntry.segments;
+      
+    // Call utility function
+    const result = calculateDepartureTimeForArrival(
+      targetDate,
+      segments,
+      route.speed || 18,
+      boundWeatherEntry.weather
+    );
+    
+    // Format departure time
+    const depH = result.departureTime.getHours().toString().padStart(2, "0");
+    const depM = result.departureTime.getMinutes().toString().padStart(2, "0");
+    
+    return {
+      timeStr: `${depH}:${depM}`,
+      duration: result.duration,
+      score: result.score
+    };
+  };
+
+  const getSuggestedArrival = (routeId, day, targetLeaveTimeStr) => {
+    const route = savedRoutes.find(r => r.id === routeId);
+    const boundWeatherEntry = scheduledRoutesWeather[routeId];
+    if (!route || !boundWeatherEntry) return { timeStr: targetLeaveTimeStr, duration: 0 };
+    
+    // Construct Date object for target departure
+    const targetDate = new Date();
+    const currentDay = targetDate.getDay();
+    let dayOffset = day - currentDay;
+    if (dayOffset < 0) dayOffset += 7;
+    
+    targetDate.setDate(targetDate.getDate() + dayOffset);
+    const [h, m] = targetLeaveTimeStr.split(":").map(Number);
+    targetDate.setHours(h, m, 0, 0);
+    
+    const forecastStart = new Date(boundWeatherEntry.weather[0]?.hourly?.time?.[0]);
+    const diffMs = targetDate - forecastStart;
+    const hourIdx = Math.max(0, Math.min(167, Math.floor(diffMs / (1000 * 60 * 60))));
+    
+    const commuteDetails = calculateCommuteScore(
+      hourIdx,
+      getReturnSegments(boundWeatherEntry.segments),
+      route.speed || 18,
+      boundWeatherEntry.weather
+    );
+    
+    const durationMinutes = commuteDetails.duration;
+    const arrivalTime = new Date(targetDate.getTime() + durationMinutes * 60 * 1000);
+    
+    const arrH = arrivalTime.getHours().toString().padStart(2, "0");
+    const arrM = arrivalTime.getMinutes().toString().padStart(2, "0");
+    
+    return {
+      timeStr: `${arrH}:${arrM}`,
+      duration: durationMinutes,
+      score: commuteDetails.score
+    };
+  };
+
   // 3. Background Weather Pre-fetcher for Weekly Scheduled Routes
   useEffect(() => {
     const fetchScheduledWeather = async () => {
@@ -704,7 +799,7 @@ export default function Home() {
         const outboundScore = calculateCommuteScore(outboundIdx, activeSegs, activeSpeed, activeWeather);
 
         const returnIdx = offset * 24 + returnHour;
-        const returnScore = calculateCommuteScore(returnIdx, activeSegs, activeSpeed, activeWeather);
+        const returnScore = calculateCommuteScore(returnIdx, getReturnSegments(activeSegs), activeSpeed, activeWeather);
 
         ribbonDays.push({
           offset,
@@ -1420,7 +1515,7 @@ export default function Home() {
               {/* Bulk Times */}
               <div style={{ display: "flex", gap: "8px" }}>
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Outbound (AM)</span>
+                  <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Arrive by (AM)</span>
                   <input
                     type="time"
                     value={bulkOutbound}
@@ -1436,8 +1531,8 @@ export default function Home() {
                     }}
                   />
                 </div>
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Return (PM)</span>
+                 <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Leave at (PM)</span>
                   <input
                     type="time"
                     value={bulkReturn}
@@ -1540,6 +1635,11 @@ export default function Home() {
                   });
                   const daysLabel = sortedDays.map(d => WEEKDAYS_SHORT[d]).join(", ");
                   
+                  // Calculate suggested times for a representative day in this group
+                  const targetDay = group.days[0];
+                  const outboundDep = getSuggestedDeparture(group.routeId, targetDay, group.outbound, false);
+                  const returnArr = getSuggestedArrival(group.routeId, targetDay, group.return);
+                  
                   return (
                     <div 
                       key={index} 
@@ -1571,11 +1671,24 @@ export default function Home() {
                         🗓️ {daysLabel}
                       </span>
 
-                      {/* Outbound & Return AM/PM summary */}
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.7rem", color: "var(--hud-text-secondary)", borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "6px", marginTop: "2px" }}>
-                        <span>🌅 {group.outbound}</span>
-                        <span>⇆</span>
-                        <span>🌇 {group.return}</span>
+                      {/* Outbound & Return AM/PM Arrive by vs. Suggested Leave-by Times */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: "6px", borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "6px", marginTop: "2px" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                          <span style={{ fontSize: "0.7rem", color: "var(--hud-text-secondary)" }}>
+                            🌅 Arrive by: <strong>{formatTimeToAMPM(group.outbound)}</strong>
+                          </span>
+                          <span style={{ fontSize: "0.7rem", color: "var(--hud-text-primary)", paddingLeft: "14px" }}>
+                            👉 Leave by: <strong style={{ color: "var(--color-emerald)" }}>{formatTimeToAMPM(outboundDep.timeStr)}</strong> ({outboundDep.duration} min commute)
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                          <span style={{ fontSize: "0.7rem", color: "var(--hud-text-secondary)" }}>
+                            🌇 Leave at: <strong>{formatTimeToAMPM(group.return)}</strong>
+                          </span>
+                          <span style={{ fontSize: "0.7rem", color: "var(--hud-text-primary)", paddingLeft: "14px" }}>
+                            👉 Arrive home: <strong style={{ color: "var(--color-emerald)" }}>{formatTimeToAMPM(returnArr.timeStr)}</strong> ({returnArr.duration} min return, tailwind-aware)
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
