@@ -1080,7 +1080,26 @@ export default function Home() {
 
         {/* Saved Routes Dropdown overlay */}
         {isSavedHubOpen && (hudState === 0 || hudState === 2 || hudState === 3) && (
-          <div className="hud-card hud-card-responsive" style={{ position: "absolute", top: "54px", left: 0, width: "280px", zIndex: 99999, display: "flex", flexDirection: "column", gap: "12px", maxHeight: "300px", overflowY: "auto", pointerEvents: "auto" }}>
+          <div 
+            className="hud-card hud-card-responsive" 
+            style={{ 
+              position: "absolute", 
+              top: "54px", 
+              left: 0, 
+              width: "280px", 
+              zIndex: 99999, 
+              display: "flex", 
+              flexDirection: "column", 
+              gap: "12px", 
+              maxHeight: "300px", 
+              overflowY: "auto", 
+              pointerEvents: "auto",
+              background: "rgba(10, 15, 30, 0.97)",
+              backdropFilter: "blur(20px)",
+              border: "1px solid rgba(255, 255, 255, 0.15)",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.5)"
+            }}
+          >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hud-border)", paddingBottom: "6px" }}>
               <h4 style={{ fontFamily: "var(--font-heading)", fontSize: "0.95rem", color: "var(--hud-text-secondary)", display: "flex", alignItems: "center", gap: "6px" }}>🔖 Saved Routes</h4>
               <button onClick={() => setIsSavedHubOpen(false)} style={{ background: "none", border: "none", color: "var(--hud-text-secondary)", cursor: "pointer" }}><X size={14} /></button>
@@ -1157,8 +1176,11 @@ export default function Home() {
                   gap: "12px", 
                   maxHeight: "360px", 
                   overflowY: "auto",
-                  border: "1px solid var(--hud-border)",
-                  pointerEvents: "auto"
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                  pointerEvents: "auto",
+                  background: "rgba(10, 15, 30, 0.97)",
+                  backdropFilter: "blur(20px)",
+                  boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.5)"
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hud-border)", paddingBottom: "8px" }}>
@@ -1721,8 +1743,11 @@ export default function Home() {
               gap: "16px", 
               maxHeight: "80vh", 
               overflowY: "auto", 
-              border: "1px solid var(--hud-border)",
-              pointerEvents: "auto"
+              border: "1px solid rgba(255, 255, 255, 0.15)",
+              pointerEvents: "auto",
+              background: "rgba(10, 15, 30, 0.97)",
+              backdropFilter: "blur(20px)",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 10px 10px -5px rgba(0, 0, 0, 0.5)"
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hud-border)", paddingBottom: "10px" }}>
