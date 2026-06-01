@@ -11,7 +11,7 @@ import {
 
 import { fetchBicycleRoute, fetchRouteWeather, geocodeAddress } from "@/utils/api";
 import { decodePolyline6, calculateRouteSegments, sampleCoordinates } from "@/utils/routeUtils";
-import { calculateCommuteScore, calculateDepartureTimeForArrival } from "@/utils/weatherScoring";
+import { calculateCommuteScore, calculateDepartureTimeForArrival, WMO_MAP } from "@/utils/weatherScoring";
 
 // Dynamic import of RouteMap to bypass SSR Leaflet issues
 const RouteMap = dynamic(() => import("@/components/RouteMap"), {
@@ -129,6 +129,7 @@ export default function Home() {
   // Ambient Local WeatherHUD Info
   const [userLocation, setUserLocation] = useState(null);
   const [ambientWeather, setAmbientWeather] = useState(null);
+  const [ambientWeatherForecast, setAmbientWeatherForecast] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const geocodeTimeoutRef = useRef(null);
@@ -241,6 +242,7 @@ export default function Home() {
           windDir: getWindCompassDirection(hourly?.wind_direction_10m?.[currentHour] ?? 0),
           desc: "Perfect Local Conditions"
         });
+        setAmbientWeatherForecast(weather[0]);
       }
     } catch (e) {
       console.error("Ambient weather fetch error:", e);
@@ -764,6 +766,16 @@ export default function Home() {
     return WEEKDAYS_SHORT[targetDate.getDay()];
   };
 
+  // Helper to format a Date object as h:mm A
+  const formatTimeAMPM = (dateObj) => {
+    const hours = dateObj.getHours();
+    const minutes = dateObj.getMinutes();
+    const ampm = hours >= 12 ? "PM" : "AM";
+    const displayH = hours % 12 || 12;
+    const displayM = minutes.toString().padStart(2, "0");
+    return `${displayH}:${displayM} ${ampm}`;
+  };
+
   // Calculate 7-day commute tracks data for Double-Sided Ribbon
   const get7DayCommuteData = () => {
     if (weatherResults.length === 0 && Object.keys(scheduledRoutesWeather).length === 0) return [];
@@ -775,8 +787,6 @@ export default function Home() {
       const dayOfWeek = targetDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
       
       const daySched = weeklySchedule[dayOfWeek] || { routeId: null, outbound: "08:00", return: "17:30" };
-      const outboundHour = parseInt(daySched.outbound.split(":")[0]);
-      const returnHour = parseInt(daySched.return.split(":")[0]);
 
       let activeCoords = routeCoordinates;
       let activeSegs = routeSegments;
@@ -795,17 +805,54 @@ export default function Home() {
       }
 
       if (activeWeather && activeWeather.length > 0) {
-        const outboundIdx = offset * 24 + outboundHour;
-        const outboundScore = calculateCommuteScore(outboundIdx, activeSegs, activeSpeed, activeWeather);
+        // AM Outbound Calculation
+        const outboundTargetDate = new Date();
+        outboundTargetDate.setDate(outboundTargetDate.getDate() + offset);
+        const [outH, outM] = daySched.outbound.split(":").map(Number);
+        outboundTargetDate.setHours(outH, outM, 0, 0);
 
-        const returnIdx = offset * 24 + returnHour;
-        const returnScore = calculateCommuteScore(returnIdx, getReturnSegments(activeSegs), activeSpeed, activeWeather);
+        const outboundResult = calculateDepartureTimeForArrival(
+          outboundTargetDate,
+          activeSegs,
+          activeSpeed,
+          activeWeather
+        );
+
+        // PM Return Calculation (reversing segments for PM bearing wind adjustments)
+        const returnTargetDate = new Date();
+        returnTargetDate.setDate(returnTargetDate.getDate() + offset);
+        const [retH, retM] = daySched.return.split(":").map(Number);
+        returnTargetDate.setHours(retH, retM, 0, 0);
+
+        const forecastStart = new Date(activeWeather[0]?.hourly?.time?.[0]);
+        const diffMs = returnTargetDate - forecastStart;
+        const returnHourIdx = Math.max(0, Math.min(167, Math.floor(diffMs / (1000 * 60 * 60))));
+
+        const returnResult = calculateCommuteScore(
+          returnHourIdx,
+          getReturnSegments(activeSegs),
+          activeSpeed,
+          activeWeather
+        );
+
+        const arrivalTimeMs = returnTargetDate.getTime() + returnResult.duration * 60 * 1000;
+        const arrivalTimeDate = new Date(arrivalTimeMs);
 
         ribbonDays.push({
           offset,
           label: getRollingDayLabel(offset),
-          outbound: outboundScore,
-          return: returnScore,
+          outbound: {
+            score: outboundResult.score,
+            duration: outboundResult.duration,
+            departure: formatTimeAMPM(outboundResult.departureTime),
+            arrival: formatTimeAMPM(outboundTargetDate)
+          },
+          return: {
+            score: returnResult.score,
+            duration: returnResult.duration,
+            departure: formatTimeAMPM(returnTargetDate),
+            arrival: formatTimeAMPM(arrivalTimeDate)
+          },
           routeId: boundRouteId,
           routeName: boundRoute ? boundRoute.name : "Active Route"
         });
@@ -813,8 +860,8 @@ export default function Home() {
         ribbonDays.push({
           offset,
           label: getRollingDayLabel(offset),
-          outbound: { score: 100, wmoEmoji: "⏳", wmoDesc: "Syncing..." },
-          return: { score: 100, wmoEmoji: "⏳", wmoDesc: "Syncing..." },
+          outbound: { score: 100, duration: 0, departure: "--:--", arrival: "--:--" },
+          return: { score: 100, duration: 0, departure: "--:--", arrival: "--:--" },
           routeId: boundRouteId,
           routeName: boundRoute ? boundRoute.name : "Active Route"
         });
@@ -824,6 +871,8 @@ export default function Home() {
   };
 
   const ribbonDaysData = get7DayCommuteData();
+
+
 
   const getGroupedSchedules = () => {
     const groups = [];
@@ -905,44 +954,124 @@ export default function Home() {
         ------------------------------------------------------------- 
       */}
       
-      {/* Top Left: Search & Saved Route Hub Trigger */}
+      {/* Top Left: Unified Navigation & Controls Hub */}
       <div style={{ position: "absolute", top: "20px", left: "20px", zIndex: 9999, display: "flex", gap: "10px" }} className="hud-slide-top hud-top-left">
         
+        {/* State 0: Enter Route Search bubble */}
         {hudState === 0 && (
-          <>
-            <button 
-              className="hud-bubble" 
-              onClick={() => setHudState(1)}
-              style={{ cursor: "pointer", fontWeight: "600", paddingRight: "30px", border: "1px solid rgba(255, 255, 255, 0.1)" }}
-            >
-              <Search size={16} style={{ color: "var(--hud-text-secondary)" }} />
-              <span>Enter Route...</span>
-            </button>
+          <button 
+            className="hud-bubble" 
+            onClick={() => setHudState(1)}
+            style={{ cursor: "pointer", fontWeight: "600", border: "1px solid rgba(255, 255, 255, 0.1)", display: "flex", alignItems: "center", gap: "8px", pointerEvents: "auto" }}
+            title="Plan Custom Route"
+          >
+            <Search size={16} style={{ color: "var(--hud-text-secondary)" }} />
+            <span className="mobile-hide">Enter Route...</span>
+          </button>
+        )}
 
+        {/* State 2 & 3: Active Route Score bubble */}
+        {(hudState === 2 || hudState === 3) && activeForecast && (
+          <div className="hud-bubble" style={{ pointerEvents: "auto", border: "1px solid rgba(255,255,255,0.15)" }}>
+            <div 
+              style={{
+                width: "10px",
+                height: "10px",
+                borderRadius: "50%",
+                background: activeForecast.score >= 85 ? "var(--color-emerald)" : activeForecast.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)",
+                boxShadow: `0 0 10px ${activeForecast.score >= 85 ? "var(--color-emerald-glow)" : activeForecast.score >= 50 ? "var(--color-amber-glow)" : "var(--color-ruby-glow)"}`,
+                display: "inline-block",
+                marginRight: "4px"
+              }} 
+              className={activeForecast.score >= 85 ? "hud-pulse-emerald" : activeForecast.score >= 50 ? "hud-pulse-amber" : "hud-pulse-ruby"}
+            />
+            <span style={{ fontSize: "0.88rem", fontWeight: "700" }}>
+              <span className="mobile-hide">Score: </span>{activeForecast.score}% • {activeForecast.wmoEmoji} <span className="mobile-hide">{activeForecast.wmoDesc}</span>
+            </span>
             <button 
-              className="hud-bubble" 
-              onClick={toggleSavedHub}
-              style={{ padding: "10px", width: "42px", justifyContent: "center", cursor: "pointer" }}
-              title="Saved Routes"
+              onClick={() => {
+                setHudState(0);
+                setRouteCoordinates([]);
+                setRouteSegments([]);
+                setWeatherResults([]);
+                setDraftStart(null);
+                setDraftEnd(null);
+                setStartQuery("");
+                setEndQuery("");
+                localStorage.removeItem("hud_active_view_state"); // Clear cached route state on manual reset
+              }} 
+              style={{ background: "none", border: "none", color: "var(--hud-text-secondary)", cursor: "pointer", display: "flex", alignItems: "center", marginLeft: "8px" }}
+              title="Clear Route"
             >
-              <Bookmark size={16} style={{ color: isSavedHubOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
+              <X size={14} />
             </button>
+          </div>
+        )}
 
-            <button 
-              className="hud-bubble" 
-              onClick={toggleWeeklyPlanner}
-              style={{ padding: "10px", width: "42px", justifyContent: "center", cursor: "pointer" }}
-              title="Weekly Schedule Planner"
-            >
-              <Calendar size={16} style={{ color: isWeeklyPlannerOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
-            </button>
-          </>
+        {/* State 2 & 3: Change Route button */}
+        {(hudState === 2 || hudState === 3) && (
+          <button 
+            className="hud-bubble" 
+            onClick={() => setHudState(1)}
+            style={{ cursor: "pointer", fontWeight: "600", border: "1px solid rgba(255, 255, 255, 0.1)", display: "flex", alignItems: "center", gap: "8px", pointerEvents: "auto" }}
+            title="Change Active Route"
+          >
+            <Search size={16} style={{ color: "var(--hud-text-secondary)" }} />
+            <span className="mobile-hide">Change Route</span>
+          </button>
+        )}
+
+        {/* Saved Routes Hub Trigger (Permanently Available in States 0, 2, 3) */}
+        {(hudState === 0 || hudState === 2 || hudState === 3) && (
+          <button 
+            className="hud-bubble" 
+            onClick={toggleSavedHub}
+            style={{ 
+              cursor: "pointer", 
+              border: isSavedHubOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)",
+              pointerEvents: "auto",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+            title="Saved Routes Library"
+          >
+            <Bookmark size={16} style={{ color: isSavedHubOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
+            <span className="mobile-hide" style={{ fontSize: "0.78rem", fontWeight: "800", color: isSavedHubOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }}>
+              SAVED
+            </span>
+          </button>
+        )}
+
+        {/* Weekly Schedule Planner Trigger (Permanently Available in States 0, 2, 3) */}
+        {(hudState === 0 || hudState === 2 || hudState === 3) && (
+          <button 
+            className="hud-bubble" 
+            onClick={toggleWeeklyPlanner}
+            style={{ 
+              cursor: "pointer", 
+              border: isWeeklyPlannerOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)",
+              pointerEvents: "auto",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+            title="Weekly Schedule Planner"
+          >
+            <Calendar size={16} style={{ color: isWeeklyPlannerOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
+            <span style={{ fontSize: "0.78rem", fontWeight: "800", color: isWeeklyPlannerOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }}>
+              WEEKLY<span className="mobile-hide"> PLANNER</span>
+            </span>
+          </button>
         )}
 
         {/* Saved Routes Dropdown overlay */}
-        {isSavedHubOpen && hudState === 0 && (
-          <div className="hud-card hud-card-responsive" style={{ position: "absolute", top: "54px", left: 0, width: "280px", zIndex: 99999, display: "flex", flexDirection: "column", gap: "12px", maxHeight: "300px", overflowY: "auto" }}>
-            <h4 style={{ fontFamily: "var(--font-heading)", fontSize: "0.95rem", color: "var(--hud-text-secondary)", borderBottom: "1px solid var(--hud-border)", paddingBottom: "6px" }}>🔖 Saved Routes</h4>
+        {isSavedHubOpen && (hudState === 0 || hudState === 2 || hudState === 3) && (
+          <div className="hud-card hud-card-responsive" style={{ position: "absolute", top: "54px", left: 0, width: "280px", zIndex: 99999, display: "flex", flexDirection: "column", gap: "12px", maxHeight: "300px", overflowY: "auto", pointerEvents: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hud-border)", paddingBottom: "6px" }}>
+              <h4 style={{ fontFamily: "var(--font-heading)", fontSize: "0.95rem", color: "var(--hud-text-secondary)", display: "flex", alignItems: "center", gap: "6px" }}>🔖 Saved Routes</h4>
+              <button onClick={() => setIsSavedHubOpen(false)} style={{ background: "none", border: "none", color: "var(--hud-text-secondary)", cursor: "pointer" }}><X size={14} /></button>
+            </div>
             {savedRoutes.length === 0 ? (
               <p style={{ fontSize: "0.78rem", color: "var(--hud-text-secondary)" }}>No saved routes yet. Plan a route and save it to display here.</p>
             ) : (
@@ -1045,6 +1174,8 @@ export default function Home() {
           </>
         )}
       </div>
+
+
 
       {/* 
         -------------------------------------------------------------
@@ -1222,240 +1353,244 @@ export default function Home() {
 
       {/* 
         -------------------------------------------------------------
-        STATES 2 & 3: COMMUTE 7-DAY OUTLOOK RIBBON & TEMPORAL HUD
-        ------------------------------------------------------------- 
-      */}
-      {(hudState === 2 || hudState === 3) && activeForecast && (
-        <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 9999 }}>
-          
-          {/* Top Left: Active Route details */}
-          <div style={{ position: "absolute", top: "20px", left: "20px", zIndex: 9999, display: "flex", gap: "10px" }} className="hud-slide-top hud-top-left">
-            <div className="hud-bubble" style={{ pointerEvents: "auto", border: "1px solid rgba(255,255,255,0.15)" }}>
-              <div 
-                style={{
-                  width: "10px",
-                  height: "100%",
-                  borderRadius: "50%",
-                  background: activeForecast.score >= 85 ? "var(--color-emerald)" : activeForecast.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)",
-                  boxShadow: `0 0 10px ${activeForecast.score >= 85 ? "var(--color-emerald-glow)" : activeForecast.score >= 50 ? "var(--color-amber-glow)" : "var(--color-ruby-glow)"}`,
-                  display: "inline-block",
-                  marginRight: "4px"
-                }} 
-                className={activeForecast.score >= 85 ? "hud-pulse-emerald" : activeForecast.score >= 50 ? "hud-pulse-amber" : "hud-pulse-ruby"}
-              />
-              <span style={{ fontSize: "0.88rem", fontWeight: "700" }}>
-                <span className="mobile-hide">Score: </span>{activeForecast.score}% • {activeForecast.wmoEmoji} <span className="mobile-hide">{activeForecast.wmoDesc}</span>
-              </span>
-              <button 
-                onClick={() => {
-                  setHudState(0);
-                  setRouteCoordinates([]);
-                  setRouteSegments([]);
-                  setWeatherResults([]);
-                  setDraftStart(null);
-                  setDraftEnd(null);
-                  setStartQuery("");
-                  setEndQuery("");
-                  localStorage.removeItem("hud_active_view_state"); // Clear cached route state on manual reset
-                }} 
-                style={{ background: "none", border: "none", color: "var(--hud-text-secondary)", cursor: "pointer", display: "flex", alignItems: "center", marginLeft: "8px" }}
-              >
-                <X size={14} />
-              </button>
-            </div>
-
-            <button 
-              className="hud-bubble" 
-              onClick={toggleWeeklyPlanner}
-              style={{ padding: "10px", width: "42px", justifyContent: "center", cursor: "pointer", pointerEvents: "auto" }}
-              title="Weekly Schedule Planner"
-            >
-              <Calendar size={16} style={{ color: isWeeklyPlannerOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
-            </button>
+        STATES 2 & 3: COMMUTE 7-DAY OUTLOOK RIBBO      {/* 7-Day Biking Commute Forecast Ribbon (Always Visible in States 0, 2, 3) */}
+      {(hudState === 0 || hudState === 2 || hudState === 3) && ribbonDaysData.length > 0 && (
+        <div 
+          style={{ 
+            position: "absolute", 
+            bottom: "20px", 
+            left: "20px", 
+            right: "20px", 
+            width: "calc(100% - 40px)", 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: "8px",
+            pointerEvents: "none",
+            zIndex: 9999
+          }} 
+          className="hud-slide-bottom"
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", padding: "0 6px" }}>
+            <span style={{ fontSize: "0.74rem", fontWeight: "800", color: "var(--hud-text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              🚴 7-Day Commuter Biking Forecast
+            </span>
           </div>
 
+          <div 
+            className="hud-card ribbon-container" 
+            style={{ 
+              padding: "12px", 
+              display: "flex", 
+              justifyContent: "space-between", 
+              alignItems: "center", 
+              gap: "8px", 
+              width: "100%",
+              background: "rgba(15, 23, 42, 0.85)",
+              pointerEvents: "auto"
+            }}
+          >
+            {ribbonDaysData.map((day) => {
+              const isSelected = hudState === 3 && selectedDayOffset === day.offset;
+              const hasOutbound = day.outbound && day.outbound.departure !== null;
+              const hasReturn = day.return && day.return.departure !== null;
+              
+              return (
+                <div 
+                  key={day.offset} 
+                  className={`ribbon-item ${isSelected ? "selected" : ""}`}
+                  onClick={() => {
+                    if (hasOutbound || hasReturn) {
+                      setSelectedDayOffset(day.offset);
+                      setHudState(3); // Enter Single-Day Scrub state
+                    } else {
+                      // Helpfully prompt route setup
+                      setHudState(1);
+                    }
+                  }}
+                  style={{ 
+                    flex: 1, 
+                    borderRadius: "14px", 
+                    padding: "8px 6px", 
+                    background: isSelected ? "rgba(255,255,255,0.08)" : "transparent",
+                    border: isSelected ? "1px solid var(--hud-border-glow)" : "1px solid transparent",
+                    cursor: "pointer",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "8px",
+                    transition: "all var(--duration-fluid) var(--ease-premium)"
+                  }}
+                >
+                  <span style={{ fontSize: "0.74rem", fontWeight: "700", color: isSelected ? "var(--hud-text-primary)" : "var(--hud-text-secondary)" }}>
+                    {day.label}
+                  </span>
 
+                  {/* DUAL RIDE TRACKS (Top: Outbound AM, Bottom: Return PM) */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
+                    
+                    {/* AM Outbound Biking Forecast */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%", alignItems: "center", background: "rgba(255,255,255,0.03)", padding: "6px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center", fontSize: "0.68rem", fontWeight: "700" }}>
+                        <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.6rem" }}>🌅 AM</span>
+                        {hasOutbound ? (
+                          <span style={{ 
+                            background: day.outbound.score >= 85 ? "rgba(16,185,129,0.15)" : day.outbound.score >= 50 ? "rgba(245,158,11,0.15)" : "rgba(239,68,68,0.15)",
+                            color: day.outbound.score >= 85 ? "var(--color-emerald)" : day.outbound.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)",
+                            padding: "1px 5px",
+                            borderRadius: "5px",
+                            fontSize: "0.64rem",
+                            fontWeight: "800"
+                          }}>
+                            {day.outbound.score}%
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.6rem" }}>--</span>
+                        )}
+                      </div>
+                      {hasOutbound ? (
+                        <>
+                          <div style={{ fontSize: "0.62rem", fontWeight: "700", color: "var(--hud-text-primary)", marginTop: "2px" }}>
+                            {day.outbound.departure.replace(" AM", "a").replace(" PM", "p")}
+                            <span className="mobile-hide"> → {day.outbound.arrival.replace(" AM", "a").replace(" PM", "p")}</span>
+                          </div>
+                          <div style={{ fontSize: "0.58rem", color: "var(--hud-text-secondary)" }}>
+                            {day.outbound.duration} min ride
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ fontSize: "0.58rem", color: "var(--hud-text-secondary)", fontStyle: "italic", marginTop: "2px" }}>No Route</div>
+                      )}
+                    </div>
+
+                    {/* PM Return Biking Forecast */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%", alignItems: "center", background: "rgba(255,255,255,0.03)", padding: "6px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center", fontSize: "0.68rem", fontWeight: "700" }}>
+                        <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.6rem" }}>🌇 PM</span>
+                        {hasReturn ? (
+                          <span style={{ 
+                            background: day.return.score >= 85 ? "rgba(16,185,129,0.15)" : day.return.score >= 50 ? "rgba(245,158,11,0.15)" : "rgba(239,68,68,0.15)",
+                            color: day.return.score >= 85 ? "var(--color-emerald)" : day.return.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)",
+                            padding: "1px 5px",
+                            borderRadius: "5px",
+                            fontSize: "0.64rem",
+                            fontWeight: "800"
+                          }}>
+                            {day.return.score}%
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.6rem" }}>--</span>
+                        )}
+                      </div>
+                      {hasReturn ? (
+                        <>
+                          <div style={{ fontSize: "0.62rem", fontWeight: "700", color: "var(--hud-text-primary)", marginTop: "2px" }}>
+                            {day.return.departure.replace(" AM", "a").replace(" PM", "p")}
+                            <span className="mobile-hide"> → {day.return.arrival.replace(" AM", "a").replace(" PM", "p")}</span>
+                          </div>
+                          <div style={{ fontSize: "0.58rem", color: "var(--hud-text-secondary)" }}>
+                            {day.return.duration} min ride
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ fontSize: "0.58rem", color: "var(--hud-text-secondary)", fontStyle: "italic", marginTop: "2px" }}>No Route</div>
+                      )}
+                    </div>
+
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
           {/* 
             -------------------------------------------------------------
-            BOTTOM PANEL: DOUBLE-SIDED WEATHER RIBBON
+            STATE 3: FLOATING TEMPORAL SCRUBBER TIMELINE
             ------------------------------------------------------------- 
           */}
-          <div 
-            style={{ 
-              position: "absolute", 
-              bottom: "20px", 
-              left: "20px", 
-              right: "20px", 
-              width: "calc(100% - 40px)", 
-              display: "flex", 
-              flexDirection: "column", 
-              gap: "10px" 
-            }} 
-            className="hud-slide-bottom"
-          >
-            
-            {/* The 7-Day Double-Sided Ribbon Container */}
+          {hudState === 3 && (
             <div 
-              className="hud-card ribbon-container" 
+              className="hud-card timeline-scrubber-container" 
               style={{ 
-                padding: "12px", 
+                padding: "10px 16px", 
                 display: "flex", 
-                justifyContent: "space-between", 
                 alignItems: "center", 
-                gap: "8px", 
-                width: "100%",
-                background: "rgba(15, 23, 42, 0.85)"
+                justifyContent: "space-between",
+                gap: "16px", 
+                width: "100%", 
+                background: "rgba(15, 23, 42, 0.9)",
+                pointerEvents: "auto"
               }}
             >
-              {ribbonDaysData.map((day) => {
-                const isSelected = hudState === 3 && selectedDayOffset === day.offset;
-                
-                return (
-                  <div 
-                    key={day.offset} 
-                    className={`ribbon-item ${isSelected ? "selected" : ""}`}
-                    onClick={() => {
-                      setSelectedDayOffset(day.offset);
-                      setHudState(3); // Enter Single-Day Scrub state
-                    }}
-                    style={{ 
-                      flex: 1, 
-                      borderRadius: "14px", 
-                      padding: "8px 6px", 
-                      background: isSelected ? "rgba(255,255,255,0.08)" : "transparent",
-                      border: isSelected ? "1px solid var(--hud-border-glow)" : "1px solid transparent",
-                      cursor: "pointer",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: "6px",
-                      transition: "all var(--duration-fluid) var(--ease-premium)"
-                    }}
-                  >
-                    <span style={{ fontSize: "0.74rem", fontWeight: "700", color: isSelected ? "var(--hud-text-primary)" : "var(--hud-text-secondary)" }}>
-                      {day.label}
-                    </span>
+              {/* Timeline Scrubber */}
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                  <Clock size={14} style={{ color: "var(--hud-text-secondary)" }} />
+                  <span style={{ fontSize: "0.78rem", fontWeight: "700", width: "64px" }}>
+                    {selectedHour.toString().padStart(2, "0")}:00 {selectedHour >= 12 ? "PM" : "AM"}
+                  </span>
+                </div>
 
-                    {/* DUAL COGNITIVE TRACKS (Top: Outbound, Bottom: Return) */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%", alignItems: "center" }}>
-                      
-                      {/* Outbound Leg Track Segment */}
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "0.68rem" }}>
-                        <span style={{ color: "var(--hud-text-secondary)" }}>AM</span>
-                        <div style={{ 
-                          width: "12px", 
-                          height: "12px", 
-                          borderRadius: "50%", 
-                          background: day.outbound.score >= 85 ? "var(--color-emerald)" : day.outbound.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)" 
-                        }} />
-                      </div>
+                {/* Scrubber Range Input */}
+                <input 
+                  type="range" 
+                  min="6" // 6:00 AM
+                  max="20" // 8:00 PM
+                  value={selectedHour}
+                  onChange={(e) => setSelectedHour(parseInt(e.target.value))}
+                  style={{ flex: 1, accentColor: "var(--color-emerald)", cursor: "pointer" }}
+                />
+              </div>
 
-                      {/* Return Leg Track Segment */}
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "0.68rem" }}>
-                        <span style={{ color: "var(--hud-text-secondary)" }}>PM</span>
-                        <div style={{ 
-                          width: "12px", 
-                          height: "12px", 
-                          borderRadius: "50%", 
-                          background: day.return.score >= 85 ? "var(--color-emerald)" : day.return.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)" 
-                        }} />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* 
-              -------------------------------------------------------------
-              STATE 3: FLOATING TEMPORAL SCRUBBER TIMELINE
-              ------------------------------------------------------------- 
-            */}
-            {hudState === 3 && (
-              <div 
-                className="hud-card timeline-scrubber-container" 
-                style={{ 
-                  padding: "10px 16px", 
-                  display: "flex", 
-                  alignItems: "center", 
-                  justifyContent: "space-between",
-                  gap: "16px", 
-                  width: "100%", 
-                  background: "rgba(15, 23, 42, 0.9)" 
-                }}
-              >
-                {/* Timeline Scrubber */}
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-                    <Clock size={14} style={{ color: "var(--hud-text-secondary)" }} />
-                    <span style={{ fontSize: "0.78rem", fontWeight: "700", width: "64px" }}>
-                      {selectedHour.toString().padStart(2, "0")}:00 {selectedHour >= 12 ? "PM" : "AM"}
-                    </span>
-                  </div>
-
-                  {/* Scrubber Range Input */}
+              {/* Independent Day Schedule Config Inputs */}
+              <div className="time-inputs-group" style={{ display: "flex", alignItems: "center", gap: "8px", borderLeft: "1px solid var(--hud-border)", paddingLeft: "12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                  <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Outbound:</span>
                   <input 
-                    type="range" 
-                    min="6" // 6:00 AM
-                    max="20" // 8:00 PM
-                    value={selectedHour}
-                    onChange={(e) => setSelectedHour(parseInt(e.target.value))}
-                    style={{ flex: 1, accentColor: "var(--color-emerald)", cursor: "pointer" }}
+                    type="time" 
+                    value={weeklySchedule[currentDayOfWeek]?.outbound || "08:00"}
+                    onChange={(e) => updateDailySchedule(selectedDayOffset, 'outbound', e.target.value)}
+                    style={{ 
+                      background: "rgba(255,255,255,0.06)", 
+                      border: "1px solid var(--hud-border)", 
+                      borderRadius: "6px", 
+                      color: "var(--hud-text-primary)", 
+                      fontSize: "0.72rem", 
+                      padding: "2px 4px", 
+                      outline: "none" 
+                    }} 
                   />
                 </div>
-
-                {/* Independent Day Schedule Config Inputs */}
-                <div className="time-inputs-group" style={{ display: "flex", alignItems: "center", gap: "8px", borderLeft: "1px solid var(--hud-border)", paddingLeft: "12px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                    <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Outbound:</span>
-                    <input 
-                      type="time" 
-                      value={weeklySchedule[currentDayOfWeek]?.outbound || "08:00"}
-                      onChange={(e) => updateDailySchedule(selectedDayOffset, 'outbound', e.target.value)}
-                      style={{ 
-                        background: "rgba(255,255,255,0.06)", 
-                        border: "1px solid var(--hud-border)", 
-                        borderRadius: "6px", 
-                        color: "var(--hud-text-primary)", 
-                        fontSize: "0.72rem", 
-                        padding: "2px 4px", 
-                        outline: "none" 
-                      }} 
-                    />
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                    <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Return:</span>
-                    <input 
-                      type="time" 
-                      value={weeklySchedule[currentDayOfWeek]?.return || "17:30"}
-                      onChange={(e) => updateDailySchedule(selectedDayOffset, 'return', e.target.value)}
-                      style={{ 
-                        background: "rgba(255,255,255,0.06)", 
-                        border: "1px solid var(--hud-border)", 
-                        borderRadius: "6px", 
-                        color: "var(--hud-text-primary)", 
-                        fontSize: "0.72rem", 
-                        padding: "2px 4px", 
-                        outline: "none" 
-                      }} 
-                    />
-                  </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                  <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Return:</span>
+                  <input 
+                    type="time" 
+                    value={weeklySchedule[currentDayOfWeek]?.return || "17:30"}
+                    onChange={(e) => updateDailySchedule(selectedDayOffset, 'return', e.target.value)}
+                    style={{ 
+                      background: "rgba(255,255,255,0.06)", 
+                      border: "1px solid var(--hud-border)", 
+                      borderRadius: "6px", 
+                      color: "var(--hud-text-primary)", 
+                      fontSize: "0.72rem", 
+                      padding: "2px 4px", 
+                      outline: "none" 
+                    }} 
+                  />
                 </div>
-
-                {/* Exit day focus button */}
-                <button 
-                  onClick={() => setHudState(2)} // Return to Week-wide ambient outlook
-                  className="hud-btn exit-scrub-btn" 
-                  style={{ padding: "4px 10px", marginLeft: "10px" }}
-                >
-                  <X size={12} />
-                  <span>Exit Scrub</span>
-                </button>
               </div>
-            )}
 
-          </div>
+              {/* Exit day focus button */}
+              <button 
+                onClick={() => setHudState(2)} // Return to Week-wide ambient outlook
+                className="hud-btn exit-scrub-btn" 
+                style={{ padding: "4px 10px", marginLeft: "10px" }}
+              >
+                <X size={12} />
+                <span>Exit Scrub</span>
+              </button>
+            </div>
+          )}
+
         </div>
       )}
 
