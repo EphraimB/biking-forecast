@@ -276,9 +276,8 @@ export default function RouteMap({
           // Bind Tooltip once at creation time to the broad invisible overlay with dynamic inline SVGs
           hoverPoly.bindTooltip(`
             <div style="min-width: 220px; color: var(--hud-text-primary); padding: 4px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.12); padding-bottom: 6px; margin-bottom: 8px;">
+              <div style="border-bottom: 1px solid rgba(255,255,255,0.12); padding-bottom: 6px; margin-bottom: 8px;">
                 <span style="font-family: var(--font-heading); font-size: 13px; font-weight: 800; color: ${color};">${difficulty}</span>
-                <span style="font-size: 10px; color: var(--hud-text-secondary); text-transform: uppercase;">Segment #${idx + 1}</span>
               </div>
               
               <!-- 2-Column Telemetry Grid -->
