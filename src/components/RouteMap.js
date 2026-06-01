@@ -19,7 +19,17 @@ export default function RouteMap({
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const layersRef = useRef({ polylines: [], markers: [], telemetries: [] });
-  
+  const getCompassDirection = (deg) => {
+    const directions = [
+      "North (N)", "North-Northeast (NNE)", "Northeast (NE)", "East-Northeast (ENE)", 
+      "East (E)", "East-Southeast (ESE)", "Southeast (SE)", "South-Southeast (SSE)", 
+      "South (S)", "South-Southwest (SSW)", "Southwest (SW)", "West-Southwest (WSW)", 
+      "West (W)", "West-Northwest (WNW)", "Northwest (NW)", "North-Northwest (NNW)"
+    ];
+    const val = Math.floor((deg / 22.5) + 0.5);
+    return directions[val % 16];
+  };
+
   // Real-time HUD environmental states
   const [ambientTemp, setAmbientTemp] = useState(20);
   const [ambientRain, setAmbientRain] = useState(0);
@@ -183,26 +193,41 @@ export default function RouteMap({
             ? `${headwind > 0 ? "Headwind" : "Tailwind"} ${(Math.abs(headwind) * 0.621371).toFixed(1)} mph` 
             : `${headwind > 0 ? "Headwind" : "Tailwind"} ${Math.abs(headwind).toFixed(1)} km/h`;
 
-          // Tooltip on hover
-          poly.on("mouseover", function() {
-            poly.setStyle({ weight: 7 });
-            this.bindTooltip(`
-              <div style="font-size: 11px; padding: 2px;">
-                <strong style="color: ${color}; font-size: 12px; font-family: var(--font-heading);">${difficulty}</strong><br/>
-                📏 Distance: <strong>${displayDist}</strong><br/>
-                🧭 Bearing: <strong>${Math.round(seg.bearing)}°</strong><br/>
-                💨 Wind: <strong>${displayWind}</strong> (${Math.round(windDir)}°)<br/>
-                🚴 Resistance: <strong>${displayHeadwind}</strong>
-              </div>
-            `, { sticky: true }).openTooltip();
+          // Broad interactive hover overlay (invisible but makes hover targeting effortless)
+          const hoverPoly = L.polyline(polyCoords, {
+            color: "transparent",
+            weight: 24,
+            opacity: 0,
+            lineJoin: "round",
+            interactive: true
+          }).addTo(map);
+
+          // Bind Tooltip once at creation time to the broad invisible overlay
+          hoverPoly.bindTooltip(`
+            <div style="font-size: 11px; padding: 2px; line-height: 1.5; color: var(--hud-text-primary); font-family: var(--font-body);">
+              <strong style="color: ${color}; font-size: 12.5px; font-family: var(--font-heading); display: block; margin-bottom: 4px;">${difficulty}</strong>
+              📏 Distance: <strong>${displayDist}</strong><br/>
+              🧭 Bearing: <strong>${getCompassDirection(seg.bearing)} (${Math.round(seg.bearing)}°)</strong><br/>
+              💨 Wind: <strong>${displayWind} ${getCompassDirection(windDir)} (${Math.round(windDir)}°)</strong><br/>
+              🚴 Resistance: <strong>${displayHeadwind}</strong>
+            </div>
+          `, { 
+            sticky: true,
+            className: "leaflet-tooltip" 
           });
 
-          poly.on("mouseout", function() {
+          // Style animations synced to broad hover triggers
+          hoverPoly.on("mouseover", function() {
+            poly.setStyle({ weight: 7 });
+          });
+
+          hoverPoly.on("mouseout", function() {
             poly.setStyle({ weight: 4 });
           });
 
           layersRef.current.polylines.push(bgLine);
           layersRef.current.polylines.push(poly);
+          layersRef.current.polylines.push(hoverPoly);
 
           // -----------------------------------------------------------
           // WEATHER-ADAPTIVE PHYSICAL TELEMETRY PINS (💧, 🍌)
