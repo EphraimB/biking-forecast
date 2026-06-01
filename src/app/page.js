@@ -1174,6 +1174,7 @@ export default function Home() {
           }}
           unitSystem={unitSystem}
           hudState={hudState}
+          userLocation={userLocation}
         />
       </div>
 

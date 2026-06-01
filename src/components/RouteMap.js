@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
+import { Compass, Navigation } from "lucide-react";
 
 export default function RouteMap({
   coordinates = [],
@@ -15,11 +16,43 @@ export default function RouteMap({
   isDrawingMode = false,
   onMapClick = null,
   unitSystem = "metric",
-  hudState = 0
+  hudState = 0,
+  userLocation = null
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const layersRef = useRef({ polylines: [], markers: [], telemetries: [] });
+
+  const handleJumpToGPS = () => {
+    if (mapInstanceRef.current) {
+      if (userLocation && userLocation.lat && userLocation.lon) {
+        mapInstanceRef.current.setView([userLocation.lat, userLocation.lon], 14, { animate: true });
+      } else if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const coords = [pos.coords.latitude, pos.coords.longitude];
+            mapInstanceRef.current.setView(coords, 14, { animate: true });
+          },
+          () => {
+            mapInstanceRef.current.setView([40.7851, -73.9682], 13, { animate: true });
+          }
+        );
+      } else {
+        mapInstanceRef.current.setView([40.7851, -73.9682], 13, { animate: true });
+      }
+    }
+  };
+
+  const handleRecenterRoute = () => {
+    if (mapInstanceRef.current) {
+      if (coordinates.length > 0) {
+        mapInstanceRef.current.fitBounds(coordinates, { padding: [50, 50] });
+      } else {
+        mapInstanceRef.current.setView([40.7851, -73.9682], 12, { animate: true });
+      }
+    }
+  };
+
   const getCompassDirection = (deg) => {
     const directions = [
       "North (N)", "North-Northeast (NNE)", "Northeast (NE)", "East-Northeast (ENE)", 
@@ -215,6 +248,19 @@ export default function RouteMap({
             ? `${headwind > 0 ? "Headwind" : "Tailwind"} ${(Math.abs(headwind) * 0.621371).toFixed(1)} mph` 
             : `${headwind > 0 ? "Headwind" : "Tailwind"} ${Math.abs(headwind).toFixed(1)} km/h`;
 
+          // Calculate estimated segment biking speed adjusted for headwind/tailwind
+          let adjustedSpeed = customSpeed;
+          if (headwind > 0) {
+            adjustedSpeed += -0.45 * headwind;
+          } else {
+            adjustedSpeed += -0.18 * headwind;
+          }
+          adjustedSpeed = Math.max(6, adjustedSpeed);
+
+          const displaySpeed = isImperial 
+            ? `${(adjustedSpeed * 0.621371).toFixed(1)} mph` 
+            : `${adjustedSpeed.toFixed(1)} km/h`;
+
           // Broad interactive hover overlay (invisible but makes hover targeting effortless)
           const hoverPoly = L.polyline(polyCoords, {
             color: "transparent",
@@ -231,6 +277,7 @@ export default function RouteMap({
               📏 Distance: <strong>${displayDist}</strong><br/>
               🧭 Bearing: <strong>${getCompassDirection(seg.bearing)}</strong><br/>
               💨 Wind: <strong>${displayWind} ${getCompassDirection(windDir)}</strong><br/>
+              🚴 Speed: <strong>${displaySpeed}</strong><br/>
               🚴 Resistance: <strong>${displayHeadwind}</strong>
             </div>
           `, { 
@@ -536,6 +583,97 @@ export default function RouteMap({
               />
             );
           })}
+        </div>
+
+        {/* RIGHT SIDEBAR MAP HUD TOOLBAR */}
+        <div 
+          style={{ 
+            position: "absolute", 
+            right: "20px", 
+            top: "50%", 
+            transform: "translateY(-50%)", 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: "12px", 
+            zIndex: 9999,
+            pointerEvents: "none"
+          }}
+        >
+          {/* A. Location Jump Button */}
+          <button
+            onClick={handleJumpToGPS}
+            className="hud-bubble"
+            style={{
+              width: "42px",
+              height: "42px",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              padding: 0,
+              background: "rgba(15, 23, 42, 0.85)",
+              border: "1px solid var(--hud-border)",
+              backdropFilter: "blur(10px) saturate(180%)",
+              WebkitBackdropFilter: "blur(10px) saturate(180%)",
+              boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.3)",
+              pointerEvents: "auto",
+              transition: "all var(--duration-fluid) var(--ease-premium)"
+            }}
+            title="Recenter to GPS Location"
+          >
+            <Navigation size={18} style={{ color: "var(--hud-text-primary)" }} />
+          </button>
+
+          {/* B. Route Recenter / Wind Compass Rose Button */}
+          <button
+            onClick={handleRecenterRoute}
+            className="hud-bubble"
+            style={{
+              width: "42px",
+              height: "42px",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              padding: 0,
+              background: "rgba(15, 23, 42, 0.85)",
+              border: "1px solid var(--hud-border)",
+              backdropFilter: "blur(10px) saturate(180%)",
+              WebkitBackdropFilter: "blur(10px) saturate(180%)",
+              boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.3)",
+              pointerEvents: "auto",
+              position: "relative",
+              transition: "all var(--duration-fluid) var(--ease-premium)"
+            }}
+            title={coordinates.length > 0 ? "Fit Map to Route" : "Re-center Map"}
+          >
+            <span 
+              style={{ 
+                position: "absolute", 
+                top: "2.5px", 
+                left: "50%", 
+                transform: "translateX(-50%)", 
+                fontSize: "7.5px", 
+                fontWeight: "900", 
+                color: "var(--color-emerald)", 
+                textShadow: "0 0 4px var(--color-emerald-glow)",
+                fontFamily: "var(--font-heading)" 
+              }}
+            >
+              N
+            </span>
+            <Compass 
+              size={18} 
+              style={{ 
+                transform: "rotate(-45deg)", 
+                transition: "transform 1.2s var(--ease-premium)", 
+                color: "var(--color-emerald)",
+                marginTop: "4px"
+              }} 
+            />
+          </button>
         </div>
 
       </div>
