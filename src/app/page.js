@@ -581,9 +581,29 @@ export default function Home() {
     }
   }, [selectedDayOffset, selectedHour, isPackingOpen, weeklySchedule, scheduledRoutesWeather]);
 
-  // Toggle checklist open/closed
+  // Toggle checklist open/closed with mutual exclusion
   const togglePackingList = () => {
+    if (!isPackingOpen) {
+      setIsWeeklyPlannerOpen(false);
+      setIsSavedHubOpen(false);
+    }
     setIsPackingOpen(!isPackingOpen);
+  };
+
+  const toggleWeeklyPlanner = () => {
+    if (!isWeeklyPlannerOpen) {
+      setIsPackingOpen(false);
+      setIsSavedHubOpen(false);
+    }
+    setIsWeeklyPlannerOpen(!isWeeklyPlannerOpen);
+  };
+
+  const toggleSavedHub = () => {
+    if (!isSavedHubOpen) {
+      setIsWeeklyPlannerOpen(false);
+      setIsPackingOpen(false);
+    }
+    setIsSavedHubOpen(!isSavedHubOpen);
   };
 
   // Get active forecast details for Top HUD bubbles
@@ -596,6 +616,10 @@ export default function Home() {
   };
 
   const activeForecast = getActiveForecast();
+
+  const selectedDayDate = new Date();
+  selectedDayDate.setDate(selectedDayDate.getDate() + selectedDayOffset);
+  const currentDayOfWeek = selectedDayDate.getDay();
 
   // Helper to format rolling day names
   const getRollingDayLabel = (offset) => {
@@ -708,7 +732,7 @@ export default function Home() {
       */}
       
       {/* Top Left: Search & Saved Route Hub Trigger */}
-      <div style={{ position: "absolute", top: "20px", left: "20px", zIndex: 9999, display: "flex", gap: "10px" }} className="hud-slide-top">
+      <div style={{ position: "absolute", top: "20px", left: "20px", zIndex: 9999, display: "flex", gap: "10px" }} className="hud-slide-top hud-top-left">
         
         {hudState === 0 && (
           <>
@@ -723,7 +747,7 @@ export default function Home() {
 
             <button 
               className="hud-bubble" 
-              onClick={() => setIsSavedHubOpen(!isSavedHubOpen)}
+              onClick={toggleSavedHub}
               style={{ padding: "10px", width: "42px", justifyContent: "center", cursor: "pointer" }}
               title="Saved Routes"
             >
@@ -732,7 +756,7 @@ export default function Home() {
 
             <button 
               className="hud-bubble" 
-              onClick={() => setIsWeeklyPlannerOpen(!isWeeklyPlannerOpen)}
+              onClick={toggleWeeklyPlanner}
               style={{ padding: "10px", width: "42px", justifyContent: "center", cursor: "pointer" }}
               title="Weekly Schedule Planner"
             >
@@ -743,7 +767,7 @@ export default function Home() {
 
         {/* Saved Routes Dropdown overlay */}
         {isSavedHubOpen && hudState === 0 && (
-          <div className="hud-card" style={{ position: "absolute", top: "54px", left: 0, width: "320px", zIndex: 99999, display: "flex", flexDirection: "column", gap: "12px", maxHeight: "300px", overflowY: "auto" }}>
+          <div className="hud-card hud-card-responsive" style={{ position: "absolute", top: "54px", left: 0, width: "280px", zIndex: 99999, display: "flex", flexDirection: "column", gap: "12px", maxHeight: "300px", overflowY: "auto" }}>
             <h4 style={{ fontFamily: "var(--font-heading)", fontSize: "0.95rem", color: "var(--hud-text-secondary)", borderBottom: "1px solid var(--hud-border)", paddingBottom: "6px" }}>🔖 Saved Routes</h4>
             {savedRoutes.length === 0 ? (
               <p style={{ fontSize: "0.78rem", color: "var(--hud-text-secondary)" }}>No saved routes yet. Plan a route and save it to display here.</p>
@@ -769,26 +793,82 @@ export default function Home() {
         )}
       </div>
 
-      {/* Top Right: Unit Toggle & Ambient Weather HUD */}
-      <div style={{ position: "absolute", top: "20px", right: "20px", zIndex: 9999, display: "flex", gap: "10px", alignItems: "center" }} className="hud-slide-top">
+      {/* Top Right: Unit Toggle, Ambient Weather & Gear Check HUD */}
+      <div style={{ position: "absolute", top: "20px", right: "20px", zIndex: 9999, display: "flex", gap: "10px", alignItems: "center" }} className="hud-slide-top hud-top-right">
         
         {/* Metric / Imperial Toggling Bubble */}
         <button 
           className="hud-bubble" 
           onClick={() => setUnitSystem(unitSystem === "metric" ? "imperial" : "metric")}
-          style={{ padding: "10px 14px", fontSize: "0.78rem", fontWeight: "800", cursor: "pointer", background: "rgba(15,23,42,0.85)" }}
+          style={{ padding: "10px 14px", fontSize: "0.78rem", fontWeight: "800", cursor: "pointer", background: "rgba(15,23,42,0.85)", pointerEvents: "auto" }}
           title="Switch Units"
         >
-          📐 {unitSystem === "metric" ? "METRIC" : "IMPERIAL"}
+          📐 <span className="mobile-hide">{unitSystem === "metric" ? "METRIC" : "IMPERIAL"}</span>
         </button>
 
-        {hudState === 0 && ambientWeather && (
+        {ambientWeather && (
           <div className="hud-bubble" style={{ pointerEvents: "none" }}>
             <SunDim size={16} style={{ color: "var(--color-amber)", animation: "spin 12s linear infinite" }} />
             <span style={{ fontSize: "0.82rem", fontWeight: "600" }}>
-              {formatTemp(ambientWeather.temp)} • {formatWind(ambientWeather.windSpeed)} {ambientWeather.windDir}
+              {formatTemp(ambientWeather.temp)}
+              <span className="mobile-hide"> • {formatWind(ambientWeather.windSpeed)} {ambientWeather.windDir}</span>
             </span>
           </div>
+        )}
+
+        {(hudState === 2 || hudState === 3) && activeForecast && (
+          <>
+            <button 
+              className="hud-bubble" 
+              onClick={togglePackingList}
+              style={{ cursor: "pointer", border: isPackingOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)", pointerEvents: "auto" }}
+            >
+              <span>🎒</span>
+              <span className="mobile-hide" style={{ fontSize: "0.78rem", fontWeight: "800" }}>GEAR CHECK</span>
+            </button>
+
+            {/* Expanded Dynamic Packing Glass Card */}
+            {isPackingOpen && (
+              <div 
+                className="hud-card hud-card-responsive" 
+                style={{ 
+                  position: "absolute", 
+                  top: "54px", 
+                  right: 0, 
+                  width: "290px", 
+                  display: "flex", 
+                  flexDirection: "column", 
+                  gap: "12px", 
+                  maxHeight: "360px", 
+                  overflowY: "auto",
+                  border: "1px solid var(--hud-border)",
+                  pointerEvents: "auto"
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hud-border)", paddingBottom: "8px" }}>
+                  <h4 style={{ fontFamily: "var(--font-heading)", fontSize: "0.95rem", fontWeight: "800" }}>🎒 Trip Packing List</h4>
+                  <button onClick={() => setIsPackingOpen(false)} style={{ background: "none", border: "none", color: "var(--hud-text-secondary)", cursor: "pointer" }}><X size={14} /></button>
+                </div>
+                
+                {packingList.length === 0 ? (
+                  <p style={{ fontSize: "0.78rem", color: "var(--hud-text-secondary)", textAlign: "center" }}>☀️ Clear summer skies and perfect winds. Just bring your helmet & dynamic hydration!</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    {packingList.map((p) => (
+                      <div key={p.id} style={{ background: "rgba(255,255,255,0.05)", padding: "10px", borderRadius: "10px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <span style={{ fontSize: "0.82rem", fontWeight: "700", color: "var(--hud-text-primary)", display: "flex", alignItems: "center", gap: "4px" }}>
+                          {p.emoji} {p.item}
+                        </span>
+                        <span style={{ fontSize: "0.7rem", color: "var(--hud-text-secondary)", lineHeight: "1.4" }}>
+                          {p.advice}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -881,7 +961,7 @@ export default function Home() {
           </div>
 
           {/* Center Right: Route config overlays */}
-          <div style={{ position: "absolute", bottom: "30px", right: "20px", width: "320px" }} className="hud-slide-bottom">
+          <div style={{ position: "absolute", bottom: "30px", right: "20px", width: "320px" }} className="hud-slide-bottom hud-config-card">
             <div className="hud-card" style={{ display: "flex", flexDirection: "column", gap: "16px", pointerEvents: "auto" }}>
               <h4 style={{ fontFamily: "var(--font-heading)", fontWeight: "800", fontSize: "0.95rem" }}>🚴 Rider Configurations</h4>
               
@@ -975,7 +1055,7 @@ export default function Home() {
         <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 9999 }}>
           
           {/* Top Left: Active Route details */}
-          <div style={{ position: "absolute", top: "20px", left: "20px", zIndex: 9999, display: "flex", gap: "10px" }} className="hud-slide-top">
+          <div style={{ position: "absolute", top: "20px", left: "20px", zIndex: 9999, display: "flex", gap: "10px" }} className="hud-slide-top hud-top-left">
             <div className="hud-bubble" style={{ pointerEvents: "auto", border: "1px solid rgba(255,255,255,0.15)" }}>
               <div 
                 style={{
@@ -990,7 +1070,7 @@ export default function Home() {
                 className={activeForecast.score >= 85 ? "hud-pulse-emerald" : activeForecast.score >= 50 ? "hud-pulse-amber" : "hud-pulse-ruby"}
               />
               <span style={{ fontSize: "0.88rem", fontWeight: "700" }}>
-                Score: {activeForecast.score}% • {activeForecast.wmoEmoji} {activeForecast.wmoDesc}
+                <span className="mobile-hide">Score: </span>{activeForecast.score}% • {activeForecast.wmoEmoji} <span className="mobile-hide">{activeForecast.wmoDesc}</span>
               </span>
               <button 
                 onClick={() => {
@@ -1012,7 +1092,7 @@ export default function Home() {
 
             <button 
               className="hud-bubble" 
-              onClick={() => setIsWeeklyPlannerOpen(!isWeeklyPlannerOpen)}
+              onClick={toggleWeeklyPlanner}
               style={{ padding: "10px", width: "42px", justifyContent: "center", cursor: "pointer", pointerEvents: "auto" }}
               title="Weekly Schedule Planner"
             >
@@ -1020,69 +1100,7 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Top Right: Packing List Overlay (🎒) and Unit Toggle */}
-          <div style={{ position: "absolute", top: "20px", right: "20px", display: "flex", gap: "10px", zIndex: 9999 }} className="hud-slide-top">
-            
-            {/* Metric / Imperial Toggling Bubble */}
-            <button 
-              className="hud-bubble" 
-              onClick={() => setUnitSystem(unitSystem === "metric" ? "imperial" : "metric")}
-              style={{ padding: "10px 14px", fontSize: "0.78rem", fontWeight: "800", cursor: "pointer", background: "rgba(15,23,42,0.85)", pointerEvents: "auto" }}
-              title="Switch Units"
-            >
-              📐 {unitSystem === "metric" ? "METRIC" : "IMPERIAL"}
-            </button>
 
-            <button 
-              className="hud-bubble" 
-              onClick={togglePackingList}
-              style={{ cursor: "pointer", border: isPackingOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)", pointerEvents: "auto" }}
-            >
-              <span>🎒</span>
-              <span style={{ fontSize: "0.78rem", fontWeight: "800" }}>GEAR CHECK</span>
-            </button>
-
-            {/* Expanded Dynamic Packing Glass Card */}
-            {isPackingOpen && (
-              <div 
-                className="hud-card" 
-                style={{ 
-                  position: "absolute", 
-                  top: "54px", 
-                  right: 0, 
-                  width: "360px", 
-                  display: "flex", 
-                  flexDirection: "column", 
-                  gap: "12px", 
-                  maxHeight: "360px", 
-                  overflowY: "auto",
-                  border: "1px solid var(--hud-border)"
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hud-border)", paddingBottom: "8px" }}>
-                  <h4 style={{ fontFamily: "var(--font-heading)", fontSize: "0.95rem", fontWeight: "800" }}>🎒 Trip Packing List</h4>
-                  <button onClick={() => setIsPackingOpen(false)} style={{ background: "none", border: "none", color: "var(--hud-text-secondary)", cursor: "pointer" }}><X size={14} /></button>
-                </div>
-                
-                {packingList.length === 0 ? (
-                  <p style={{ fontSize: "0.78rem", color: "var(--hud-text-secondary)", textAlign: "center" }}>☀️ Clear summer skies and perfect winds. Just bring your helmet & dynamic hydration!</p>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    {packingList.map((p) => (
-                      <div key={p.id} style={{ background: "rgba(255,255,255,0.05)", padding: "10px", borderRadius: "10px", display: "flex", flexDirection: "column", gap: "4px" }}>
-                        <span style={{ fontSize: "0.82rem", fontWeight: "700", color: "var(--hud-text-primary)", display: "flex", alignItems: "center", gap: "4px" }}>
-                          {p.emoji} {p.item}
-                        </span>
-                        <span style={{ fontSize: "0.7rem", color: "var(--hud-text-secondary)", lineHeight: "1.4" }}>
-                          {p.advice}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
 
           {/* 
             -------------------------------------------------------------
@@ -1105,7 +1123,7 @@ export default function Home() {
             
             {/* The 7-Day Double-Sided Ribbon Container */}
             <div 
-              className="hud-card" 
+              className="hud-card ribbon-container" 
               style={{ 
                 padding: "12px", 
                 display: "flex", 
@@ -1122,6 +1140,7 @@ export default function Home() {
                 return (
                   <div 
                     key={day.offset} 
+                    className={`ribbon-item ${isSelected ? "selected" : ""}`}
                     onClick={() => {
                       setSelectedDayOffset(day.offset);
                       setHudState(3); // Enter Single-Day Scrub state
@@ -1181,7 +1200,7 @@ export default function Home() {
             */}
             {hudState === 3 && (
               <div 
-                className="hud-card" 
+                className="hud-card timeline-scrubber-container" 
                 style={{ 
                   padding: "10px 16px", 
                   display: "flex", 
@@ -1213,7 +1232,7 @@ export default function Home() {
                 </div>
 
                 {/* Independent Day Schedule Config Inputs */}
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", borderLeft: "1px solid var(--hud-border)", paddingLeft: "12px" }}>
+                <div className="time-inputs-group" style={{ display: "flex", alignItems: "center", gap: "8px", borderLeft: "1px solid var(--hud-border)", paddingLeft: "12px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                     <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Outbound:</span>
                     <input 
@@ -1253,7 +1272,7 @@ export default function Home() {
                 {/* Exit day focus button */}
                 <button 
                   onClick={() => setHudState(2)} // Return to Week-wide ambient outlook
-                  className="hud-btn" 
+                  className="hud-btn exit-scrub-btn" 
                   style={{ padding: "4px 10px", marginLeft: "10px" }}
                 >
                   <X size={12} />
@@ -1269,12 +1288,12 @@ export default function Home() {
         {/* Weekly Commute Planner HUD Sliding/Overlay Card */}
         {isWeeklyPlannerOpen && (
           <div 
-            className="hud-card" 
+            className="hud-card hud-card-responsive" 
             style={{ 
               position: "absolute", 
               top: "74px", 
               left: "20px", 
-              width: "380px", 
+              width: "310px", 
               zIndex: 99999, 
               display: "flex", 
               flexDirection: "column", 

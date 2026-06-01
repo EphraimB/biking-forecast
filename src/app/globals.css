@@ -7,10 +7,10 @@
 
   /* Custom HSL Design Tokens (HUD Slate Dark Theme) */
   --hud-bg-raw: 222, 47%, 11%;
-  --hud-bg-translucent: hsla(var(--hud-bg-raw), 0.45);
-  --hud-bg-card: hsla(var(--hud-bg-raw), 0.75);
-  --hud-border: hsla(0, 0%, 100%, 0.12);
-  --hud-border-glow: hsla(217, 91%, 60%, 0.22);
+  --hud-bg-translucent: hsla(var(--hud-bg-raw), 0.25);
+  --hud-bg-card: hsla(var(--hud-bg-raw), 0.45);
+  --hud-border: hsla(0, 0%, 100%, 0.10);
+  --hud-border-glow: hsla(217, 91%, 60%, 0.20);
   --hud-text-primary: hsla(210, 40%, 98%, 1);
   --hud-text-secondary: hsla(215, 20%, 65%, 1);
   --hud-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.4);
@@ -82,8 +82,8 @@ html, body {
 .hud-bubble {
   background: var(--hud-bg-translucent);
   border: 1px solid var(--hud-border);
-  backdrop-filter: blur(18px) saturate(180%);
-  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  backdrop-filter: blur(10px) saturate(180%);
+  -webkit-backdrop-filter: blur(10px) saturate(180%);
   border-radius: 9999px;
   box-shadow: var(--hud-shadow);
   color: var(--hud-text-primary);
@@ -94,14 +94,16 @@ html, body {
   gap: 12px;
   transition: all var(--duration-fluid) var(--ease-premium);
   pointer-events: auto;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* Expanded Glass Card (Checklists, Config overlays) */
 .hud-card {
   background: var(--hud-bg-card);
   border: 1px solid var(--hud-border);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(14px) saturate(180%);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
   border-radius: 20px;
   box-shadow: var(--hud-shadow);
   color: var(--hud-text-primary);
@@ -128,6 +130,8 @@ html, body {
   align-items: center;
   gap: 6px;
   transition: all var(--duration-snap) ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .hud-btn:hover {
@@ -413,31 +417,140 @@ html, body {
 }
 
 /* ------------------------------------------------------------- */
-/* RESPONSIVE DESIGN ADJUSTMENTS                                 */
+/* PREMIUM RESPONSIVE DESIGN ADJUSTMENTS                         */
 /* ------------------------------------------------------------- */
 
 @media (max-width: 768px) {
   .hud-bubble {
-    padding: 8px 16px;
-    font-size: 0.82rem;
+    padding: 8px 14px !important;
+    font-size: 0.78rem !important;
+    gap: 8px !important;
   }
 
   .hud-card {
-    padding: 16px;
-    border-radius: 16px;
+    padding: 14px !important;
+    border-radius: 16px !important;
   }
 
-  /* Bottom Ribbon HUD on Mobile */
-  .mobile-bottom-hud {
-    bottom: 20px !important;
+  /* Responsive Collapsing Text Labels */
+  .mobile-hide {
+    display: none !important;
+  }
+
+  /* Centered Viewport Overlay Panels (Saved Routes, Gear Check, Planner) */
+  .hud-card-responsive {
+    position: fixed !important;
+    top: 74px !important;
     left: 10px !important;
     right: 10px !important;
     width: calc(100% - 20px) !important;
+    max-height: 55vh !important;
+    overflow-y: auto !important;
+    z-index: 999999 !important;
   }
-  
-  /* Zoom buttons offset to avoid bottom ribbon overlay overlaps */
+
+  /* Bottom Ribbon and Scrubber container alignment */
+  .hud-slide-bottom {
+    left: 10px !important;
+    right: 10px !important;
+    width: calc(100% - 20px) !important;
+    bottom: 15px !important;
+  }
+
+  /* Ribbon Items Squish Guard */
+  .ribbon-container {
+    gap: 4px !important;
+    padding: 8px 6px !important;
+  }
+
+  .ribbon-item {
+    padding: 6px 2px !important;
+    border-radius: 10px !important;
+  }
+
+  .ribbon-item > span {
+    font-size: 0.62rem !important;
+  }
+
+  .ribbon-item div {
+    font-size: 0.58rem !important;
+    gap: 2px !important;
+  }
+
+  /* Timeline Scrubber stacked column layout */
+  .timeline-scrubber-container {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 12px 14px !important;
+  }
+
+  .timeline-scrubber-container > div {
+    width: 100% !important;
+  }
+
+  .timeline-scrubber-container .time-inputs-group {
+    border-left: none !important;
+    border-top: 1px solid var(--hud-border) !important;
+    padding-left: 0 !important;
+    padding-top: 10px !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+  }
+
+  .timeline-scrubber-container .exit-scrub-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    margin-left: 0 !important;
+    margin-top: 4px !important;
+  }
+
+  /* State 1 Configurations Overlay */
+  .hud-config-card {
+    left: 10px !important;
+    right: 10px !important;
+    width: calc(100% - 20px) !important;
+    bottom: 15px !important;
+  }
+
+  /* Leaflet Map Controls Offset */
   .leaflet-bottom.leaflet-right {
-    bottom: 150px !important;
+    bottom: 170px !important;
     right: 10px !important;
   }
+
+  /* Position overrides for mobile HUD alignment */
+  .hud-top-left {
+    top: 10px !important;
+    left: 10px !important;
+    gap: 6px !important;
+  }
+
+  .hud-top-right {
+    top: 10px !important;
+    right: 10px !important;
+    gap: 6px !important;
+  }
 }
+
+/* Extra-Compact Styles for Small Screens (Under 480px) */
+@media (max-width: 480px) {
+  .hud-bubble {
+    padding: 6px 10px !important;
+    font-size: 0.72rem !important;
+    gap: 6px !important;
+  }
+  
+  .hud-top-left {
+    top: 8px !important;
+    left: 8px !important;
+    gap: 4px !important;
+  }
+  
+  .hud-top-right {
+    top: 8px !important;
+    right: 8px !important;
+    gap: 4px !important;
+  }
+}
+
