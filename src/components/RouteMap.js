@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import { Compass, Navigation } from "lucide-react";
+import { renderToStaticMarkup } from "react-dom/server";
+import styles from "./RouteMap.module.css";
+import WindStreams from "./svgs/WindStreams";
+import RouteMapTooltip from "./RouteMapTooltip";
 
 export default function RouteMap({
   coordinates = [],
@@ -73,12 +77,7 @@ export default function RouteMap({
     return directions[val];
   };
 
-  // Real-time HUD environmental states
-  const [ambientTemp, setAmbientTemp] = useState(20);
-  const [ambientRain, setAmbientRain] = useState(0);
-  const [ambientWindSpeed, setAmbientWindSpeed] = useState(10);
-  const [ambientWindDir, setAmbientWindDir] = useState(0);
-  const [ambientGusts, setAmbientGusts] = useState(0);
+
 
   // 1. Initialize Map Canvas with Performance Dampening Listeners
   useEffect(() => {
@@ -200,7 +199,6 @@ export default function RouteMap({
           const windSpeed = hourly?.wind_speed_10m?.[currentHourIdx] ?? 0;
           const windDir = hourly?.wind_direction_10m?.[currentHourIdx] ?? 0;
           const tempVal = hourly?.temperature_2m?.[currentHourIdx] ?? 20;
-          const isRaining = (hourly?.precipitation?.[currentHourIdx] ?? 0) > 0.1;
           
           const angleRad = ((seg.bearing - windDir) * Math.PI) / 180;
           const headwind = windSpeed * Math.cos(angleRad);
@@ -284,66 +282,23 @@ export default function RouteMap({
             interactive: true
           }).addTo(map);
 
-          // Bind Tooltip once at creation time to the broad invisible overlay with dynamic inline SVGs
-          hoverPoly.bindTooltip(`
-            <div style="min-width: 220px; color: var(--hud-text-primary); padding: 4px;">
-              <div style="border-bottom: 1px solid rgba(255,255,255,0.12); padding-bottom: 6px; margin-bottom: 8px;">
-                <span style="font-family: var(--font-heading); font-size: 13px; font-weight: 800; color: ${color};">${difficulty}</span>
-              </div>
-              
-              <!-- 2-Column Telemetry Grid -->
-              <div class="tooltip-grid-container">
-                
-                <!-- Left Column: Speedometer & Distance Stats -->
-                <div style="display: flex; flex-direction: column; gap: 6px;">
-                  <div class="tooltip-cell">
-                    <span class="tooltip-label">DISTANCE</span>
-                    <strong class="tooltip-val">${displayDist}</strong>
-                  </div>
-                  <div class="tooltip-cell">
-                    <span class="tooltip-label">BIKER SPEED</span>
-                    <strong class="tooltip-val" style="color: ${color};">${displaySpeed}</strong>
-                    
-                    <!-- Biker Speedometer Bar SVG -->
-                    <svg width="100%" height="8" style="margin-top: 4px; overflow: visible;">
-                      <rect x="0" y="2" width="100%" height="4" rx="2" fill="rgba(255,255,255,0.1)"/>
-                      <rect x="0" y="2" width="${speedPercent}%" height="4" rx="2" fill="${color}"/>
-                    </svg>
-                  </div>
-                </div>
-                
-                <!-- Right Column: Dual Wind Dial SVG Widget -->
-                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); padding: 6px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
-                  <span class="tooltip-label" style="margin-bottom: 4px; text-align: center;">WIND ALIGN</span>
-                  
-                  <svg width="44" height="44" viewBox="0 0 44 44" style="overflow: visible;">
-                    <!-- Compass Ring -->
-                    <circle cx="22" cy="22" r="19" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-                    <text x="22" y="7" font-size="6" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-weight="700">N</text>
-                    
-                    <!-- Rider Bearing Vector (Silver dashed line arrow) -->
-                    <g transform="rotate(${seg.bearing}, 22, 22)">
-                      <line x1="22" y1="22" x2="22" y2="5" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" stroke-dasharray="2,2"/>
-                      <polygon points="22,3 25,7 19,7" fill="rgba(255,255,255,0.6)"/>
-                    </g>
-                    
-                    <!-- Wind Vector (Solid arrow pointing in wind direction) -->
-                    <g transform="rotate(${windDir}, 22, 22)">
-                      <!-- Line showing wind source direction -->
-                      <line x1="22" y1="38" x2="22" y2="22" stroke="${color}" stroke-width="2"/>
-                      <!-- arrowhead pointing towards center to show direction it is blowing -->
-                      <polygon points="22,20 18,25 26,25" fill="${color}" style="filter: drop-shadow(0 0 2px ${color});"/>
-                    </g>
-                  </svg>
-                  <span style="font-size: 8px; font-weight: 700; color: var(--hud-text-primary); margin-top: 4px; text-align: center;">${displayWind} ${getWindCompass(windDir)}</span>
-                </div>
-              </div>
-              
-              <div class="tooltip-divider">
-                🚴 Resistance: <strong style="color: ${color};">${displayHeadwind}</strong>
-              </div>
-            </div>
-          `, { 
+          // Bind Tooltip: dynamically serialize the RouteMapTooltip React node directly for Leaflet
+          const tooltipHtml = renderToStaticMarkup(
+            <RouteMapTooltip 
+              difficulty={difficulty}
+              color={color}
+              displayDist={displayDist}
+              displaySpeed={displaySpeed}
+              speedPercent={speedPercent}
+              bearing={seg.bearing}
+              windDir={windDir}
+              displayWind={displayWind}
+              windCompass={getWindCompass(windDir)}
+              displayHeadwind={displayHeadwind}
+            />
+          );
+
+          hoverPoly.bindTooltip(tooltipHtml, { 
             sticky: true,
             className: "leaflet-tooltip" 
           });
@@ -513,43 +468,52 @@ export default function RouteMap({
       }
     });
 
-  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState]);
+  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState, customSpeed]);
 
-  // 3. Sync and animate ambient atmospheric weather values
-  useEffect(() => {
-    if (weatherResults.length === 0) return;
-    
+  // Synchronously compute derived environmental metrics in render (avoiding useEffect cascading triggers)
+  const getAmbientWeatherMetrics = () => {
+    if (weatherResults.length === 0) {
+      return { temp: 20, rain: 0, windSpeed: 10, windDir: 0, gusts: 0 };
+    }
     const midIdx = Math.floor(weatherResults.length / 2);
     const midHourly = weatherResults[midIdx]?.hourly;
-
-    if (midHourly) {
-      let currentHourIdx;
-      if (hudState === 3) {
-        // If actively scrubbing the timeline in State 3, sync with the scrubber values
-        currentHourIdx = selectedDay * 24 + selectedHour;
-      } else {
-        // If in ambient state (State 0, 1, or 2), display the actual current local hour
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = (now.getMonth() + 1).toString().padStart(2, "0");
-        const date = now.getDate().toString().padStart(2, "0");
-        const hour = now.getHours().toString().padStart(2, "0");
-        const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
-        
-        let matchedIdx = midHourly.time?.indexOf(currentHourStr);
-        if (matchedIdx === -1 || matchedIdx === undefined) {
-          matchedIdx = now.getHours(); // Fallback to current local hour index
-        }
-        currentHourIdx = matchedIdx;
-      }
-
-      setAmbientTemp(midHourly.temperature_2m?.[currentHourIdx] ?? 20);
-      setAmbientRain(midHourly.precipitation_probability?.[currentHourIdx] ?? 0);
-      setAmbientWindSpeed(midHourly.wind_speed_10m?.[currentHourIdx] ?? 10);
-      setAmbientWindDir(midHourly.wind_direction_10m?.[currentHourIdx] ?? 0);
-      setAmbientGusts(midHourly.wind_gusts_10m?.[currentHourIdx] ?? 0);
+    if (!midHourly) {
+      return { temp: 20, rain: 0, windSpeed: 10, windDir: 0, gusts: 0 };
     }
-  }, [weatherResults, selectedDay, selectedHour, hudState]);
+
+    let currentHourIdx;
+    if (hudState === 3) {
+      currentHourIdx = selectedDay * 24 + selectedHour;
+    } else {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = (now.getMonth() + 1).toString().padStart(2, "0");
+      const date = now.getDate().toString().padStart(2, "0");
+      const hour = now.getHours().toString().padStart(2, "0");
+      const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
+      
+      let matchedIdx = midHourly.time?.indexOf(currentHourStr);
+      if (matchedIdx === -1 || matchedIdx === undefined) {
+        matchedIdx = now.getHours();
+      }
+      currentHourIdx = matchedIdx;
+    }
+
+    return {
+      temp: midHourly.temperature_2m?.[currentHourIdx] ?? 20,
+      rain: midHourly.precipitation_probability?.[currentHourIdx] ?? 0,
+      windSpeed: midHourly.wind_speed_10m?.[currentHourIdx] ?? 10,
+      windDir: midHourly.wind_direction_10m?.[currentHourIdx] ?? 0,
+      gusts: midHourly.wind_gusts_10m?.[currentHourIdx] ?? 0
+    };
+  };
+
+  const metrics = getAmbientWeatherMetrics();
+  const ambientTemp = metrics.temp;
+  const ambientRain = metrics.rain;
+  const ambientWindSpeed = metrics.windSpeed;
+  const ambientWindDir = metrics.windDir;
+  const ambientGusts = metrics.gusts;
 
   // Compute temperature tint color based on ambientTemp
   let tempWashColor = "transparent";
@@ -573,11 +537,11 @@ export default function RouteMap({
   const isHighGust = ambientGusts > 30; // 30km/h gust threshold
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }} className="leaflet-drag-target">
+    <div className={`leaflet-drag-target ${styles.mapContainer}`}>
       {/* MAP CANVAS VIEWPORT */}
       <div 
         ref={mapContainerRef} 
-        style={{ width: "100%", height: "100%", background: "#0b0f19" }} 
+        className={styles.mapCanvas}
       />
 
       {/* LIVING HUD ENVIRONMENTAL CANVAS OVERLAYS */}
@@ -585,41 +549,23 @@ export default function RouteMap({
         
         {/* A. TEMPERATURE GRADIENT WASH */}
         <div 
-          className="temp-wash-layer" 
+          className={styles.tempWashLayer} 
           style={{ 
             backgroundColor: tempWashColor,
-            opacity: tempOpacity,
-            position: "absolute",
-            width: "100%",
-            height: "100%",
-            pointerEvents: "none",
-            mixBlendMode: "color-burn",
-            transition: "all 1.5s ease"
+            opacity: tempOpacity
           }} 
         />
 
-        {/* B. VELOCITY-SYNCED WIND PARTICLE VECTOR STREAMS (SVG) */}
-        <svg 
-          className="wind-stream-svg" 
-          style={{ 
-            position: "absolute",
-            width: "100%",
-            height: "100%",
-            pointerEvents: "none",
-            transform: `rotate(${(ambientWindDir + 90) % 360}deg)`,
-            opacity: weatherResults.length > 0 ? Math.min(0.40, 0.08 + (ambientWindSpeed / 45)) : 0.08,
-            transition: "opacity 1.2s ease, transform 1.2s ease"
-          }}
-        >
-          <g>
-            <path className={`wind-stream-line ${isHighGust ? "gusting" : ""}`} style={{ animationDuration: windAnimDuration }} d="M -100,100 L 2000,100" />
-            <path className={`wind-stream-line ${isHighGust ? "gusting" : ""}`} style={{ animationDuration: windAnimDuration, animationDelay: "1.5s" }} d="M -100,250 L 2000,250" />
-            <path className={`wind-stream-line ${isHighGust ? "gusting" : ""}`} style={{ animationDuration: windAnimDuration, animationDelay: "3.2s" }} d="M -100,450 L 2000,450" />
-            <path className={`wind-stream-line ${isHighGust ? "gusting" : ""}`} style={{ animationDuration: windAnimDuration, animationDelay: "0.5s" }} d="M -100,600 L 2000,600" />
-            <path className={`wind-stream-line ${isHighGust ? "gusting" : ""}`} style={{ animationDuration: windAnimDuration, animationDelay: "2.1s" }} d="M -100,750 L 2000,750" />
-            <path className={`wind-stream-line ${isHighGust ? "gusting" : ""}`} style={{ animationDuration: windAnimDuration, animationDelay: "4s" }} d="M -100,900 L 2000,900" />
-          </g>
-        </svg>
+        {/* B. VELOCITY-SYNCED WIND PARTICLE VECTOR STREAMS (SVG component extracted) */}
+        <WindStreams 
+          ambientWindDir={ambientWindDir}
+          ambientWindSpeed={ambientWindSpeed}
+          weatherResultsLength={weatherResults.length}
+          isHighGust={isHighGust}
+          windAnimDuration={windAnimDuration}
+          svgClassName="wind-stream-svg"
+          lineClassName="wind-stream-line"
+        />
 
         {/* C. ATMOSPHERIC CASCADING RAIN SHADERS */}
         <div 
@@ -633,9 +579,19 @@ export default function RouteMap({
           }}
         >
           {Array.from({ length: 25 }).map((_, i) => {
-            const leftVal = `${(i * 4.8) + (Math.random() * 1.5)}%`;
-            const delayVal = `${Math.random() * 1.8}s`;
-            const durationVal = `${0.7 + Math.random() * 0.5}s`;
+            // Use deterministic index-seeded values to ensure pure rendering and satisfy ESLint purity checks
+            const getDeterministicRandom = (index, seed) => {
+              const val = Math.sin(index + seed) * 10000;
+              return val - Math.floor(val);
+            };
+
+            const r1 = getDeterministicRandom(i, 1.5);
+            const r2 = getDeterministicRandom(i, 3.8);
+            const r3 = getDeterministicRandom(i, 7.2);
+
+            const leftVal = `${(i * 4.8) + (r1 * 1.5)}%`;
+            const delayVal = `${r2 * 1.8}s`;
+            const durationVal = `${0.7 + r3 * 0.5}s`;
             // Calculate precipitation falling tilt angle based on wind speed/direction
             const windTilt = Math.min(25, ambientWindSpeed * 0.8) * (Math.sin(ambientWindDir * Math.PI / 180) > 0 ? -1 : 1);
 
@@ -656,40 +612,11 @@ export default function RouteMap({
         </div>
 
         {/* RIGHT SIDEBAR MAP HUD TOOLBAR */}
-        <div 
-          style={{ 
-            position: "absolute", 
-            right: "20px", 
-            top: "50%", 
-            transform: "translateY(-50%)", 
-            display: "flex", 
-            flexDirection: "column", 
-            gap: "12px", 
-            zIndex: 9999,
-            pointerEvents: "none"
-          }}
-        >
+        <div className={styles.rightToolbar}>
           {/* A. Location Jump Button */}
           <button
             onClick={handleJumpToGPS}
-            className="hud-bubble"
-            style={{
-              width: "42px",
-              height: "42px",
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              padding: 0,
-              background: "rgba(15, 23, 42, 0.85)",
-              border: "1px solid var(--hud-border)",
-              backdropFilter: "blur(10px) saturate(180%)",
-              WebkitBackdropFilter: "blur(10px) saturate(180%)",
-              boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.3)",
-              pointerEvents: "auto",
-              transition: "all var(--duration-fluid) var(--ease-premium)"
-            }}
+            className={styles.toolbarBtn}
             title="Recenter to GPS Location"
           >
             <Navigation size={18} style={{ color: "var(--hud-text-primary)" }} />
@@ -698,49 +625,19 @@ export default function RouteMap({
           {/* B. Route Recenter / Wind Compass Rose Button */}
           <button
             onClick={handleRecenterRoute}
-            className="hud-bubble"
-            style={{
-              width: "42px",
-              height: "42px",
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              padding: 0,
-              background: "rgba(15, 23, 42, 0.85)",
-              border: "1px solid var(--hud-border)",
-              backdropFilter: "blur(10px) saturate(180%)",
-              WebkitBackdropFilter: "blur(10px) saturate(180%)",
-              boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.3)",
-              pointerEvents: "auto",
-              position: "relative",
-              transition: "all var(--duration-fluid) var(--ease-premium)"
-            }}
+            className={styles.toolbarBtn}
+            style={{ position: "relative" }}
             title={coordinates.length > 0 ? "Fit Map to Route" : "Re-center Map"}
           >
-            <span 
-              style={{ 
-                position: "absolute", 
-                top: "2.5px", 
-                left: "50%", 
-                transform: "translateX(-50%)", 
-                fontSize: "7.5px", 
-                fontWeight: "900", 
-                color: "var(--color-emerald)", 
-                textShadow: "0 0 4px var(--color-emerald-glow)",
-                fontFamily: "var(--font-heading)" 
-              }}
-            >
+            <span className={styles.compassNorth}>
               N
             </span>
             <Compass 
               size={18} 
+              className={styles.compassIcon}
               style={{ 
                 transform: "rotate(-45deg)", 
-                transition: "transform 1.2s var(--ease-premium)", 
-                color: "var(--color-emerald)",
-                marginTop: "4px"
+                transition: "transform 1.2s var(--ease-premium)"
               }} 
             />
           </button>

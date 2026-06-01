@@ -1,7 +1,9 @@
 "use client";
 
+import React from "react";
 import { MapPin, Navigation } from "lucide-react";
 import { WMO_MAP } from "@/utils/weatherScoring";
+import styles from "./WeatherDetails.module.css";
 
 export default function WeatherDetails({ weatherResults, hourIndex, startLocation, endLocation, unitSystem = "metric" }) {
   if (!weatherResults || weatherResults.length === 0) return null;
@@ -40,12 +42,12 @@ export default function WeatherDetails({ weatherResults, hourIndex, startLocatio
   });
 
   return (
-    <div className="glass-panel animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-      <h3 style={{ fontSize: "0.88rem", fontWeight: "800", color: "var(--slate-700)", textTransform: "uppercase", letterSpacing: "0.04em", display: "flex", alignItems: "center", gap: "6px" }}>
+    <div className={`glass-panel animate-fade-in ${styles.weatherDetailsContainer}`}>
+      <h3 className={styles.weatherDetailsTitle}>
         <MapPin size={16} style={{ color: "var(--primary)" }} /> Route-Specific Weather
       </h3>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <div className={styles.weatherPointsList}>
         {displayPoints.map((point, index) => {
           const hourly = point.data?.hourly;
           if (!hourly) return null;
@@ -63,69 +65,59 @@ export default function WeatherDetails({ weatherResults, hourIndex, startLocatio
             ? `${(windSp * 0.621371).toFixed(1)} mph` 
             : `${windSp.toFixed(1)} km/h`;
 
+          // Define dynamic border left colors
+          const borderLeftColor = index === 0 
+            ? "var(--emerald)" 
+            : index === displayPoints.length - 1 
+              ? "var(--rose)" 
+              : "var(--amber)";
+
           return (
-            <div key={index} className="glass-card" style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: "12px",
-              flexWrap: "wrap",
-              padding: "10px 14px",
-              borderLeft: `4px solid ${index === 0 ? "var(--emerald)" : index === displayPoints.length - 1 ? "var(--rose)" : "var(--amber)"}`
-            }}>
+            <div key={index} className={`glass-card ${styles.pointCard}`} style={{ borderLeft: `4px solid ${borderLeftColor}` }}>
               {/* Location Column */}
-              <div style={{ flexGrow: "1", minWidth: "120px", display: "flex", flexDirection: "column", gap: "2px" }}>
-                <span style={{ fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--slate-400)", fontWeight: "700" }}>
+              <div className={styles.locationCol}>
+                <span className={styles.locationLabel}>
                   {point.title}
                 </span>
-                <span style={{ fontSize: "0.85rem", fontWeight: "800", color: "var(--slate-800)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "160px" }}>
+                <span className={styles.locationName}>
                   {point.name}
                 </span>
               </div>
 
               {/* Temperature & Conditions Column */}
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: "90px" }}>
-                <span style={{ fontSize: "1.4rem" }}>{wmoInfo.emoji}</span>
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ fontSize: "0.92rem", fontWeight: "800", color: "var(--slate-800)" }}>
+              <div className={styles.tempCol}>
+                <span className={styles.weatherEmoji}>{wmoInfo.emoji}</span>
+                <div className={styles.tempVals}>
+                  <span className={styles.tempDisp}>
                     {dispTemp}
                   </span>
-                  <span style={{ fontSize: "0.68rem", color: "var(--slate-400)" }}>
+                  <span className={styles.conditionDesc}>
                     {wmoInfo.desc}
                   </span>
                 </div>
               </div>
 
               {/* Rain Probability Column */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "1px", minWidth: "60px" }}>
-                <span style={{ fontSize: "0.62rem", color: "var(--slate-400)", fontWeight: "600" }}>RAIN</span>
-                <span style={{ fontSize: "0.85rem", fontWeight: "800", color: rain > 30 ? "var(--rose)" : "var(--slate-800)" }}>
+              <div className={styles.rainCol}>
+                <span className={styles.rainLabel}>RAIN</span>
+                <span className={styles.rainVal} style={{ color: rain > 30 ? "var(--rose)" : "var(--slate-800)" }}>
                   {rain}%
                 </span>
               </div>
 
               {/* Wind Column */}
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: "90px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
-                  <span style={{ fontSize: "0.62rem", color: "var(--slate-400)", fontWeight: "600" }}>WIND</span>
-                  <span style={{ fontSize: "0.85rem", fontWeight: "800", color: "var(--slate-800)", whiteSpace: "nowrap" }}>
-                    {dispWind.split(" ")[0]} <span style={{ fontSize: "0.68rem", color: "var(--slate-500)", fontWeight: "normal" }}>{dispWind.split(" ")[1]}</span>
+              <div className={styles.windCol}>
+                <div className={styles.windTextGroup}>
+                  <span className={styles.windLabel}>WIND</span>
+                  <span className={styles.windVal}>
+                    {dispWind.split(" ")[0]} <span className={styles.windUnit}>{dispWind.split(" ")[1]}</span>
                   </span>
                 </div>
                 {/* Wind direction compass arrow */}
-                <div style={{
-                  width: "24px",
-                  height: "24px",
-                  borderRadius: "50%",
-                  background: "#f1f5f9",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  border: "1px solid rgba(226, 232, 240, 0.8)",
-                  transform: `rotate(${windDi}deg)`,
-                  transition: "transform 0.5s ease"
-                }}
-                title={`Wind direction: ${windDi}°`}
+                <div 
+                  className={styles.compassBadge}
+                  style={{ transform: `rotate(${windDi}deg)` }}
+                  title={`Wind direction: ${windDi}°`}
                 >
                   <Navigation size={10} style={{ color: "var(--primary)", fill: "var(--primary)" }} />
                 </div>

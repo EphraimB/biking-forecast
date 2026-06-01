@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { 
   Bike, Plus, Trash2, Calendar, Clock, MapPin, Navigation, 
@@ -12,6 +12,7 @@ import {
 import { fetchBicycleRoute, fetchRouteWeather, geocodeAddress } from "@/utils/api";
 import { decodePolyline6, calculateRouteSegments, sampleCoordinates } from "@/utils/routeUtils";
 import { calculateCommuteScore, calculateDepartureTimeForArrival, WMO_MAP } from "@/utils/weatherScoring";
+import styles from "./page.module.css";
 
 // Dynamic import of RouteMap to bypass SSR Leaflet issues
 const RouteMap = dynamic(() => import("@/components/RouteMap"), {
@@ -38,6 +39,15 @@ const RouteMap = dynamic(() => import("@/components/RouteMap"), {
 
 const WEEKDAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const WEEKDAYS_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function getWindCompassDirection(degrees) {
+  const directions = [
+    "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", 
+    "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"
+  ];
+  const index = Math.floor((degrees / 22.5) + 0.5) % 16;
+  return directions[index];
+}
 
 export default function Home() {
   // HUD UI States: 
@@ -70,14 +80,26 @@ export default function Home() {
   const [shouldSaveRoute, setShouldSaveRoute] = useState(false);
 
   // Recurring Weekly Commute Schedules (Assign different routes & outbound/return times per day)
-  const [weeklySchedule, setWeeklySchedule] = useState({
-    1: { routeId: null, outbound: "08:00", return: "17:30" }, // Monday
-    2: { routeId: null, outbound: "08:00", return: "17:30" }, // Tuesday
-    3: { routeId: null, outbound: "08:00", return: "17:30" }, // Wednesday
-    4: { routeId: null, outbound: "08:00", return: "17:30" }, // Thursday
-    5: { routeId: null, outbound: "08:00", return: "17:30" }, // Friday
-    6: { routeId: null, outbound: "08:00", return: "17:30" }, // Saturday
-    0: { routeId: null, outbound: "08:00", return: "17:30" }  // Sunday
+  const [weeklySchedule, setWeeklySchedule] = useState(() => {
+    if (typeof window !== "undefined") {
+      const savedWeeklySchedule = localStorage.getItem("hud_weekly_schedule");
+      if (savedWeeklySchedule) {
+        try {
+          return JSON.parse(savedWeeklySchedule);
+        } catch (e) {
+          console.error("Error loading weekly schedule:", e);
+        }
+      }
+    }
+    return {
+      1: { routeId: null, outbound: "08:00", return: "17:30" }, // Monday
+      2: { routeId: null, outbound: "08:00", return: "17:30" }, // Tuesday
+      3: { routeId: null, outbound: "08:00", return: "17:30" }, // Wednesday
+      4: { routeId: null, outbound: "08:00", return: "17:30" }, // Thursday
+      5: { routeId: null, outbound: "08:00", return: "17:30" }, // Friday
+      6: { routeId: null, outbound: "08:00", return: "17:30" }, // Saturday
+      0: { routeId: null, outbound: "08:00", return: "17:30" }  // Sunday
+    };
   });
 
   const [isWeeklyPlannerOpen, setIsWeeklyPlannerOpen] = useState(false);
@@ -90,7 +112,19 @@ export default function Home() {
   const [bulkSelectedDays, setBulkSelectedDays] = useState([]);
 
   // Saved Routes Hub (🔖 Persistence)
-  const [savedRoutes, setSavedRoutes] = useState([]);
+  const [savedRoutes, setSavedRoutes] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("hud_saved_routes");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          console.error("Error loading saved routes:", e);
+        }
+      }
+    }
+    return [];
+  });
   const [isSavedHubOpen, setIsSavedHubOpen] = useState(false);
 
   // Time & Timeline Scrub Scopes (State 3)
@@ -99,7 +133,6 @@ export default function Home() {
 
   // Dynamic Packing Drawer Scope (🎒 checklist toggle)
   const [isPackingOpen, setIsPackingOpen] = useState(false);
-  const [packingList, setPackingList] = useState([]);
   const [isRiderConfigOpen, setIsRiderConfigOpen] = useState(false);
 
   // Adaptive Unit Toggle (📐 Metric / Imperial)
@@ -129,127 +162,26 @@ export default function Home() {
 
   // Ambient Local WeatherHUD Info
   const [userLocation, setUserLocation] = useState(null);
-  const [weatherLocationName, setWeatherLocationName] = useState("Resolving GPS...");
+  const [baseWeatherLocationName, setBaseWeatherLocationName] = useState("Resolving GPS...");
   const [ambientWeather, setAmbientWeather] = useState(null);
   const [ambientWeatherForecast, setAmbientWeatherForecast] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const geocodeTimeoutRef = useRef(null);
 
-  // 1. Initial Mount: Load Saved Routes & Restore Active View State
-  useEffect(() => {
-    const saved = localStorage.getItem("hud_saved_routes");
-    if (saved) {
-      try {
-        setSavedRoutes(JSON.parse(saved));
-      } catch (e) {
-        console.error("Error loading saved routes:", e);
-      }
-    }
+  // Derived state: weatherLocationName represents active route's starting city or fallback base location
+  const weatherLocationName = (draftStart && draftStart.label)
+    ? (draftStart.label.split(",")[0] || "Route Start")
+    : baseWeatherLocationName;
 
-    // Load Weekly Schedule
-    const savedWeeklySchedule = localStorage.getItem("hud_weekly_schedule");
-    if (savedWeeklySchedule) {
-      try {
-        setWeeklySchedule(JSON.parse(savedWeeklySchedule));
-      } catch (e) {
-        console.error("Error loading weekly schedule:", e);
-      }
-    }
-
-    // Restore Global View-State Caching (Reload Survival)
-    const cachedState = localStorage.getItem("hud_active_view_state");
-    let restoredHour = false;
-    if (cachedState) {
-      try {
-        const state = JSON.parse(cachedState);
-        if (state.selectedDayOffset !== undefined) setSelectedDayOffset(state.selectedDayOffset);
-        if (state.selectedHour !== undefined) {
-          setSelectedHour(state.selectedHour);
-          restoredHour = true;
-        }
-        if (state.newBikeType !== undefined) setNewBikeType(state.newBikeType);
-        if (state.newSpeed !== undefined) setNewSpeed(state.newSpeed);
-        if (state.unitSystem !== undefined) setUnitSystem(state.unitSystem);
-        
-        if (state.draftStart && state.draftEnd) {
-          setDraftStart(state.draftStart);
-          setDraftEnd(state.draftEnd);
-          setStartQuery(state.draftStart.label);
-          setEndQuery(state.draftEnd.label);
-          
-          // Re-trigger background fetches, maintaining correct visual state
-          loadRouteDetails(
-            state.draftStart, 
-            state.draftEnd, 
-            state.newBikeType || "Hybrid", 
-            state.newSpeed || 18, 
-            state.hudState !== undefined ? state.hudState : 2
-          );
-        } else {
-          if (state.hudState !== undefined) {
-            // Restore only safe base states if no route coordinates exist
-            setHudState(state.hudState === 1 ? 1 : 0);
-          }
-        }
-      } catch (err) {
-        console.error("View state restoration error: ", err);
-      }
-    }
-
-    if (!restoredHour) {
-      const currentHour = new Date().getHours();
-      setSelectedHour(Math.max(6, Math.min(20, currentHour)));
-    }
-
-    // Centered location default ambient lookup
-    if (typeof window !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const loc = { lat: position.coords.latitude, lon: position.coords.longitude };
-          setUserLocation(loc);
-          setWeatherLocationName("Live GPS");
-          fetchAmbientWeather(loc.lat, loc.lon);
-        },
-        () => {
-          // Central Park Fallback
-          const fallback = { lat: 40.7851, lon: -73.9682 };
-          setUserLocation(fallback);
-          setWeatherLocationName("Central Park");
-          fetchAmbientWeather(fallback.lat, fallback.lon);
-        }
-      );
-    }
-  }, []);
-
-  // 2. Global View State Cache Synchronizer
-  useEffect(() => {
-    const activeState = {
-      draftStart,
-      draftEnd,
-      selectedDayOffset,
-      selectedHour,
-      newBikeType,
-      newSpeed,
-      unitSystem,
-      hudState
-    };
-    localStorage.setItem("hud_active_view_state", JSON.stringify(activeState));
-  }, [draftStart, draftEnd, selectedDayOffset, selectedHour, newBikeType, newSpeed, unitSystem, hudState]);
-
-  // Persist Weekly Schedule Changes
-  useEffect(() => {
-    localStorage.setItem("hud_weekly_schedule", JSON.stringify(weeklySchedule));
-  }, [weeklySchedule]);
-
-  const fetchAmbientWeather = async (lat, lon) => {
+  // Memoized callback triggers to satisfy strict react-hooks rules and avoid hoisting issues
+  const fetchAmbientWeather = useCallback(async (lat, lon) => {
     try {
       const dummyCoords = [[lat, lon]];
       const weather = await fetchRouteWeather(dummyCoords, 1);
       if (weather && weather.length > 0) {
         const hourly = weather[0]?.hourly;
         
-        // Robust string-based local hour matching to avoid timezone index mismatches
         const now = new Date();
         const year = now.getFullYear();
         const month = (now.getMonth() + 1).toString().padStart(2, "0");
@@ -259,7 +191,7 @@ export default function Home() {
         
         let currentHourIdx = hourly?.time?.indexOf(currentHourStr);
         if (currentHourIdx === -1 || currentHourIdx === undefined) {
-          currentHourIdx = now.getHours(); // Fallback to current local hour index if not found
+          currentHourIdx = now.getHours();
         }
         
         const resolvedTemp = hourly?.temperature_2m?.[currentHourIdx] ?? 22;
@@ -275,7 +207,7 @@ export default function Home() {
         });
         setAmbientWeatherForecast(weather[0]);
 
-        console.log(`☀️ [Ambient Weather HUD] Resolved values for: ${weatherLocationName || "GPS Location"}`, {
+        console.log(`☀️ [Ambient Weather HUD] Resolved values for coordinates:`, {
           coordinates: { lat, lon },
           matchedTime: currentHourStr,
           arrayIndex: currentHourIdx,
@@ -288,30 +220,32 @@ export default function Home() {
     } catch (e) {
       console.error("Ambient weather fetch error:", e);
     }
-  };
+  }, []);
 
-  const getWindCompassDirection = (degrees) => {
-    const directions = [
-      "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", 
-      "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"
-    ];
-    const index = Math.floor((degrees / 22.5) + 0.5) % 16;
-    return directions[index];
-  };
+  const loadRouteDetails = useCallback(async (start, end, bikeType, speed, overrideState = null) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const routeData = await fetchBicycleRoute(start.lat, start.lon, end.lat, end.lon, bikeType, speed);
+      const decodedCoords = decodePolyline6(routeData.shape);
+      setRouteCoordinates(decodedCoords);
 
-  // Update ambient weather dynamically when the planned route's start location changes
-  useEffect(() => {
-    if (draftStart && draftStart.lat && draftStart.lon) {
-      // Crop coordinate strings to avoid super long labels in tooltips
-      const label = draftStart.label || "Planned Route";
-      const shortLabel = label.split(",")[0] || "Route Start";
-      setWeatherLocationName(shortLabel);
-      fetchAmbientWeather(draftStart.lat, draftStart.lon);
+      const segments = calculateRouteSegments(decodedCoords);
+      setRouteSegments(segments);
+
+      const weatherData = await fetchRouteWeather(decodedCoords, routeData.distance);
+      setWeatherResults(weatherData);
+
+      setHudState(overrideState !== null ? overrideState : 2);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Route validation pipeline failed.");
+    } finally {
+      setIsLoading(false);
     }
-  }, [draftStart]);
+  }, []);
 
-  // Autocomplete Geocoding Debouncing
-  const triggerGeocode = (query, isStart) => {
+  const triggerGeocode = useCallback((query, isStart) => {
     if (!query || query.trim().length < 3) {
       if (isStart) setStartResults([]);
       else setEndResults([]);
@@ -335,35 +269,109 @@ export default function Home() {
         setIsSearchingEnd(false);
       }
     }, 600);
-  };
+  }, []);
 
-  // Route Planning API Core Trigger
-  const loadRouteDetails = async (start, end, bikeType, speed, overrideState = null) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      // 1. Fetch routing polyline from Valhalla
-      const routeData = await fetchBicycleRoute(start.lat, start.lon, end.lat, end.lon, bikeType, speed);
-      const decodedCoords = decodePolyline6(routeData.shape);
-      setRouteCoordinates(decodedCoords);
+  // 1. Initial Mount: Restore Active View State
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      // Restore Global View-State Caching (Reload Survival)
+      const cachedState = localStorage.getItem("hud_active_view_state");
+      let restoredHour = false;
+      if (cachedState) {
+        try {
+          const state = JSON.parse(cachedState);
+          if (state.selectedDayOffset !== undefined) setSelectedDayOffset(state.selectedDayOffset);
+          if (state.selectedHour !== undefined) {
+            setSelectedHour(state.selectedHour);
+            restoredHour = true;
+          }
+          if (state.newBikeType !== undefined) setNewBikeType(state.newBikeType);
+          if (state.newSpeed !== undefined) setNewSpeed(state.newSpeed);
+          if (state.unitSystem !== undefined) setUnitSystem(state.unitSystem);
+          
+          if (state.draftStart && state.draftEnd) {
+            setDraftStart(state.draftStart);
+            setDraftEnd(state.draftEnd);
+            setStartQuery(state.draftStart.label);
+            setEndQuery(state.draftEnd.label);
+            
+            // Re-trigger background fetches, maintaining correct visual state
+            loadRouteDetails(
+              state.draftStart, 
+              state.draftEnd, 
+              state.newBikeType || "Hybrid", 
+              state.newSpeed || 18, 
+              state.hudState !== undefined ? state.hudState : 2
+            );
+          } else {
+            if (state.hudState !== undefined) {
+              // Restore only safe base states if no route coordinates exist
+              setHudState(state.hudState === 1 ? 1 : 0);
+            }
+          }
+        } catch (err) {
+          console.error("View state restoration error: ", err);
+        }
+      }
 
-      // 2. Pre-calculate bearings and segments
-      const segments = calculateRouteSegments(decodedCoords);
-      setRouteSegments(segments);
+      if (!restoredHour) {
+        const currentHour = new Date().getHours();
+        setSelectedHour(Math.max(6, Math.min(20, currentHour)));
+      }
 
-      // 3. Fetch Open-Meteo weather along the coordinates
-      const weatherData = await fetchRouteWeather(decodedCoords, routeData.distance);
-      setWeatherResults(weatherData);
+      // Centered location default ambient lookup
+      if (typeof window !== "undefined" && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const loc = { lat: position.coords.latitude, lon: position.coords.longitude };
+            setUserLocation(loc);
+            setBaseWeatherLocationName("Live GPS");
+            fetchAmbientWeather(loc.lat, loc.lon);
+          },
+          () => {
+            // Central Park Fallback
+            const fallback = { lat: 40.7851, lon: -73.9682 };
+            setUserLocation(fallback);
+            setBaseWeatherLocationName("Central Park");
+            fetchAmbientWeather(fallback.lat, fallback.lon);
+          }
+        );
+      }
+    }, 0);
 
-      // Successfully mapped! Restore or load correct state
-      setHudState(overrideState !== null ? overrideState : 2);
-    } catch (err) {
-      console.error(err);
-      setError(err.message || "Route validation pipeline failed.");
-    } finally {
-      setIsLoading(false);
+    return () => clearTimeout(handle);
+  }, [fetchAmbientWeather, loadRouteDetails]);
+
+  // 2. Global View State Cache Synchronizer
+  useEffect(() => {
+    const activeState = {
+      draftStart,
+      draftEnd,
+      selectedDayOffset,
+      selectedHour,
+      newBikeType,
+      newSpeed,
+      unitSystem,
+      hudState
+    };
+    localStorage.setItem("hud_active_view_state", JSON.stringify(activeState));
+  }, [draftStart, draftEnd, selectedDayOffset, selectedHour, newBikeType, newSpeed, unitSystem, hudState]);
+
+  // Persist Weekly Schedule Changes
+  useEffect(() => {
+    localStorage.setItem("hud_weekly_schedule", JSON.stringify(weeklySchedule));
+  }, [weeklySchedule]);
+
+  // Update ambient weather dynamically when the planned route's start location changes
+  useEffect(() => {
+    if (draftStart && draftStart.lat && draftStart.lon) {
+      const handle = setTimeout(() => {
+        fetchAmbientWeather(draftStart.lat, draftStart.lon);
+      }, 0);
+      return () => clearTimeout(handle);
     }
-  };
+  }, [draftStart, fetchAmbientWeather]);
+
 
   // Save Route Action Persistence
   const handleSaveRoute = () => {
@@ -629,7 +637,7 @@ export default function Home() {
     };
 
     fetchScheduledWeather();
-  }, [weeklySchedule, savedRoutes, scheduledRoutesWeather]);
+  }, [weeklySchedule, savedRoutes, scheduledRoutesWeather, newBikeType, newSpeed]);
 
   // Compute currently displayed route based on selected day offset schedule
   const getActiveRouteData = () => {
@@ -667,32 +675,62 @@ export default function Home() {
 
   const activeRouteData = getActiveRouteData();
 
-  // Dynamic Weather-Adaptive Packing List Core Logic
-  const compileDynamicPackingList = (dayOffset, activeHour) => {
-    const activeRoute = getActiveRouteData();
-    if (activeRoute.weatherResults.length === 0) return;
+  // Get active forecast details for Top HUD bubbles (declared before accessed by packing logic)
+  const getActiveForecast = () => {
+    if (!activeRouteData || !activeRouteData.segments || activeRouteData.segments.length === 0 || !activeRouteData.weatherResults || activeRouteData.weatherResults.length === 0) return null;
     
-    const hourIdx = dayOffset * 24 + activeHour;
-    const midIdx = Math.floor(activeRoute.weatherResults.length / 2);
-    const midHourly = activeRoute.weatherResults[midIdx]?.hourly;
+    let hourIdx;
+    if (hudState === 3) {
+      hourIdx = selectedDayOffset * 24 + selectedHour;
+    } else {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = (now.getMonth() + 1).toString().padStart(2, "0");
+      const date = now.getDate().toString().padStart(2, "0");
+      const hour = now.getHours().toString().padStart(2, "0");
+      const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
+      
+      const firstHourly = activeRouteData.weatherResults[0]?.hourly;
+      let currentHourIdx = firstHourly?.time?.indexOf(currentHourStr);
+      if (currentHourIdx === -1 || currentHourIdx === undefined) {
+        currentHourIdx = now.getHours();
+      }
+      hourIdx = currentHourIdx;
+    }
+    
+    return calculateCommuteScore(
+      hourIdx, 
+      activeRouteData.segments, 
+      activeRouteData.speed, 
+      activeRouteData.weatherResults
+    );
+  };
+
+  const activeForecast = getActiveForecast();
+
+  // Pure derived state: Packing list calculated synchronously inside render (satisfies react-hooks linter rules)
+  const getDynamicPackingList = () => {
+    if (!isPackingOpen || activeRouteData.weatherResults.length === 0) return [];
+    
+    const hourIdx = selectedDayOffset * 24 + selectedHour;
+    const midIdx = Math.floor(activeRouteData.weatherResults.length / 2);
+    const midHourly = activeRouteData.weatherResults[midIdx]?.hourly;
+    if (!midHourly) return [];
 
     const temp = midHourly?.temperature_2m?.[hourIdx] ?? 20;
     const isRaining = (midHourly?.precipitation?.[hourIdx] ?? 0) > 0.1;
     const uvIndex = midHourly?.uv_index?.[hourIdx] ?? 0;
-    const isSunset = activeHour > 18 || activeHour < 7;
-    const totalDist = activeRoute.segments.reduce((sum, seg) => sum + seg.distance, 0);
+    const isSunset = selectedHour > 18 || selectedHour < 7;
+    const totalDist = activeRouteData.segments.reduce((sum, seg) => sum + seg.distance, 0);
 
     const checklist = [];
-
-    // Calculate exact water and carbs needed based on distance and weather
-    const activeFc = getActiveForecast();
-    const avgHeadwind = activeFc?.headwind ?? 0;
+    const avgHeadwind = activeForecast?.headwind ?? 0;
     
-    const waterPerKm = temp > 27 ? (350 / 5) : (350 / 8); // ml per km
+    const waterPerKm = temp > 27 ? (350 / 5) : (350 / 8);
     const totalWaterMl = totalDist * waterPerKm;
     const totalWaterOzs = totalWaterMl * 0.033814;
     
-    const carbsPerKm = avgHeadwind > 12 ? (30 / 12) : (30 / 16); // g per km
+    const carbsPerKm = avgHeadwind > 12 ? (30 / 12) : (30 / 16);
     const totalCarbsG = totalDist * carbsPerKm;
     const totalKcal = totalCarbsG * 4;
     
@@ -702,7 +740,6 @@ export default function Home() {
       
     const carbsDisplay = `${Math.round(totalCarbsG)}g Carbs (~${Math.round(totalKcal)} kcal)`;
 
-    // Push high-priority water and carbs recommendations
     checklist.push({
       id: "hydration-pack",
       emoji: "🥤",
@@ -714,10 +751,9 @@ export default function Home() {
       id: "carbs-pack",
       emoji: "🍌",
       item: `Total Carbohydrates: ${carbsDisplay}`,
-      advice: `Carry ${carbsDisplay} of fuel (e.g. gels, chews, or bananas) for this commute. Caloric depletion rate is adjusted for energy expenditure under ${activeFc?.windImpact || "standard"} wind resistance.`
+      advice: `Carry ${carbsDisplay} of fuel (e.g. gels, chews, or bananas) for this commute. Caloric depletion rate is adjusted for energy expenditure under ${activeForecast?.windImpact || "standard"} wind resistance.`
     });
 
-    // 1. Weather Shaders (Sunscreen & Rain Protection)
     if (uvIndex >= 6) {
       checklist.push({
         id: "sun-extreme",
@@ -755,7 +791,6 @@ export default function Home() {
       });
     }
 
-    // 2. Temperature Shaders (Cold/Warm Protection)
     if (temp < 10) {
       checklist.push({
         id: "temp-cold",
@@ -772,7 +807,6 @@ export default function Home() {
       });
     }
 
-    // 3. Dusk/Night Time Shaders (Active lights check)
     if (isSunset) {
       checklist.push({
         id: "sunset-light",
@@ -782,7 +816,6 @@ export default function Home() {
       });
     }
 
-    // 4. Distance & Exertion Shaders
     if (totalDist > 20) {
       checklist.push({
         id: "dist-tubes",
@@ -792,15 +825,10 @@ export default function Home() {
       });
     }
 
-    setPackingList(checklist);
+    return checklist;
   };
 
-  // Keep packing checklist automatically sync'd in real-time
-  useEffect(() => {
-    if (isPackingOpen) {
-      compileDynamicPackingList(selectedDayOffset, selectedHour);
-    }
-  }, [selectedDayOffset, selectedHour, isPackingOpen, weeklySchedule, scheduledRoutesWeather]);
+  const packingList = getDynamicPackingList();
 
   const toggleRiderConfig = () => {
     if (!isRiderConfigOpen) {
@@ -851,10 +879,8 @@ export default function Home() {
     
     let hourIdx;
     if (hudState === 3) {
-      // If actively scrubbing the timeline in State 3, sync with the scrubber values
       hourIdx = selectedDayOffset * 24 + selectedHour;
     } else {
-      // If in ambient state (State 0, 1, or 2), display the actual current local hour
       const now = new Date();
       const year = now.getFullYear();
       const month = (now.getMonth() + 1).toString().padStart(2, "0");
@@ -864,7 +890,7 @@ export default function Home() {
       
       let currentHourIdx = hourly.time?.indexOf(currentHourStr);
       if (currentHourIdx === -1 || currentHourIdx === undefined) {
-        currentHourIdx = now.getHours(); // Fallback to current local hour index
+        currentHourIdx = now.getHours();
       }
       hourIdx = currentHourIdx;
     }
@@ -879,41 +905,6 @@ export default function Home() {
 
   const dynamicAmbientWeather = getDynamicAmbientWeather();
 
-  // Get active forecast details for Top HUD bubbles
-  const getActiveForecast = () => {
-    if (!activeRouteData || !activeRouteData.segments || activeRouteData.segments.length === 0 || !activeRouteData.weatherResults || activeRouteData.weatherResults.length === 0) return null;
-    
-    let hourIdx;
-    if (hudState === 3) {
-      // If actively scrubbing the timeline in State 3, sync with the scrubber values
-      hourIdx = selectedDayOffset * 24 + selectedHour;
-    } else {
-      // If in ambient state (State 0, 1, or 2), display the actual current local hour
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = (now.getMonth() + 1).toString().padStart(2, "0");
-      const date = now.getDate().toString().padStart(2, "0");
-      const hour = now.getHours().toString().padStart(2, "0");
-      const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
-      
-      const firstHourly = activeRouteData.weatherResults[0]?.hourly;
-      let currentHourIdx = firstHourly?.time?.indexOf(currentHourStr);
-      if (currentHourIdx === -1 || currentHourIdx === undefined) {
-        currentHourIdx = now.getHours(); // Fallback to current local hour index
-      }
-      hourIdx = currentHourIdx;
-    }
-    
-    // Average scores across segments
-    return calculateCommuteScore(
-      hourIdx, 
-      activeRouteData.segments, 
-      activeRouteData.speed, 
-      activeRouteData.weatherResults
-    );
-  };
-
-  const activeForecast = getActiveForecast();
 
   // 4. Debug Console Logger for Route-Specific Weather and Scores
   useEffect(() => {
@@ -1014,7 +1005,7 @@ export default function Home() {
     console.groupEnd();
 
     console.groupEnd();
-  }, [activeForecast, activeRouteData, selectedDayOffset, selectedHour]);
+  }, [activeForecast, activeRouteData, selectedDayOffset, selectedHour, hudState]);
 
   const selectedDayDate = new Date();
   selectedDayDate.setDate(selectedDayDate.getDate() + selectedDayOffset);
@@ -1144,8 +1135,6 @@ export default function Home() {
 
   const ribbonDaysData = get7DayCommuteData();
 
-
-
   const getGroupedSchedules = () => {
     const groups = [];
     const processedDays = new Set();
@@ -1188,14 +1177,14 @@ export default function Home() {
   const groupedSchedules = getGroupedSchedules();
 
   return (
-    <div style={{ position: "relative", width: "100vw", height: "100vh", overflow: "hidden", background: "#0b0f19" }}>
+    <div className={styles.rootPage}>
       
       {/* 
         -------------------------------------------------------------
         CORE MAP VIEWPORT (100% VISIBLE CANVAS BACKDROP)
         ------------------------------------------------------------- 
       */}
-      <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 1 }}>
+      <div className={styles.mapBackdrop}>
         <RouteMap
           coordinates={activeRouteData.coordinates}
           startLocation={activeRouteData.startLocation}
@@ -1232,326 +1221,252 @@ export default function Home() {
       <div className="hud-top-container">
         
         {/* Left Side: Unified Navigation & Controls Hub */}
-        <div style={{ display: "flex", gap: "10px" }} className="hud-top-left">
+        <div className="hud-top-left">
         
-        {/* State 0: Enter Route Search bubble */}
-        {hudState === 0 && (
-          <button 
-            className="hud-bubble" 
-            onClick={() => setHudState(1)}
-            style={{ cursor: "pointer", fontWeight: "600", border: "1px solid rgba(255, 255, 255, 0.1)", display: "flex", alignItems: "center", gap: "8px", pointerEvents: "auto" }}
-            title="Plan Custom Route"
-          >
-            <Search size={16} style={{ color: "var(--hud-text-secondary)" }} />
-            <span className="mobile-hide">Enter Route...</span>
-          </button>
-        )}
-
-        {/* State 2 & 3: Active Route Score bubble */}
-        {(hudState === 2 || hudState === 3) && activeForecast && (
-          <div className="hud-bubble" style={{ pointerEvents: "auto", border: "1px solid rgba(255,255,255,0.15)" }}>
-            <div 
-              style={{
-                width: "10px",
-                height: "10px",
-                borderRadius: "50%",
-                background: activeForecast.score >= 85 ? "var(--color-emerald)" : activeForecast.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)",
-                boxShadow: `0 0 10px ${activeForecast.score >= 85 ? "var(--color-emerald-glow)" : activeForecast.score >= 50 ? "var(--color-amber-glow)" : "var(--color-ruby-glow)"}`,
-                display: "inline-block",
-                marginRight: "4px"
-              }} 
-              className={activeForecast.score >= 85 ? "hud-pulse-emerald" : activeForecast.score >= 50 ? "hud-pulse-amber" : "hud-pulse-ruby"}
-            />
-            <span style={{ fontSize: "0.88rem", fontWeight: "700" }}>
-              <span className="mobile-hide">Score: </span>{activeForecast.score}% • {activeForecast.wmoEmoji} <span className="mobile-hide">{activeForecast.wmoDesc}</span>
-            </span>
-            <button 
-              onClick={() => {
-                setHudState(0);
-                setRouteCoordinates([]);
-                setRouteSegments([]);
-                setWeatherResults([]);
-                setDraftStart(null);
-                setDraftEnd(null);
-                setStartQuery("");
-                setEndQuery("");
-                localStorage.removeItem("hud_active_view_state"); // Clear cached route state on manual reset
-              }} 
-              style={{ background: "none", border: "none", color: "var(--hud-text-secondary)", cursor: "pointer", display: "flex", alignItems: "center", marginLeft: "8px" }}
-              title="Clear Route"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        )}
-
-        {/* State 2 & 3: Change Route button */}
-        {(hudState === 2 || hudState === 3) && (
-          <button 
-            className="hud-bubble" 
-            onClick={() => setHudState(1)}
-            style={{ cursor: "pointer", fontWeight: "600", border: "1px solid rgba(255, 255, 255, 0.1)", display: "flex", alignItems: "center", gap: "8px", pointerEvents: "auto" }}
-            title="Change Active Route"
-          >
-            <Search size={16} style={{ color: "var(--hud-text-secondary)" }} />
-            <span className="mobile-hide">Change Route</span>
-          </button>
-        )}
-
-        {/* Saved Routes Hub Trigger (Permanently Available in States 0, 2, 3) */}
-        {(hudState === 0 || hudState === 2 || hudState === 3) && (
-          <button 
-            className="hud-bubble" 
-            onClick={toggleSavedHub}
-            style={{ 
-              cursor: "pointer", 
-              border: isSavedHubOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)",
-              pointerEvents: "auto",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px"
-            }}
-            title="Saved Routes Library"
-          >
-            <Bookmark size={16} style={{ color: isSavedHubOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
-            <span className="mobile-hide" style={{ fontSize: "0.78rem", fontWeight: "800", color: isSavedHubOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }}>
-              SAVED
-            </span>
-          </button>
-        )}
-
-        {/* Weekly Schedule Planner Trigger (Permanently Available in States 0, 2, 3) */}
-        {(hudState === 0 || hudState === 2 || hudState === 3) && (
-          <button 
-            className="hud-bubble" 
-            onClick={toggleWeeklyPlanner}
-            style={{ 
-              cursor: "pointer", 
-              border: isWeeklyPlannerOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)",
-              pointerEvents: "auto",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px"
-            }}
-            title="Weekly Schedule Planner"
-          >
-            <Calendar size={16} style={{ color: isWeeklyPlannerOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
-            <span style={{ fontSize: "0.78rem", fontWeight: "800", color: isWeeklyPlannerOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }}>
-              WEEKLY<span className="mobile-hide"> PLANNER</span>
-            </span>
-          </button>
-        )}
-
-        {/* Saved Routes Dropdown overlay */}
-        {isSavedHubOpen && (hudState === 0 || hudState === 2 || hudState === 3) && (
-          <div 
-            className="hud-card hud-card-responsive" 
-            style={{ 
-              position: "absolute", 
-              top: "54px", 
-              left: 0, 
-              width: "280px", 
-              zIndex: 99999, 
-              display: "flex", 
-              flexDirection: "column", 
-              gap: "12px", 
-              maxHeight: "300px", 
-              overflowY: "auto", 
-              pointerEvents: "auto",
-              background: "rgba(10, 15, 30, 0.97)",
-              backdropFilter: "blur(20px)",
-              border: "1px solid rgba(255, 255, 255, 0.15)",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.5)"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hud-border)", paddingBottom: "6px" }}>
-              <h4 style={{ fontFamily: "var(--font-heading)", fontSize: "0.95rem", color: "var(--hud-text-secondary)", display: "flex", alignItems: "center", gap: "6px" }}>🔖 Saved Routes</h4>
-              <button onClick={() => setIsSavedHubOpen(false)} style={{ background: "none", border: "none", color: "var(--hud-text-secondary)", cursor: "pointer" }}><X size={14} /></button>
-            </div>
-            {savedRoutes.length === 0 ? (
-              <p style={{ fontSize: "0.78rem", color: "var(--hud-text-secondary)" }}>No saved routes yet. Plan a route and save it to display here.</p>
-            ) : (
-              savedRoutes.map((route) => (
-                <div 
-                  key={route.id} 
-                  className="hud-btn" 
-                  onClick={() => handleLoadSavedRoute(route)}
-                  style={{ justifyContent: "space-between", borderRadius: "10px", padding: "10px 14px", background: "rgba(255,255,255,0.05)" }}
-                >
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "80%" }}>{route.name}</span>
-                  <button 
-                    onClick={(e) => handleDeleteSavedRoute(route.id, e)} 
-                    style={{ background: "none", border: "none", color: "var(--color-ruby)", cursor: "pointer", display: "flex", alignItems: "center" }}
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Right Side: Unit Toggle, Ambient Weather & Gear Check HUD */}
-      <div style={{ display: "flex", gap: "10px", alignItems: "center", position: "relative" }} className="hud-top-right">
-        
-        {/* Rider Configuration Bubble */}
-        <button 
-          className="hud-bubble" 
-          onClick={toggleRiderConfig}
-          style={{ padding: "10px 14px", fontSize: "0.78rem", fontWeight: "800", cursor: "pointer", border: isRiderConfigOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)", background: "rgba(15,23,42,0.85)", pointerEvents: "auto" }}
-          title="Rider Profile Configurations"
-        >
-          <span>🚴</span> <span className="mobile-hide">RIDER PROFILE</span>
-        </button>
-
-        {/* Expanded Rider Configurations Glass Card */}
-        {isRiderConfigOpen && (
-          <div 
-            className="hud-card hud-card-responsive" 
-            style={{ 
-              position: "absolute", 
-              top: "54px", 
-              right: 0, 
-              width: "290px", 
-              display: "flex", 
-              flexDirection: "column", 
-              gap: "16px", 
-              border: "1px solid rgba(255, 255, 255, 0.15)",
-              pointerEvents: "auto",
-              background: "rgba(10, 15, 30, 0.97)",
-              backdropFilter: "blur(20px)",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.5)",
-              zIndex: 10000
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hud-border)", paddingBottom: "8px" }}>
-              <h4 style={{ fontFamily: "var(--font-heading)", fontSize: "0.95rem", fontWeight: "800", display: "flex", alignItems: "center", gap: "6px" }}>
-                🚴 Rider Configurator
-              </h4>
-              <button onClick={() => setIsRiderConfigOpen(false)} style={{ background: "none", border: "none", color: "var(--hud-text-secondary)", cursor: "pointer" }}><X size={14} /></button>
-            </div>
-            
-            {/* Bike Selection */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <span style={{ fontSize: "0.74rem", color: "var(--hud-text-secondary)" }}>Bicycle Profile</span>
-              <select 
-                className="hud-input" 
-                value={newBikeType}
-                onChange={(e) => {
-                  setNewBikeType(e.target.value);
-                  const defaultSpeeds = { Road: 24, Hybrid: 18, Mountain: 16, E_Bike: 25 };
-                  setNewSpeed(defaultSpeeds[e.target.value] || 18);
-                }}
-                style={{ background: "#111827", border: "1px solid var(--hud-border)" }}
-              >
-                <option value="Road">🚴 Road Bike</option>
-                <option value="Hybrid">🚲 Hybrid / Commuter</option>
-                <option value="Mountain">🚵 Mountain Bike</option>
-                <option value="E_Bike">⚡ Electric Bike</option>
-              </select>
-            </div>
-
-            {/* Speed Slider */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.74rem" }}>
-                <span style={{ color: "var(--hud-text-secondary)" }}>Base Speed</span>
-                <span>{unitSystem === "imperial" ? `${Math.round(newSpeed * 0.621371)} mph` : `${newSpeed} km/h`}</span>
-              </div>
-              <input 
-                type="range" 
-                min="10" 
-                max="35" 
-                value={newSpeed}
-                onChange={(e) => setNewSpeed(parseInt(e.target.value))}
-                style={{ accentColor: "var(--color-emerald)", cursor: "pointer" }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Metric / Imperial Toggling Bubble */}
-        <button 
-          className="hud-bubble" 
-          onClick={() => setUnitSystem(unitSystem === "metric" ? "imperial" : "metric")}
-          style={{ padding: "10px 14px", fontSize: "0.78rem", fontWeight: "800", cursor: "pointer", background: "rgba(15,23,42,0.85)", pointerEvents: "auto" }}
-          title="Switch Units"
-        >
-          📐 <span className="mobile-hide">{unitSystem === "metric" ? "METRIC" : "IMPERIAL"}</span>
-        </button>
-
-        {dynamicAmbientWeather && (
-          <div className="hud-bubble" style={{ pointerEvents: "auto", cursor: "help" }} title={`Location: ${weatherLocationName}`}>
-            <SunDim size={16} style={{ color: "var(--color-amber)", animation: "spin 12s linear infinite" }} />
-            <span style={{ fontSize: "0.82rem", fontWeight: "600" }}>
-              {formatTemp(dynamicAmbientWeather.temp)}
-              <span className="mobile-hide"> • {formatWind(dynamicAmbientWeather.windSpeed)} {dynamicAmbientWeather.windDir}</span>
-            </span>
-          </div>
-        )}
-
-        {(hudState === 2 || hudState === 3) && activeForecast && (
-          <>
+          {/* State 0: Enter Route Search bubble */}
+          {hudState === 0 && (
             <button 
               className="hud-bubble" 
-              onClick={togglePackingList}
-              style={{ cursor: "pointer", border: isPackingOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)", pointerEvents: "auto" }}
+              onClick={() => setHudState(1)}
+              style={{ cursor: "pointer", fontWeight: "600", border: "1px solid rgba(255, 255, 255, 0.1)", display: "flex", alignItems: "center", gap: "8px", pointerEvents: "auto" }}
+              title="Plan Custom Route"
             >
-              <span>🎒</span>
-              <span className="mobile-hide" style={{ fontSize: "0.78rem", fontWeight: "800" }}>GEAR CHECK</span>
+              <Search size={16} style={{ color: "var(--hud-text-secondary)" }} />
+              <span className="mobile-hide">Enter Route...</span>
             </button>
+          )}
 
-            {/* Expanded Dynamic Packing Glass Card */}
-            {isPackingOpen && (
+          {/* State 2 & 3: Active Route Score bubble */}
+          {(hudState === 2 || hudState === 3) && activeForecast && (
+            <div className={`hud-bubble ${styles.weatherBubble}`}>
               <div 
-                className="hud-card hud-card-responsive" 
-                style={{ 
-                  position: "absolute", 
-                  top: "54px", 
-                  right: 0, 
-                  width: "290px", 
-                  display: "flex", 
-                  flexDirection: "column", 
-                  gap: "12px", 
-                  maxHeight: "360px", 
-                  overflowY: "auto",
-                  border: "1px solid rgba(255, 255, 255, 0.15)",
-                  pointerEvents: "auto",
-                  background: "rgba(10, 15, 30, 0.97)",
-                  backdropFilter: "blur(20px)",
-                  boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.5)"
-                }}
+                className={`${styles.pulseDot} ${activeForecast.score >= 85 ? "hud-pulse-emerald" : activeForecast.score >= 50 ? "hud-pulse-amber" : "hud-pulse-ruby"}`}
+                style={{
+                  background: activeForecast.score >= 85 ? "var(--color-emerald)" : activeForecast.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)",
+                  boxShadow: `0 0 10px ${activeForecast.score >= 85 ? "var(--color-emerald-glow)" : activeForecast.score >= 50 ? "var(--color-amber-glow)" : "var(--color-ruby-glow)"}`
+                }} 
+              />
+              <span style={{ fontSize: "0.88rem", fontWeight: "700" }}>
+                <span className="mobile-hide">Score: </span>{activeForecast.score}% • {activeForecast.wmoEmoji} <span className="mobile-hide">{activeForecast.wmoDesc}</span>
+              </span>
+              <button 
+                onClick={() => {
+                  setHudState(0);
+                  setRouteCoordinates([]);
+                  setRouteSegments([]);
+                  setWeatherResults([]);
+                  setDraftStart(null);
+                  setDraftEnd(null);
+                  setStartQuery("");
+                  setEndQuery("");
+                  localStorage.removeItem("hud_active_view_state"); // Clear cached route state on manual reset
+                }} 
+                className={styles.clearRouteBtn}
+                title="Clear Route"
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hud-border)", paddingBottom: "8px" }}>
-                  <h4 style={{ fontFamily: "var(--font-heading)", fontSize: "0.95rem", fontWeight: "800" }}>🎒 Trip Packing List</h4>
-                  <button onClick={() => setIsPackingOpen(false)} style={{ background: "none", border: "none", color: "var(--hud-text-secondary)", cursor: "pointer" }}><X size={14} /></button>
-                </div>
-                
-                {packingList.length === 0 ? (
-                  <p style={{ fontSize: "0.78rem", color: "var(--hud-text-secondary)", textAlign: "center" }}>☀️ Clear summer skies and perfect winds. Just bring your helmet & dynamic hydration!</p>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    {packingList.map((p) => (
-                      <div key={p.id} style={{ background: "rgba(255,255,255,0.05)", padding: "10px", borderRadius: "10px", display: "flex", flexDirection: "column", gap: "4px" }}>
-                        <span style={{ fontSize: "0.82rem", fontWeight: "700", color: "var(--hud-text-primary)", display: "flex", alignItems: "center", gap: "4px" }}>
-                          {p.emoji} {p.item}
-                        </span>
-                        <span style={{ fontSize: "0.7rem", color: "var(--hud-text-secondary)", lineHeight: "1.4" }}>
-                          {p.advice}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
+          {/* State 2 & 3: Change Route button */}
+          {(hudState === 2 || hudState === 3) && (
+            <button 
+              className="hud-bubble" 
+              onClick={() => setHudState(1)}
+              style={{ cursor: "pointer", fontWeight: "600", border: "1px solid rgba(255, 255, 255, 0.1)", display: "flex", alignItems: "center", gap: "8px", pointerEvents: "auto" }}
+              title="Change Active Route"
+            >
+              <Search size={16} style={{ color: "var(--hud-text-secondary)" }} />
+              <span className="mobile-hide">Change Route</span>
+            </button>
+          )}
+
+          {/* Saved Routes Hub Trigger (Permanently Available in States 0, 2, 3) */}
+          {(hudState === 0 || hudState === 2 || hudState === 3) && (
+            <button 
+              className={`hud-bubble ${styles.hubBtn}`}
+              onClick={toggleSavedHub}
+              style={{ 
+                border: isSavedHubOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)"
+              }}
+              title="Saved Routes Library"
+            >
+              <Bookmark size={16} style={{ color: isSavedHubOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
+              <span className="mobile-hide" style={{ fontSize: "0.78rem", fontWeight: "800", color: isSavedHubOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }}>
+                SAVED
+              </span>
+            </button>
+          )}
+
+          {/* Weekly Schedule Planner Trigger (Permanently Available in States 0, 2, 3) */}
+          {(hudState === 0 || hudState === 2 || hudState === 3) && (
+            <button 
+              className={`hud-bubble ${styles.hubBtn}`}
+              onClick={toggleWeeklyPlanner}
+              style={{ 
+                border: isWeeklyPlannerOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)"
+              }}
+              title="Weekly Schedule Planner"
+            >
+              <Calendar size={16} style={{ color: isWeeklyPlannerOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
+              <span style={{ fontSize: "0.78rem", fontWeight: "800", color: isWeeklyPlannerOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }}>
+                WEEKLY<span className="mobile-hide"> PLANNER</span>
+              </span>
+            </button>
+          )}
+
+          {/* Saved Routes Dropdown overlay */}
+          {isSavedHubOpen && (hudState === 0 || hudState === 2 || hudState === 3) && (
+            <div className={`${styles.savedRoutesHubDropdown} hud-card hud-card-responsive`}>
+              <div className={styles.hubDropdownHeader}>
+                <h4 className={styles.hubDropdownTitle}>🔖 Saved Routes</h4>
+                <button onClick={() => setIsSavedHubOpen(false)} className={styles.closeBtn}><X size={14} /></button>
               </div>
-            )}
-          </>
-        )}
+              {savedRoutes.length === 0 ? (
+                <p className={styles.emptyMsg}>No saved routes yet. Plan a route and save it to display here.</p>
+              ) : (
+                savedRoutes.map((route) => (
+                  <div 
+                    key={route.id} 
+                    className={`hud-btn ${styles.savedRouteItem}`} 
+                    onClick={() => handleLoadSavedRoute(route)}
+                  >
+                    <span className={styles.savedRouteText}>{route.name}</span>
+                    <button 
+                      onClick={(e) => handleDeleteSavedRoute(route.id, e)} 
+                      className={styles.deleteRouteBtn}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Right Side: Unit Toggle, Ambient Weather & Gear Check HUD */}
+        <div className={styles.topRightControls}>
+          
+          {/* Rider Configuration Bubble */}
+          <button 
+            className={`hud-bubble ${styles.riderConfigBtn}`} 
+            onClick={toggleRiderConfig}
+            style={{ border: isRiderConfigOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)" }}
+            title="Rider Profile Configurations"
+          >
+            <span>🚴</span> <span className="mobile-hide">RIDER PROFILE</span>
+          </button>
+
+          {/* Expanded Rider Configurations Glass Card */}
+          {isRiderConfigOpen && (
+            <div className={`${styles.riderConfigDropdown} hud-card hud-card-responsive`}>
+              <div className={styles.riderHeader}>
+                <h4 className={styles.riderTitle}>
+                  🚴 Rider Configurator
+                </h4>
+                <button onClick={() => setIsRiderConfigOpen(false)} className={styles.closeBtn}><X size={14} /></button>
+              </div>
+              
+              {/* Bike Selection */}
+              <div className={styles.inputRow}>
+                <span className={styles.inputLabel}>Bicycle Profile</span>
+                <select 
+                  className={`${styles.selectOverride} hud-input`} 
+                  value={newBikeType}
+                  onChange={(e) => {
+                    setNewBikeType(e.target.value);
+                    const defaultSpeeds = { Road: 24, Hybrid: 18, Mountain: 16, E_Bike: 25 };
+                    setNewSpeed(defaultSpeeds[e.target.value] || 18);
+                  }}
+                >
+                  <option value="Road">🚴 Road Bike</option>
+                  <option value="Hybrid">🚲 Hybrid / Commuter</option>
+                  <option value="Mountain">🚵 Mountain Bike</option>
+                  <option value="E_Bike">⚡ Electric Bike</option>
+                </select>
+              </div>
+
+              {/* Speed Slider */}
+              <div className={styles.inputRow}>
+                <div className={styles.speedSliderRow}>
+                  <span className={styles.inputLabel}>Base Speed</span>
+                  <span>{unitSystem === "imperial" ? `${Math.round(newSpeed * 0.621371)} mph` : `${newSpeed} km/h`}</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="10" 
+                  max="35" 
+                  value={newSpeed}
+                  onChange={(e) => setNewSpeed(parseInt(e.target.value))}
+                  className={styles.rangeInput}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Metric / Imperial Toggling Bubble */}
+          <button 
+            className={`hud-bubble ${styles.unitsBtn}`} 
+            onClick={() => setUnitSystem(unitSystem === "metric" ? "imperial" : "metric")}
+            title="Switch Units"
+          >
+            📐 <span className="mobile-hide">{unitSystem === "metric" ? "METRIC" : "IMPERIAL"}</span>
+          </button>
+
+          {dynamicAmbientWeather && (
+            <div className={`hud-bubble ${styles.weatherBubble}`} title={`Location: ${weatherLocationName}`}>
+              <SunDim size={16} className={styles.sunDimIcon} style={{ animation: "spin 12s linear infinite" }} />
+              <span className={styles.weatherText}>
+                {formatTemp(dynamicAmbientWeather.temp)}
+                <span className="mobile-hide"> • {formatWind(dynamicAmbientWeather.windSpeed)} {dynamicAmbientWeather.windDir}</span>
+              </span>
+            </div>
+          )}
+
+          {(hudState === 2 || hudState === 3) && activeForecast && (
+            <>
+              <button 
+                className="hud-bubble" 
+                onClick={togglePackingList}
+                style={{ cursor: "pointer", border: isPackingOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)", pointerEvents: "auto" }}
+              >
+                <span>🎒</span>
+                <span className="mobile-hide" style={{ fontSize: "0.78rem", fontWeight: "800" }}>GEAR CHECK</span>
+              </button>
+
+              {/* Expanded Dynamic Packing Glass Card */}
+              {isPackingOpen && (
+                <div className={`${styles.packingDropdown} hud-card hud-card-responsive`}>
+                  <div className={styles.packingHeader}>
+                    <h4 className={styles.packingTitle}>🎒 Trip Packing List</h4>
+                    <button onClick={() => setIsPackingOpen(false)} className={styles.closeBtn}><X size={14} /></button>
+                  </div>
+                  
+                  {packingList.length === 0 ? (
+                    <p className={styles.emptyChecklist}>☀️ Clear summer skies and perfect winds. Just bring your helmet & dynamic hydration!</p>
+                  ) : (
+                    <div className={styles.packingList}>
+                      {packingList.map((p) => (
+                        <div key={p.id} className={styles.packingItemCard}>
+                          <span className={styles.packingItemTitle}>
+                            {p.emoji} {p.item}
+                          </span>
+                          <span className={styles.packingItemAdvice}>
+                            {p.advice}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
       </div>
-
-    </div>
-
-
 
       {/* 
         -------------------------------------------------------------
@@ -1559,19 +1474,19 @@ export default function Home() {
         ------------------------------------------------------------- 
       */}
       {hudState === 1 && (
-        <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 9999 }}>
+        <div className={styles.setupCover}>
           
           {/* Centered: Search inputs Bar */}
-          <div style={{ width: "420px", maxWidth: "calc(100% - 40px)", display: "flex", flexDirection: "column", gap: "8px" }} className="hud-zoom-center hud-search-container">
-            <div className="hud-card" style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "10px", pointerEvents: "auto" }}>
+          <div className={`${styles.setupSearchContainer} hud-zoom-center`}>
+            <div className={`hud-card ${styles.setupCard}`}>
               
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontFamily: "var(--font-heading)", fontWeight: "700", fontSize: "0.9rem" }}>Plan Custom Route</span>
-                <button onClick={() => setHudState(0)} style={{ background: "none", border: "none", color: "var(--hud-text-secondary)", cursor: "pointer" }}><X size={16} /></button>
+              <div className={styles.setupHeader}>
+                <span className={styles.setupTitle}>Plan Custom Route</span>
+                <button onClick={() => setHudState(0)} className={styles.closeBtn}><X size={16} /></button>
               </div>
 
               {/* Start input */}
-              <div style={{ position: "relative" }}>
+              <div className={styles.relativeWrapper}>
                 <input 
                   type="text" 
                   className="hud-input" 
@@ -1583,17 +1498,16 @@ export default function Home() {
                   }}
                 />
                 {startResults.length > 0 && (
-                  <div className="hud-card" style={{ position: "absolute", top: "42px", left: 0, width: "100%", maxHeight: "180px", overflowY: "auto", zIndex: 99999, padding: "8px", gap: "4px", display: "flex", flexDirection: "column" }}>
+                  <div className={`${styles.setupDropBox} hud-card`}>
                     {startResults.map((loc, idx) => (
                       <div 
                         key={idx} 
-                        className="hud-btn" 
+                        className={`hud-btn ${styles.setupDropItem}`} 
                         onClick={() => {
                           setDraftStart(loc);
                           setStartQuery(loc.label);
                           setStartResults([]);
                         }}
-                        style={{ padding: "8px 12px", borderRadius: "8px", background: "none", border: "none", justifyContent: "flex-start", cursor: "pointer" }}
                       >
                         {loc.label}
                       </div>
@@ -1603,7 +1517,7 @@ export default function Home() {
               </div>
 
               {/* End input */}
-              <div style={{ position: "relative" }}>
+              <div className={styles.relativeWrapper}>
                 <input 
                   type="text" 
                   className="hud-input" 
@@ -1615,17 +1529,16 @@ export default function Home() {
                   }}
                 />
                 {endResults.length > 0 && (
-                  <div className="hud-card" style={{ position: "absolute", top: "42px", left: 0, width: "100%", maxHeight: "180px", overflowY: "auto", zIndex: 99999, padding: "8px", gap: "4px", display: "flex", flexDirection: "column" }}>
+                  <div className={`${styles.setupDropBox} hud-card`}>
                     {endResults.map((loc, idx) => (
                       <div 
                         key={idx} 
-                        className="hud-btn" 
+                        className={`hud-btn ${styles.setupDropItem}`} 
                         onClick={() => {
                           setDraftEnd(loc);
                           setEndQuery(loc.label);
                           setEndResults([]);
                         }}
-                        style={{ padding: "8px 12px", borderRadius: "8px", background: "none", border: "none", justifyContent: "flex-start", cursor: "pointer" }}
                       >
                         {loc.label}
                       </div>
@@ -1635,13 +1548,13 @@ export default function Home() {
               </div>
 
               {/* Save Route Persistence Toggle */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px", borderTop: "1px solid var(--hud-border)", paddingTop: "12px", marginTop: "4px" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.78rem", cursor: "pointer" }}>
+              <div className={styles.saveToggleRow}>
+                <label className={styles.checkboxLabel}>
                   <input 
                     type="checkbox" 
                     checked={shouldSaveRoute} 
                     onChange={(e) => setShouldSaveRoute(e.target.checked)}
-                    style={{ accentColor: "var(--color-emerald)" }}
+                    className={styles.checkboxInput}
                   />
                   <span>🔖 Save Route to local library</span>
                 </label>
@@ -1659,7 +1572,7 @@ export default function Home() {
 
               {/* Confirm Route build pipeline */}
               <button 
-                className="hud-btn active"
+                className={`${styles.confirmBtn} hud-btn active`}
                 onClick={() => {
                   if (!draftStart || !draftEnd) {
                     alert("Please select starting and destination points.");
@@ -1670,13 +1583,12 @@ export default function Home() {
                   }
                   loadRouteDetails(draftStart, draftEnd, newBikeType, newSpeed);
                 }}
-                style={{ width: "100%", justifyContent: "center", padding: "12px", fontSize: "0.85rem", cursor: "pointer", marginTop: "4px" }}
               >
                 {isLoading ? "Analyzing..." : "Confirm & Map HUD"}
               </button>
 
               {/* Direct Pin Tapping Note */}
-              <p style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)", textAlign: "center" }}>
+              <p className={styles.setupNote}>
                 💡 Or tap start/end coordinates directly on the map.
               </p>
             </div>
@@ -1686,42 +1598,19 @@ export default function Home() {
 
       {/* 
         -------------------------------------------------------------
-        STATES 2 & 3: COMMUTE 7-DAY OUTLOOK RIBBO      {/* 7-Day Biking Commute Forecast Ribbon (Always Visible in States 0, 2, 3) */}
+        STATES 2 & 3: COMMUTE 7-DAY OUTLOOK RIBBON & scrubber
+        ------------------------------------------------------------- 
+      */}
+      {/* 7-Day Biking Commute Forecast Ribbon (Always Visible in States 0, 2, 3) */}
       {(hudState === 0 || hudState === 2 || hudState === 3) && ribbonDaysData.length > 0 && (
-        <div 
-          style={{ 
-            position: "absolute", 
-            bottom: "30px", 
-            left: "20px", 
-            right: "20px", 
-            width: "calc(100% - 40px)", 
-            display: "flex", 
-            flexDirection: "column", 
-            gap: "8px",
-            pointerEvents: "none",
-            zIndex: 9999
-          }} 
-          className="hud-slide-bottom"
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", padding: "0 6px" }}>
-            <span style={{ fontSize: "0.74rem", fontWeight: "800", color: "var(--hud-text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+        <div className={styles.ribbonOuter}>
+          <div className={styles.ribbonHeaderRow}>
+            <span className={styles.ribbonTitle}>
               🚴 7-Day Commuter Biking Forecast
             </span>
           </div>
 
-          <div 
-            className="hud-card ribbon-container" 
-            style={{ 
-              padding: "8px 10px", 
-              display: "flex", 
-              justifyContent: "space-between", 
-              alignItems: "center", 
-              gap: "8px", 
-              width: "100%",
-              background: "rgba(15, 23, 42, 0.85)",
-              pointerEvents: "auto"
-            }}
-          >
+          <div className={`${styles.ribbonBox} hud-card`}>
             {ribbonDaysData.map((day) => {
               const isSelected = hudState === 3 && selectedDayOffset === day.offset;
               const hasOutbound = day.outbound && day.outbound.departure !== null && day.outbound.score !== null;
@@ -1730,7 +1619,7 @@ export default function Home() {
               return (
                 <div 
                   key={day.offset} 
-                  className={`ribbon-item ${isSelected ? "selected" : ""}`}
+                  className={`${styles.ribbonItem} ${isSelected ? "selected" : ""}`}
                   onClick={() => {
                     if (hasOutbound || hasReturn) {
                       setSelectedDayOffset(day.offset);
@@ -1749,25 +1638,16 @@ export default function Home() {
                     }
                   }}
                   style={{ 
-                    flex: 1, 
-                    borderRadius: "14px", 
-                    padding: "6px 4px", 
                     background: isSelected ? "rgba(255,255,255,0.08)" : "transparent",
-                    border: isSelected ? "1px solid var(--hud-border-glow)" : "1px solid transparent",
-                    cursor: "pointer",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: "5px",
-                    transition: "all var(--duration-fluid) var(--ease-premium)"
+                    border: isSelected ? "1px solid var(--hud-border-glow)" : "1px solid transparent"
                   }}
                 >
-                  <span style={{ fontSize: "0.74rem", fontWeight: "700", color: isSelected ? "var(--hud-text-primary)" : "var(--hud-text-secondary)" }}>
+                  <span className={styles.ribbonItemLabel} style={{ color: isSelected ? "var(--hud-text-primary)" : "var(--hud-text-secondary)" }}>
                     {day.label}
                   </span>
 
                   {/* DUAL RIDE TRACKS (Top: Outbound AM, Bottom: Return PM) */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
+                  <div className={styles.tracksCol}>
                     
                     {/* AM Outbound Biking Forecast */}
                     <div 
@@ -1786,19 +1666,18 @@ export default function Home() {
                           setHudState(1);
                         }
                       }}
-                      style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%", alignItems: "center", background: "rgba(255,255,255,0.03)", padding: "4px 6px", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.05)", cursor: "pointer" }}
+                      className={styles.trackCard}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center", fontSize: "0.68rem", fontWeight: "700" }}>
+                      <div className={styles.trackHeaderRow}>
                         <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.6rem" }}>🌅 AM</span>
                         {hasOutbound ? (
-                          <span style={{ 
-                            background: day.outbound.score >= 85 ? "rgba(16,185,129,0.15)" : day.outbound.score >= 50 ? "rgba(245,158,11,0.15)" : "rgba(239,68,68,0.15)",
-                            color: day.outbound.score >= 85 ? "var(--color-emerald)" : day.outbound.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)",
-                            padding: "1px 5px",
-                            borderRadius: "5px",
-                            fontSize: "0.64rem",
-                            fontWeight: "800"
-                          }}>
+                          <span 
+                            className={styles.scoreBadge}
+                            style={{ 
+                              background: day.outbound.score >= 85 ? "rgba(16,185,129,0.15)" : day.outbound.score >= 50 ? "rgba(245,158,11,0.15)" : "rgba(239,68,68,0.15)",
+                              color: day.outbound.score >= 85 ? "var(--color-emerald)" : day.outbound.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)"
+                            }}
+                          >
                             {day.outbound.score}%
                           </span>
                         ) : (
@@ -1807,16 +1686,16 @@ export default function Home() {
                       </div>
                       {hasOutbound ? (
                         <>
-                          <div style={{ fontSize: "0.62rem", fontWeight: "700", color: "var(--hud-text-primary)", marginTop: "1px" }}>
+                          <div className={styles.trackTime}>
                             {day.outbound.departure.replace(" AM", "a").replace(" PM", "p")}
                             <span className="mobile-hide"> → {day.outbound.arrival.replace(" AM", "a").replace(" PM", "p")}</span>
                           </div>
-                          <div style={{ fontSize: "0.58rem", color: "var(--hud-text-secondary)" }}>
+                          <div className={styles.trackDuration}>
                             {day.outbound.duration} min ride
                           </div>
                         </>
                       ) : (
-                        <div style={{ fontSize: "0.58rem", color: "var(--hud-text-secondary)", fontStyle: "italic", marginTop: "2px" }}>
+                        <div className={styles.trackEmpty}>
                           {day.routeId ? "Loading..." : "No Route"}
                         </div>
                       )}
@@ -1839,19 +1718,18 @@ export default function Home() {
                           setHudState(1);
                         }
                       }}
-                      style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%", alignItems: "center", background: "rgba(255,255,255,0.03)", padding: "4px 6px", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.05)", cursor: "pointer" }}
+                      className={styles.trackCard}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center", fontSize: "0.68rem", fontWeight: "700" }}>
+                      <div className={styles.trackHeaderRow}>
                         <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.6rem" }}>🌇 PM</span>
                         {hasReturn ? (
-                          <span style={{ 
-                            background: day.return.score >= 85 ? "rgba(16,185,129,0.15)" : day.return.score >= 50 ? "rgba(245,158,11,0.15)" : "rgba(239,68,68,0.15)",
-                            color: day.return.score >= 85 ? "var(--color-emerald)" : day.return.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)",
-                            padding: "1px 5px",
-                            borderRadius: "5px",
-                            fontSize: "0.64rem",
-                            fontWeight: "800"
-                          }}>
+                          <span 
+                            className={styles.scoreBadge}
+                            style={{ 
+                              background: day.return.score >= 85 ? "rgba(16,185,129,0.15)" : day.return.score >= 50 ? "rgba(245,158,11,0.15)" : "rgba(239,68,68,0.15)",
+                              color: day.return.score >= 85 ? "var(--color-emerald)" : day.return.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)"
+                            }}
+                          >
                             {day.return.score}%
                           </span>
                         ) : (
@@ -1860,16 +1738,16 @@ export default function Home() {
                       </div>
                       {hasReturn ? (
                         <>
-                          <div style={{ fontSize: "0.62rem", fontWeight: "700", color: "var(--hud-text-primary)", marginTop: "1px" }}>
+                          <div className={styles.trackTime}>
                             {day.return.departure.replace(" AM", "a").replace(" PM", "p")}
                             <span className="mobile-hide"> → {day.return.arrival.replace(" AM", "a").replace(" PM", "p")}</span>
                           </div>
-                          <div style={{ fontSize: "0.58rem", color: "var(--hud-text-secondary)" }}>
+                          <div className={styles.trackDuration}>
                             {day.return.duration} min ride
                           </div>
                         </>
                       ) : (
-                        <div style={{ fontSize: "0.58rem", color: "var(--hud-text-secondary)", fontStyle: "italic", marginTop: "2px" }}>
+                        <div className={styles.trackEmpty}>
                           {day.routeId ? "Loading..." : "No Route"}
                         </div>
                       )}
@@ -1887,19 +1765,7 @@ export default function Home() {
             ------------------------------------------------------------- 
           */}
           {hudState === 3 && (
-            <div 
-              className="hud-card timeline-scrubber-container" 
-              style={{ 
-                padding: "10px 16px", 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "space-between",
-                gap: "16px", 
-                width: "100%", 
-                background: "rgba(15, 23, 42, 0.9)",
-                pointerEvents: "auto"
-              }}
-            >
+            <div className={`${styles.scrubberContainer} hud-card timeline-scrubber-container`}>
               {/* Timeline Scrubber */}
               <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
@@ -1910,14 +1776,7 @@ export default function Home() {
                 </div>
 
                 {/* Outbound / Return Quick Snapper Toggle */}
-                <div style={{ 
-                  display: "flex", 
-                  background: "rgba(255,255,255,0.05)", 
-                  padding: "2px", 
-                  borderRadius: "8px", 
-                  border: "1px solid var(--hud-border)",
-                  flexShrink: 0
-                }}>
+                <div className={styles.quickSnapperToggle}>
                   <button 
                     onClick={() => {
                       const daySched = weeklySchedule[currentDayOfWeek] || { outbound: "08:00", return: "17:30" };
@@ -1973,27 +1832,19 @@ export default function Home() {
                   max="20" // 8:00 PM
                   value={selectedHour}
                   onChange={(e) => setSelectedHour(parseInt(e.target.value))}
-                  style={{ flex: 1, accentColor: "var(--color-emerald)", cursor: "pointer" }}
+                  className={styles.rangeScrubber}
                 />
               </div>
 
               {/* Independent Day Schedule Config Inputs */}
-              <div className="time-inputs-group" style={{ display: "flex", alignItems: "center", gap: "8px", borderLeft: "1px solid var(--hud-border)", paddingLeft: "12px" }}>
+              <div className={`${styles.timeInputsGroup} time-inputs-group`}>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Outbound:</span>
                   <input 
                     type="time" 
                     value={weeklySchedule[currentDayOfWeek]?.outbound || "08:00"}
                     onChange={(e) => updateDailySchedule(selectedDayOffset, 'outbound', e.target.value)}
-                    style={{ 
-                      background: "rgba(255,255,255,0.06)", 
-                      border: "1px solid var(--hud-border)", 
-                      borderRadius: "6px", 
-                      color: "var(--hud-text-primary)", 
-                      fontSize: "0.72rem", 
-                      padding: "2px 4px", 
-                      outline: "none" 
-                    }} 
+                    className={styles.timeFieldInput}
                   />
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
@@ -2002,15 +1853,7 @@ export default function Home() {
                     type="time" 
                     value={weeklySchedule[currentDayOfWeek]?.return || "17:30"}
                     onChange={(e) => updateDailySchedule(selectedDayOffset, 'return', e.target.value)}
-                    style={{ 
-                      background: "rgba(255,255,255,0.06)", 
-                      border: "1px solid var(--hud-border)", 
-                      borderRadius: "6px", 
-                      color: "var(--hud-text-primary)", 
-                      fontSize: "0.72rem", 
-                      padding: "2px 4px", 
-                      outline: "none" 
-                    }} 
+                    className={styles.timeFieldInput}
                   />
                 </div>
               </div>
@@ -2018,8 +1861,7 @@ export default function Home() {
               {/* Exit day focus button */}
               <button 
                 onClick={() => setHudState(2)} // Return to Week-wide ambient outlook
-                className="hud-btn exit-scrub-btn" 
-                style={{ padding: "4px 10px", marginLeft: "10px" }}
+                className={`hud-btn ${styles.exitScrubBtn}`}
               >
                 <X size={12} />
                 <span>Exit Scrub</span>
@@ -2030,247 +1872,182 @@ export default function Home() {
         </div>
       )}
 
-        {/* Weekly Commute Planner HUD Sliding/Overlay Card */}
-        {isWeeklyPlannerOpen && (
-          <div 
-            className="hud-card hud-card-responsive" 
-            style={{ 
-              position: "absolute", 
-              top: "74px", 
-              left: "20px", 
-              width: "310px", 
-              zIndex: 99999, 
-              display: "flex", 
-              flexDirection: "column", 
-              gap: "16px", 
-              maxHeight: "80vh", 
-              overflowY: "auto", 
-              border: "1px solid rgba(255, 255, 255, 0.15)",
-              pointerEvents: "auto",
-              background: "rgba(10, 15, 30, 0.97)",
-              backdropFilter: "blur(20px)",
-              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 10px 10px -5px rgba(0, 0, 0, 0.5)"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hud-border)", paddingBottom: "10px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <Calendar size={18} style={{ color: "var(--color-emerald)" }} />
-                <h4 style={{ fontFamily: "var(--font-heading)", fontSize: "1rem", fontWeight: "800" }}>📅 Weekly Commute Planner</h4>
-              </div>
-              <button onClick={() => setIsWeeklyPlannerOpen(false)} style={{ background: "none", border: "none", color: "var(--hud-text-secondary)", cursor: "pointer" }}><X size={16} /></button>
+      {/* Weekly Commute Planner HUD Sliding/Overlay Card */}
+      {isWeeklyPlannerOpen && (
+        <div className={`${styles.weeklyPlannerPanel} hud-card hud-card-responsive`}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hud-border)", paddingBottom: "10px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <Calendar size={18} style={{ color: "var(--color-emerald)" }} />
+              <h4 style={{ fontFamily: "var(--font-heading)", fontSize: "1rem", fontWeight: "800" }}>📅 Weekly Commute Planner</h4>
             </div>
+            <button onClick={() => setIsWeeklyPlannerOpen(false)} className={styles.closeBtn}><X size={16} /></button>
+          </div>
 
-            <p style={{ fontSize: "0.74rem", color: "var(--hud-text-secondary)", lineHeight: "1.45" }}>
-              Build your weekly commute schedule. Add routes, AM/PM times, and assign them to multiple days in one click.
-            </p>
+          <p style={{ fontSize: "0.74rem", color: "var(--hud-text-secondary)", lineHeight: "1.45" }}>
+            Build your weekly commute schedule. Add routes, AM/PM times, and assign them to multiple days in one click.
+          </p>
 
-            {/* Quick Bulk Scheduler Form */}
-            <div style={{ background: "rgba(255,255,255,0.05)", padding: "12px", borderRadius: "14px", border: "1px solid rgba(255,255,255,0.1)", display: "flex", flexDirection: "column", gap: "10px" }}>
-              <span style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--color-emerald)", display: "flex", alignItems: "center", gap: "4px" }}>
-                🚀 Quick Bulk Scheduler
-              </span>
+          {/* Quick Bulk Scheduler Form */}
+          <div style={{ background: "rgba(255,255,255,0.05)", padding: "12px", borderRadius: "14px", border: "1px solid rgba(255,255,255,0.1)", display: "flex", flexDirection: "column", gap: "10px" }}>
+            <span style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--color-emerald)", display: "flex", alignItems: "center", gap: "4px" }}>
+              🚀 Quick Bulk Scheduler
+            </span>
 
-              {/* Bulk Route Selector */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Route</span>
-                <select
-                  className="hud-input"
-                  value={bulkRouteId}
-                  onChange={(e) => setBulkRouteId(e.target.value)}
-                  style={{ background: "#111827", border: "1px solid var(--hud-border)", fontSize: "0.72rem", padding: "6px" }}
-                >
-                  <option value="">🗺️ Follow Active / Default Route</option>
-                  {savedRoutes.map(r => (
-                    <option key={r.id} value={r.id}>🔖 {r.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Bulk Times */}
-              <div style={{ display: "flex", gap: "8px" }}>
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Arrive by</span>
-                  <input
-                    type="time"
-                    value={bulkOutbound}
-                    onChange={(e) => setBulkOutbound(e.target.value)}
-                    style={{
-                      background: "rgba(255,255,255,0.06)",
-                      border: "1px solid var(--hud-border)",
-                      borderRadius: "6px",
-                      color: "var(--hud-text-primary)",
-                      fontSize: "0.72rem",
-                      padding: "4px 6px",
-                      outline: "none"
-                    }}
-                  />
-                </div>
-                 <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Leave at</span>
-                  <input
-                    type="time"
-                    value={bulkReturn}
-                    onChange={(e) => setBulkReturn(e.target.value)}
-                    style={{
-                      background: "rgba(255,255,255,0.06)",
-                      border: "1px solid var(--hud-border)",
-                      borderRadius: "6px",
-                      color: "var(--hud-text-primary)",
-                      fontSize: "0.72rem",
-                      padding: "4px 6px",
-                      outline: "none"
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Day Selection Checkboxes (Sleek rows of pills) */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Days to Assign</span>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                  {[
-                    { val: 1, label: "M" },
-                    { val: 2, label: "T" },
-                    { val: 3, label: "W" },
-                    { val: 4, label: "T" },
-                    { val: 5, label: "F" },
-                    { val: 6, label: "S" },
-                    { val: 0, label: "S" }
-                  ].map((dayObj, index) => {
-                    const isActive = bulkSelectedDays.includes(dayObj.val);
-                    
-                    return (
-                      <button
-                        key={index}
-                        onClick={() => {
-                          if (isActive) {
-                            setBulkSelectedDays(bulkSelectedDays.filter(d => d !== dayObj.val));
-                          } else {
-                            setBulkSelectedDays([...bulkSelectedDays, dayObj.val]);
-                          }
-                        }}
-                        style={{
-                          background: isActive ? "var(--color-emerald)" : "rgba(255,255,255,0.06)",
-                          border: isActive ? "1px solid var(--color-emerald)" : "1px solid var(--hud-border)",
-                          borderRadius: "8px",
-                          width: "32px",
-                          height: "32px",
-                          fontSize: "0.72rem",
-                          fontWeight: "700",
-                          color: "var(--hud-text-primary)",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          transition: "all 0.2s"
-                        }}
-                      >
-                        {dayObj.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Apply Button */}
-              <button
-                className="hud-btn active"
-                onClick={applyBulkSchedule}
-                style={{ width: "100%", justifyContent: "center", padding: "8px", fontSize: "0.78rem", cursor: "pointer", marginTop: "4px" }}
+            {/* Bulk Route Selector */}
+            <div className={styles.inputRow}>
+              <span className={styles.inputLabel}>Route</span>
+              <select
+                className="hud-input"
+                value={bulkRouteId}
+                onChange={(e) => setBulkRouteId(e.target.value)}
+                style={{ background: "#111827", border: "1px solid var(--hud-border)", fontSize: "0.72rem", padding: "6px" }}
               >
-                ⚡ Add to Schedule
-              </button>
+                <option value="">🗺️ Follow Active / Default Route</option>
+                {savedRoutes.map(r => (
+                  <option key={r.id} value={r.id}>🔖 {r.name}</option>
+                ))}
+              </select>
             </div>
 
-            {/* List of active schedules */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "4px" }}>
-              <span style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--hud-text-secondary)" }}>
-                📅 Scheduled Commutes
-              </span>
+            {/* Bulk Times */}
+            <div style={{ display: "flex", gap: "8px" }}>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
+                <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Arrive by</span>
+                <input
+                  type="time"
+                  value={bulkOutbound}
+                  onChange={(e) => setBulkOutbound(e.target.value)}
+                  className={styles.bulkTimeFieldInput}
+                />
+              </div>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
+                <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Leave at</span>
+                <input
+                  type="time"
+                  value={bulkReturn}
+                  onChange={(e) => setBulkReturn(e.target.value)}
+                  className={styles.bulkTimeFieldInput}
+                />
+              </div>
+            </div>
 
-              {groupedSchedules.length === 0 ? (
-                <div style={{
-                  padding: "16px",
-                  borderRadius: "14px",
-                  background: "rgba(255,255,255,0.02)",
-                  border: "1px dashed var(--hud-border)",
-                  textAlign: "center",
-                  fontSize: "0.74rem",
-                  color: "var(--hud-text-secondary)",
-                  lineHeight: "1.45"
-                }}>
-                  💨 No scheduled commutes yet. Select a route, outbound/return times, choose your days, and press "Add to Schedule" above!
-                </div>
-              ) : (
-                groupedSchedules.map((group, index) => {
-                  const sortedDays = group.days.sort((a, b) => {
-                    const order = [1, 2, 3, 4, 5, 6, 0];
-                    return order.indexOf(a) - order.indexOf(b);
-                  });
-                  const daysLabel = sortedDays.map(d => WEEKDAYS_SHORT[d]).join(", ");
-                  
-                  // Calculate suggested times for a representative day in this group
-                  const targetDay = group.days[0];
-                  const outboundDep = getSuggestedDeparture(group.routeId, targetDay, group.outbound, false);
-                  const returnArr = getSuggestedArrival(group.routeId, targetDay, group.return);
+            {/* Day Selection Checkboxes (Sleek rows of pills) */}
+            <div className={styles.inputRow}>
+              <span className={styles.inputLabel}>Days to Assign</span>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                {[
+                  { val: 1, label: "M" },
+                  { val: 2, label: "T" },
+                  { val: 3, label: "W" },
+                  { val: 4, label: "T" },
+                  { val: 5, label: "F" },
+                  { val: 6, label: "S" },
+                  { val: 0, label: "S" }
+                ].map((dayObj, index) => {
+                  const isActive = bulkSelectedDays.includes(dayObj.val);
                   
                   return (
-                    <div 
-                      key={index} 
-                      style={{ 
-                        background: "rgba(255,255,255,0.03)", 
-                        padding: "12px", 
-                        borderRadius: "14px", 
-                        border: "1px solid rgba(255,255,255,0.06)", 
-                        display: "flex", 
-                        flexDirection: "column", 
-                        gap: "6px" 
+                    <button
+                      key={index}
+                      onClick={() => {
+                        if (isActive) {
+                          setBulkSelectedDays(bulkSelectedDays.filter(d => d !== dayObj.val));
+                        } else {
+                          setBulkSelectedDays([...bulkSelectedDays, dayObj.val]);
+                        }
+                      }}
+                      className={styles.pillDayCheckbox}
+                      style={{
+                        background: isActive ? "var(--color-emerald)" : "rgba(255,255,255,0.06)",
+                        border: isActive ? "1px solid var(--color-emerald)" : "1px solid var(--hud-border)"
                       }}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px" }}>
-                        <span style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--hud-text-primary)", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
-                          🔖 {group.routeName}
-                        </span>
-                        <button
-                          onClick={() => deleteGroupSchedule(group.days)}
-                          style={{ background: "none", border: "none", color: "var(--color-ruby)", cursor: "pointer", display: "flex", alignItems: "center", padding: "2px" }}
-                          title="Remove from Schedule"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                      {dayObj.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-                      {/* Day list badges */}
-                      <span style={{ fontSize: "0.72rem", color: "var(--color-emerald)", fontWeight: "700" }}>
-                        🗓️ {daysLabel}
+            {/* Apply Button */}
+            <button
+              className="hud-btn active"
+              onClick={applyBulkSchedule}
+              style={{ width: "100%", justifyContent: "center", padding: "8px", fontSize: "0.78rem", cursor: "pointer", marginTop: "4px" }}
+            >
+              ⚡ Add to Schedule
+            </button>
+          </div>
+
+          {/* List of active schedules */}
+          <div className={styles.scheduledCommutesList}>
+            <span style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--hud-text-secondary)" }}>
+              📅 Scheduled Commutes
+            </span>
+
+            {groupedSchedules.length === 0 ? (
+              <div className={styles.emptySchedulePlaceholder}>
+                💨 No scheduled commutes yet. Select a route, outbound/return times, choose your days, and press &quot;Add to Schedule&quot; above!
+              </div>
+            ) : (
+              groupedSchedules.map((group, index) => {
+                const sortedDays = group.days.sort((a, b) => {
+                  const order = [1, 2, 3, 4, 5, 6, 0];
+                  return order.indexOf(a) - order.indexOf(b);
+                });
+                const daysLabel = sortedDays.map(d => WEEKDAYS_SHORT[d]).join(", ");
+                
+                // Calculate suggested times for a representative day in this group
+                const targetDay = group.days[0];
+                const outboundDep = getSuggestedDeparture(group.routeId, targetDay, group.outbound, false);
+                const returnArr = getSuggestedArrival(group.routeId, targetDay, group.return);
+                
+                return (
+                  <div key={index} className={styles.scheduledCommuteCard}>
+                    <div className={styles.scheduledHeader}>
+                      <span className={styles.scheduledRouteName}>
+                        {group.routeName}
                       </span>
+                      <button
+                        onClick={() => deleteGroupSchedule(group.days)}
+                        className={styles.scheduledRemoveBtn}
+                        title="Remove from Schedule"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
 
-                      {/* Outbound & Return AM/PM Arrive by vs. Suggested Leave-by Times */}
-                      <div style={{ display: "flex", flexDirection: "column", gap: "6px", borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "6px", marginTop: "2px" }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                          <span style={{ fontSize: "0.7rem", color: "var(--hud-text-secondary)" }}>
-                            🌅 Arrive by: <strong>{formatTimeToAMPM(group.outbound)}</strong>
-                          </span>
-                          <span style={{ fontSize: "0.7rem", color: "var(--hud-text-primary)", paddingLeft: "14px" }}>
-                            👉 Leave by: <strong style={{ color: "var(--color-emerald)" }}>{formatTimeToAMPM(outboundDep.timeStr)}</strong> ({outboundDep.duration} min commute)
-                          </span>
-                        </div>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                          <span style={{ fontSize: "0.7rem", color: "var(--hud-text-secondary)" }}>
-                            🌇 Leave at: <strong>{formatTimeToAMPM(group.return)}</strong>
-                          </span>
-                          <span style={{ fontSize: "0.7rem", color: "var(--hud-text-primary)", paddingLeft: "14px" }}>
-                            👉 Arrive home: <strong style={{ color: "var(--color-emerald)" }}>{formatTimeToAMPM(returnArr.timeStr)}</strong> ({returnArr.duration} min return, tailwind-aware)
-                          </span>
-                        </div>
+                    {/* Day list badges */}
+                    <span style={{ fontSize: "0.72rem", color: "var(--color-emerald)", fontWeight: "700" }}>
+                      🗓️ {daysLabel}
+                    </span>
+
+                    {/* Outbound & Return AM/PM Arrive by vs. Suggested Leave-by Times */}
+                    <div className={styles.scheduledDetailsWrapper}>
+                      <div className={styles.scheduledDetailsRow}>
+                        <span style={{ fontSize: "0.7rem", color: "var(--hud-text-secondary)" }}>
+                          🌅 Arrive by: <strong>{formatTimeToAMPM(group.outbound)}</strong>
+                        </span>
+                        <span style={{ fontSize: "0.7rem", color: "var(--hud-text-primary)", paddingLeft: "14px" }}>
+                          👉 Leave by: <strong style={{ color: "var(--color-emerald)" }}>{formatTimeToAMPM(outboundDep.timeStr)}</strong> ({outboundDep.duration} min commute)
+                        </span>
+                      </div>
+                      <div className={styles.scheduledDetailsRow}>
+                        <span style={{ fontSize: "0.7rem", color: "var(--hud-text-secondary)" }}>
+                          🌇 Leave at: <strong>{formatTimeToAMPM(group.return)}</strong>
+                        </span>
+                        <span style={{ fontSize: "0.7rem", color: "var(--hud-text-primary)", paddingLeft: "14px" }}>
+                          👉 Arrive home: <strong style={{ color: "var(--color-emerald)" }}>{formatTimeToAMPM(returnArr.timeStr)}</strong> ({returnArr.duration} min return, tailwind-aware)
+                        </span>
                       </div>
                     </div>
-                  );
-                })
-              )}
-            </div>
+                  </div>
+                );
+              })
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+    </div>
   );
 }
