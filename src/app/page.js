@@ -66,10 +66,22 @@ export default function Home() {
   // HUD Config Settings (State 1)
   const [newBikeType, setNewBikeType] = useState("Hybrid");
   const [newSpeed, setNewSpeed] = useState(18);
-  const [newOutboundTime, setNewOutboundTime] = useState("08:00");
-  const [newReturnTime, setNewReturnTime] = useState("17:30");
   const [saveRouteName, setSaveRouteName] = useState("");
   const [shouldSaveRoute, setShouldSaveRoute] = useState(false);
+
+  // Recurring Weekly Commute Schedules (Assign different routes & outbound/return times per day)
+  const [weeklySchedule, setWeeklySchedule] = useState({
+    1: { routeId: null, outbound: "08:00", return: "17:30" }, // Monday
+    2: { routeId: null, outbound: "08:00", return: "17:30" }, // Tuesday
+    3: { routeId: null, outbound: "08:00", return: "17:30" }, // Wednesday
+    4: { routeId: null, outbound: "08:00", return: "17:30" }, // Thursday
+    5: { routeId: null, outbound: "08:00", return: "17:30" }, // Friday
+    6: { routeId: null, outbound: "08:00", return: "17:30" }, // Saturday
+    0: { routeId: null, outbound: "08:00", return: "17:30" }  // Sunday
+  });
+
+  const [isWeeklyPlannerOpen, setIsWeeklyPlannerOpen] = useState(false);
+  const [scheduledRoutesWeather, setScheduledRoutesWeather] = useState({});
 
   // Saved Routes Hub (🔖 Persistence)
   const [savedRoutes, setSavedRoutes] = useState([]);
@@ -86,6 +98,28 @@ export default function Home() {
   // Adaptive Unit Toggle (📐 Metric / Imperial)
   const [unitSystem, setUnitSystem] = useState("metric");
 
+  // Helper unit formatting functions
+  const formatTemp = (celsius) => {
+    if (unitSystem === "imperial") {
+      return `${Math.round(celsius * 1.8 + 32)}°F`;
+    }
+    return `${celsius.toFixed(1)}°C`;
+  };
+
+  const formatWind = (kmh) => {
+    if (unitSystem === "imperial") {
+      return `${Math.round(kmh * 0.621371)} mph`;
+    }
+    return `${kmh.toFixed(0)} km/h`;
+  };
+
+  const formatDistance = (km) => {
+    if (unitSystem === "imperial") {
+      return `${(km * 0.621371).toFixed(1)} miles`;
+    }
+    return `${km.toFixed(1)} km`;
+  };
+
   // Ambient Local WeatherHUD Info
   const [userLocation, setUserLocation] = useState(null);
   const [ambientWeather, setAmbientWeather] = useState(null);
@@ -93,7 +127,7 @@ export default function Home() {
   const [error, setError] = useState(null);
   const geocodeTimeoutRef = useRef(null);
 
-  // Load Saved Routes from localStorage on Mount
+  // 1. Initial Mount: Load Saved Routes & Restore Active View State
   useEffect(() => {
     const saved = localStorage.getItem("hud_saved_routes");
     if (saved) {
@@ -101,6 +135,52 @@ export default function Home() {
         setSavedRoutes(JSON.parse(saved));
       } catch (e) {
         console.error("Error loading saved routes:", e);
+      }
+    }
+
+    // Load Weekly Schedule
+    const savedWeeklySchedule = localStorage.getItem("hud_weekly_schedule");
+    if (savedWeeklySchedule) {
+      try {
+        setWeeklySchedule(JSON.parse(savedWeeklySchedule));
+      } catch (e) {
+        console.error("Error loading weekly schedule:", e);
+      }
+    }
+
+    // Restore Global View-State Caching (Reload Survival)
+    const cachedState = localStorage.getItem("hud_active_view_state");
+    if (cachedState) {
+      try {
+        const state = JSON.parse(cachedState);
+        if (state.selectedDayOffset !== undefined) setSelectedDayOffset(state.selectedDayOffset);
+        if (state.selectedHour !== undefined) setSelectedHour(state.selectedHour);
+        if (state.newBikeType !== undefined) setNewBikeType(state.newBikeType);
+        if (state.newSpeed !== undefined) setNewSpeed(state.newSpeed);
+        if (state.unitSystem !== undefined) setUnitSystem(state.unitSystem);
+        
+        if (state.draftStart && state.draftEnd) {
+          setDraftStart(state.draftStart);
+          setDraftEnd(state.draftEnd);
+          setStartQuery(state.draftStart.label);
+          setEndQuery(state.draftEnd.label);
+          
+          // Re-trigger background fetches, maintaining correct visual state
+          loadRouteDetails(
+            state.draftStart, 
+            state.draftEnd, 
+            state.newBikeType || "Hybrid", 
+            state.newSpeed || 18, 
+            state.hudState !== undefined ? state.hudState : 2
+          );
+        } else {
+          if (state.hudState !== undefined) {
+            // Restore only safe base states if no route coordinates exist
+            setHudState(state.hudState === 1 ? 1 : 0);
+          }
+        }
+      } catch (err) {
+        console.error("View state restoration error: ", err);
       }
     }
 
@@ -121,6 +201,26 @@ export default function Home() {
       );
     }
   }, []);
+
+  // 2. Global View State Cache Synchronizer
+  useEffect(() => {
+    const activeState = {
+      draftStart,
+      draftEnd,
+      selectedDayOffset,
+      selectedHour,
+      newBikeType,
+      newSpeed,
+      unitSystem,
+      hudState
+    };
+    localStorage.setItem("hud_active_view_state", JSON.stringify(activeState));
+  }, [draftStart, draftEnd, selectedDayOffset, selectedHour, newBikeType, newSpeed, unitSystem, hudState]);
+
+  // Persist Weekly Schedule Changes
+  useEffect(() => {
+    localStorage.setItem("hud_weekly_schedule", JSON.stringify(weeklySchedule));
+  }, [weeklySchedule]);
 
   const fetchAmbientWeather = async (lat, lon) => {
     try {
@@ -175,7 +275,7 @@ export default function Home() {
   };
 
   // Route Planning API Core Trigger
-  const loadRouteDetails = async (start, end, bikeType, speed) => {
+  const loadRouteDetails = async (start, end, bikeType, speed, overrideState = null) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -192,8 +292,8 @@ export default function Home() {
       const weatherData = await fetchRouteWeather(decodedCoords, routeData.distance);
       setWeatherResults(weatherData);
 
-      // Successfully mapped! Load State 2
-      setHudState(2);
+      // Successfully mapped! Restore or load correct state
+      setHudState(overrideState !== null ? overrideState : 2);
     } catch (err) {
       console.error(err);
       setError(err.message || "Route validation pipeline failed.");
@@ -206,6 +306,7 @@ export default function Home() {
   const handleSaveRoute = () => {
     if (!draftStart || !draftEnd) return;
     const name = saveRouteName.trim() || `Route: ${draftStart.label.split(",")[0]} ⇆ ${draftEnd.label.split(",")[0]}`;
+    const totalDist = routeSegments.reduce((sum, seg) => sum + seg.distance, 0);
     
     const newRoute = {
       id: Date.now().toString(),
@@ -214,8 +315,9 @@ export default function Home() {
       end: draftEnd,
       bikeType: newBikeType,
       speed: newSpeed,
-      outboundTime: newOutboundTime,
-      returnTime: newReturnTime
+      coordinates: routeCoordinates,
+      segments: routeSegments,
+      distance: totalDist
     };
 
     const updated = [...savedRoutes, newRoute];
@@ -230,33 +332,167 @@ export default function Home() {
     const updated = savedRoutes.filter(r => r.id !== id);
     setSavedRoutes(updated);
     localStorage.setItem("hud_saved_routes", JSON.stringify(updated));
+
+    // Clear weekly binds for this route ID
+    const updatedSchedule = { ...weeklySchedule };
+    let scheduleChanged = false;
+    Object.keys(updatedSchedule).forEach(day => {
+      if (updatedSchedule[day].routeId === id) {
+        updatedSchedule[day].routeId = null;
+        scheduleChanged = true;
+      }
+    });
+    if (scheduleChanged) {
+      setWeeklySchedule(updatedSchedule);
+    }
   };
 
   const handleLoadSavedRoute = (route) => {
     setDraftStart(route.start);
     setDraftEnd(route.end);
-    setNewBikeType(route.bikeType);
-    setNewSpeed(route.speed);
-    setNewOutboundTime(route.outboundTime || "08:00");
-    setNewReturnTime(route.returnTime || "17:30");
+    setNewBikeType(route.bikeType || "Hybrid");
+    setNewSpeed(route.speed || 18);
     
-    loadRouteDetails(route.start, route.end, route.bikeType, route.speed);
+    if (route.coordinates && route.segments) {
+      setRouteCoordinates(route.coordinates);
+      setRouteSegments(route.segments);
+      // Fetch weather for this loaded route
+      fetchRouteWeather(route.coordinates, route.distance || 10).then(weatherData => {
+        setWeatherResults(weatherData);
+      }).catch(e => console.error("Error fetching weather for loaded route:", e));
+      setHudState(2);
+    } else {
+      loadRouteDetails(route.start, route.end, route.bikeType || "Hybrid", route.speed || 18);
+    }
+    
     setIsSavedHubOpen(false);
   };
 
+  // Modify individual day schedules on scrubbing card (State 3)
+  const updateDailySchedule = (dayOffset, field, val) => {
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + dayOffset);
+    const dayOfWeek = targetDate.getDay();
+
+    const updated = {
+      ...weeklySchedule,
+      [dayOfWeek]: {
+        ...weeklySchedule[dayOfWeek],
+        [field]: val
+      }
+    };
+    setWeeklySchedule(updated);
+  };
+
+  // 3. Background Weather Pre-fetcher for Weekly Scheduled Routes
+  useEffect(() => {
+    const fetchScheduledWeather = async () => {
+      // Find all distinct route IDs in weeklySchedule that are NOT null and NOT already in scheduledRoutesWeather
+      const boundRouteIds = Object.values(weeklySchedule)
+        .map(s => s?.routeId)
+        .filter(id => id && !scheduledRoutesWeather[id]);
+      
+      const distinctIds = [...new Set(boundRouteIds)];
+      if (distinctIds.length === 0) return;
+
+      const newWeather = { ...scheduledRoutesWeather };
+      let updated = false;
+
+      for (const rid of distinctIds) {
+        const route = savedRoutes.find(r => r.id === rid);
+        if (route) {
+          try {
+            let coords = route.coordinates;
+            let dist = route.distance;
+            let segments = route.segments;
+            
+            // If older route, we fetch routing details
+            if (!coords || !dist || !segments) {
+              const routeData = await fetchBicycleRoute(
+                route.start.lat, 
+                route.start.lon, 
+                route.end.lat, 
+                route.end.lon, 
+                route.bikeType || "Hybrid", 
+                route.speed || 18
+              );
+              coords = decodePolyline6(routeData.shape);
+              dist = routeData.distance;
+              segments = calculateRouteSegments(coords);
+            }
+            
+            const wData = await fetchRouteWeather(coords, dist);
+            newWeather[rid] = {
+              weather: wData,
+              coordinates: coords,
+              segments: segments,
+              distance: dist
+            };
+            updated = true;
+          } catch (e) {
+            console.error(`Failed to prefetch weather for route ${rid}:`, e);
+          }
+        }
+      }
+
+      if (updated) {
+        setScheduledRoutesWeather(newWeather);
+      }
+    };
+
+    fetchScheduledWeather();
+  }, [weeklySchedule, savedRoutes, scheduledRoutesWeather]);
+
+  // Compute currently displayed route based on selected day offset schedule
+  const getActiveRouteData = () => {
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + selectedDayOffset);
+    const dayOfWeek = targetDate.getDay();
+    
+    const daySched = weeklySchedule[dayOfWeek];
+    const boundRouteId = daySched?.routeId;
+    const boundRoute = savedRoutes.find(r => r.id === boundRouteId);
+    const boundWeatherEntry = scheduledRoutesWeather[boundRouteId];
+
+    if (hudState === 3 && boundRoute && boundWeatherEntry) {
+      return {
+        coordinates: boundWeatherEntry.coordinates,
+        segments: boundWeatherEntry.segments,
+        weatherResults: boundWeatherEntry.weather,
+        startLocation: boundRoute.start,
+        endLocation: boundRoute.end,
+        speed: boundRoute.speed || 18,
+        name: boundRoute.name
+      };
+    }
+
+    return {
+      coordinates: routeCoordinates,
+      segments: routeSegments,
+      weatherResults: weatherResults,
+      startLocation: draftStart,
+      endLocation: draftEnd,
+      speed: newSpeed,
+      name: "Active Route"
+    };
+  };
+
+  const activeRouteData = getActiveRouteData();
+
   // Dynamic Weather-Adaptive Packing List Core Logic
   const compileDynamicPackingList = (dayOffset, activeHour) => {
-    if (weatherResults.length === 0) return;
+    const activeRoute = getActiveRouteData();
+    if (activeRoute.weatherResults.length === 0) return;
     
     const hourIdx = dayOffset * 24 + activeHour;
-    const midIdx = Math.floor(weatherResults.length / 2);
-    const midHourly = weatherResults[midIdx]?.hourly;
+    const midIdx = Math.floor(activeRoute.weatherResults.length / 2);
+    const midHourly = activeRoute.weatherResults[midIdx]?.hourly;
 
     const temp = midHourly?.temperature_2m?.[hourIdx] ?? 20;
     const isRaining = (midHourly?.precipitation?.[hourIdx] ?? 0) > 0.1;
     const uvIndex = midHourly?.uv_index?.[hourIdx] ?? 0;
     const isSunset = activeHour > 18 || activeHour < 7;
-    const totalDist = routeSegments.reduce((sum, seg) => sum + seg.distance, 0);
+    const totalDist = activeRoute.segments.reduce((sum, seg) => sum + seg.distance, 0);
 
     const checklist = [];
 
@@ -304,14 +540,14 @@ export default function Home() {
         id: "temp-cold",
         emoji: "🧤",
         item: "Windproof Thermal Gloves & Neck Gaiter",
-        advice: `Chilly weather (${temp.toFixed(1)}°C / ${(temp * 1.8 + 32).toFixed(0)}°F). Hands lose motor control quickly.`
+        advice: `Chilly weather (${formatTemp(temp)}). Hands lose motor control quickly.`
       });
     } else if (temp > 28) {
       checklist.push({
         id: "temp-hot",
         emoji: "💧",
         item: "Electrolyte Hydration Caps",
-        advice: `Extreme heat (${temp.toFixed(1)}°C). Standard water is insufficient to replace salt depletion.`
+        advice: `Extreme heat (${formatTemp(temp)}). Standard water is insufficient to replace salt depletion.`
       });
     }
 
@@ -331,24 +567,28 @@ export default function Home() {
         id: "dist-tubes",
         emoji: "🔧",
         item: "Spare Tubes, Lever & CO2 Inflator",
-        advice: `Long distance (${(totalDist * 0.621371).toFixed(1)} miles). Self-rescue capacity required.`
+        advice: `Long distance (${formatDistance(totalDist)}). Self-rescue capacity required.`
       });
     }
 
     setPackingList(checklist);
   };
 
-  // Toggle checklist open/closed
-  const togglePackingList = () => {
-    if (!isPackingOpen) {
+  // Keep packing checklist automatically sync'd in real-time
+  useEffect(() => {
+    if (isPackingOpen) {
       compileDynamicPackingList(selectedDayOffset, selectedHour);
     }
+  }, [selectedDayOffset, selectedHour, isPackingOpen, weeklySchedule, scheduledRoutesWeather]);
+
+  // Toggle checklist open/closed
+  const togglePackingList = () => {
     setIsPackingOpen(!isPackingOpen);
   };
 
   // Get active forecast details for Top HUD bubbles
   const getActiveForecast = () => {
-    if (weatherResults.length === 0) return null;
+    if (activeRouteData.weatherResults.length === 0) return null;
     const hourIdx = selectedDayOffset * 24 + selectedHour;
     
     // Average scores across segments
@@ -369,26 +609,59 @@ export default function Home() {
 
   // Calculate 7-day commute tracks data for Double-Sided Ribbon
   const get7DayCommuteData = () => {
-    if (weatherResults.length === 0) return [];
+    if (weatherResults.length === 0 && Object.keys(scheduledRoutesWeather).length === 0) return [];
     
     const ribbonDays = [];
     for (let offset = 0; offset < 7; offset++) {
-      // Outbound Leg Hour Index
-      const outboundHour = parseInt(newOutboundTime.split(":")[0]);
-      const outboundIdx = offset * 24 + outboundHour;
-      const outboundScore = calculateCommuteScore(outboundIdx, routeSegments, newSpeed, weatherResults);
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + offset);
+      const dayOfWeek = targetDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      
+      const daySched = weeklySchedule[dayOfWeek] || { routeId: null, outbound: "08:00", return: "17:30" };
+      const outboundHour = parseInt(daySched.outbound.split(":")[0]);
+      const returnHour = parseInt(daySched.return.split(":")[0]);
 
-      // Return Leg Hour Index
-      const returnHour = parseInt(newReturnTime.split(":")[0]);
-      const returnIdx = offset * 24 + returnHour;
-      const returnScore = calculateCommuteScore(returnIdx, routeSegments, newSpeed, weatherResults);
+      let activeCoords = routeCoordinates;
+      let activeSegs = routeSegments;
+      let activeWeather = weatherResults;
+      let activeSpeed = newSpeed;
 
-      ribbonDays.push({
-        offset,
-        label: getRollingDayLabel(offset),
-        outbound: outboundScore,
-        return: returnScore
-      });
+      const boundRouteId = daySched.routeId;
+      const boundRoute = savedRoutes.find(r => r.id === boundRouteId);
+      const boundWeatherEntry = scheduledRoutesWeather[boundRouteId];
+
+      if (boundRoute && boundWeatherEntry) {
+        activeCoords = boundWeatherEntry.coordinates;
+        activeSegs = boundWeatherEntry.segments;
+        activeWeather = boundWeatherEntry.weather;
+        activeSpeed = boundRoute.speed || 18;
+      }
+
+      if (activeWeather && activeWeather.length > 0) {
+        const outboundIdx = offset * 24 + outboundHour;
+        const outboundScore = calculateCommuteScore(outboundIdx, activeSegs, activeSpeed, activeWeather);
+
+        const returnIdx = offset * 24 + returnHour;
+        const returnScore = calculateCommuteScore(returnIdx, activeSegs, activeSpeed, activeWeather);
+
+        ribbonDays.push({
+          offset,
+          label: getRollingDayLabel(offset),
+          outbound: outboundScore,
+          return: returnScore,
+          routeId: boundRouteId,
+          routeName: boundRoute ? boundRoute.name : "Active Route"
+        });
+      } else {
+        ribbonDays.push({
+          offset,
+          label: getRollingDayLabel(offset),
+          outbound: { score: 100, wmoEmoji: "⏳", wmoDesc: "Syncing..." },
+          return: { score: 100, wmoEmoji: "⏳", wmoDesc: "Syncing..." },
+          routeId: boundRouteId,
+          routeName: boundRoute ? boundRoute.name : "Active Route"
+        });
+      }
     }
     return ribbonDays;
   };
@@ -405,14 +678,14 @@ export default function Home() {
       */}
       <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 1 }}>
         <RouteMap
-          coordinates={routeCoordinates}
-          startLocation={draftStart}
-          endLocation={draftEnd}
-          routeSegments={routeSegments}
-          weatherResults={weatherResults}
+          coordinates={activeRouteData.coordinates}
+          startLocation={activeRouteData.startLocation}
+          endLocation={activeRouteData.endLocation}
+          routeSegments={activeRouteData.segments}
+          weatherResults={activeRouteData.weatherResults}
           selectedDay={selectedDayOffset}
           selectedHour={selectedHour}
-          customSpeed={newSpeed}
+          customSpeed={activeRouteData.speed}
           isDrawingMode={hudState === 1}
           onMapClick={(coord) => {
             const label = `Pinned coordinate (${coord.lat.toFixed(4)}, ${coord.lon.toFixed(4)})`;
@@ -455,6 +728,15 @@ export default function Home() {
               title="Saved Routes"
             >
               <Bookmark size={16} style={{ color: isSavedHubOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
+            </button>
+
+            <button 
+              className="hud-bubble" 
+              onClick={() => setIsWeeklyPlannerOpen(!isWeeklyPlannerOpen)}
+              style={{ padding: "10px", width: "42px", justifyContent: "center", cursor: "pointer" }}
+              title="Weekly Schedule Planner"
+            >
+              <Calendar size={16} style={{ color: isWeeklyPlannerOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
             </button>
           </>
         )}
@@ -504,7 +786,7 @@ export default function Home() {
           <div className="hud-bubble" style={{ pointerEvents: "none" }}>
             <SunDim size={16} style={{ color: "var(--color-amber)", animation: "spin 12s linear infinite" }} />
             <span style={{ fontSize: "0.82rem", fontWeight: "600" }}>
-              {ambientWeather.temp.toFixed(1)}°C • {ambientWeather.windSpeed.toFixed(0)} km/h {ambientWeather.windDir}
+              {formatTemp(ambientWeather.temp)} • {formatWind(ambientWeather.windSpeed)} {ambientWeather.windDir}
             </span>
           </div>
         )}
@@ -627,7 +909,7 @@ export default function Home() {
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.74rem" }}>
                   <span style={{ color: "var(--hud-text-secondary)" }}>Base Speed</span>
-                  <span>{newSpeed} km/h</span>
+                  <span>{unitSystem === "imperial" ? `${Math.round(newSpeed * 0.621371)} mph` : `${newSpeed} km/h`}</span>
                 </div>
                 <input 
                   type="range" 
@@ -637,18 +919,6 @@ export default function Home() {
                   onChange={(e) => setNewSpeed(parseInt(e.target.value))}
                   style={{ accentColor: "var(--color-emerald)", cursor: "pointer" }}
                 />
-              </div>
-
-              {/* Commute departure times */}
-              <div style={{ display: "flex", gap: "10px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "50%" }}>
-                  <span style={{ fontSize: "0.72rem", color: "var(--hud-text-secondary)" }}>Outbound leg</span>
-                  <input type="time" className="hud-input" value={newOutboundTime} onChange={(e) => setNewOutboundTime(e.target.value)} style={{ padding: "6px 8px" }} />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "50%" }}>
-                  <span style={{ fontSize: "0.72rem", color: "var(--hud-text-secondary)" }}>Return leg</span>
-                  <input type="time" className="hud-input" value={newReturnTime} onChange={(e) => setNewReturnTime(e.target.value)} style={{ padding: "6px 8px" }} />
-                </div>
               </div>
 
               {/* Save Route Persistence Toggle */}
@@ -705,7 +975,7 @@ export default function Home() {
         <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 9999 }}>
           
           {/* Top Left: Active Route details */}
-          <div style={{ position: "absolute", top: "20px", left: "20px", zIndex: 9999 }} className="hud-slide-top">
+          <div style={{ position: "absolute", top: "20px", left: "20px", zIndex: 9999, display: "flex", gap: "10px" }} className="hud-slide-top">
             <div className="hud-bubble" style={{ pointerEvents: "auto", border: "1px solid rgba(255,255,255,0.15)" }}>
               <div 
                 style={{
@@ -732,20 +1002,41 @@ export default function Home() {
                   setDraftEnd(null);
                   setStartQuery("");
                   setEndQuery("");
+                  localStorage.removeItem("hud_active_view_state"); // Clear cached route state on manual reset
                 }} 
                 style={{ background: "none", border: "none", color: "var(--hud-text-secondary)", cursor: "pointer", display: "flex", alignItems: "center", marginLeft: "8px" }}
               >
                 <X size={14} />
               </button>
             </div>
+
+            <button 
+              className="hud-bubble" 
+              onClick={() => setIsWeeklyPlannerOpen(!isWeeklyPlannerOpen)}
+              style={{ padding: "10px", width: "42px", justifyContent: "center", cursor: "pointer", pointerEvents: "auto" }}
+              title="Weekly Schedule Planner"
+            >
+              <Calendar size={16} style={{ color: isWeeklyPlannerOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
+            </button>
           </div>
 
           {/* Top Right: Packing List Overlay (🎒) and Unit Toggle */}
-          <div style={{ position: "absolute", top: "20px", right: "20px", display: "flex", gap: "10px" }} className="hud-slide-top">
+          <div style={{ position: "absolute", top: "20px", right: "20px", display: "flex", gap: "10px", zIndex: 9999 }} className="hud-slide-top">
+            
+            {/* Metric / Imperial Toggling Bubble */}
+            <button 
+              className="hud-bubble" 
+              onClick={() => setUnitSystem(unitSystem === "metric" ? "imperial" : "metric")}
+              style={{ padding: "10px 14px", fontSize: "0.78rem", fontWeight: "800", cursor: "pointer", background: "rgba(15,23,42,0.85)", pointerEvents: "auto" }}
+              title="Switch Units"
+            >
+              📐 {unitSystem === "metric" ? "METRIC" : "IMPERIAL"}
+            </button>
+
             <button 
               className="hud-bubble" 
               onClick={togglePackingList}
-              style={{ cursor: "pointer", border: isPackingOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)" }}
+              style={{ cursor: "pointer", border: isPackingOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)", pointerEvents: "auto" }}
             >
               <span>🎒</span>
               <span style={{ fontSize: "0.78rem", fontWeight: "800" }}>GEAR CHECK</span>
@@ -895,32 +1186,75 @@ export default function Home() {
                   padding: "10px 16px", 
                   display: "flex", 
                   alignItems: "center", 
+                  justifyContent: "space-between",
                   gap: "16px", 
                   width: "100%", 
                   background: "rgba(15, 23, 42, 0.9)" 
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-                  <Clock size={14} style={{ color: "var(--hud-text-secondary)" }} />
-                  <span style={{ fontSize: "0.78rem", fontWeight: "700", width: "64px" }}>
-                    {selectedHour.toString().padStart(2, "0")}:00 {selectedHour >= 12 ? "PM" : "AM"}
-                  </span>
+                {/* Timeline Scrubber */}
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                    <Clock size={14} style={{ color: "var(--hud-text-secondary)" }} />
+                    <span style={{ fontSize: "0.78rem", fontWeight: "700", width: "64px" }}>
+                      {selectedHour.toString().padStart(2, "0")}:00 {selectedHour >= 12 ? "PM" : "AM"}
+                    </span>
+                  </div>
+
+                  {/* Scrubber Range Input */}
+                  <input 
+                    type="range" 
+                    min="6" // 6:00 AM
+                    max="20" // 8:00 PM
+                    value={selectedHour}
+                    onChange={(e) => setSelectedHour(parseInt(e.target.value))}
+                    style={{ flex: 1, accentColor: "var(--color-emerald)", cursor: "pointer" }}
+                  />
                 </div>
 
-                {/* Scrubber Range Input */}
-                <input 
-                  type="range" 
-                  min="6" // 6:00 AM
-                  max="20" // 8:00 PM
-                  value={selectedHour}
-                  onChange={(e) => setSelectedHour(parseInt(e.target.value))}
-                  style={{ flex: 1, accentColor: "var(--color-emerald)", cursor: "pointer" }}
-                />
+                {/* Independent Day Schedule Config Inputs */}
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", borderLeft: "1px solid var(--hud-border)", paddingLeft: "12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Outbound:</span>
+                    <input 
+                      type="time" 
+                      value={weeklySchedule[currentDayOfWeek]?.outbound || "08:00"}
+                      onChange={(e) => updateDailySchedule(selectedDayOffset, 'outbound', e.target.value)}
+                      style={{ 
+                        background: "rgba(255,255,255,0.06)", 
+                        border: "1px solid var(--hud-border)", 
+                        borderRadius: "6px", 
+                        color: "var(--hud-text-primary)", 
+                        fontSize: "0.72rem", 
+                        padding: "2px 4px", 
+                        outline: "none" 
+                      }} 
+                    />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Return:</span>
+                    <input 
+                      type="time" 
+                      value={weeklySchedule[currentDayOfWeek]?.return || "17:30"}
+                      onChange={(e) => updateDailySchedule(selectedDayOffset, 'return', e.target.value)}
+                      style={{ 
+                        background: "rgba(255,255,255,0.06)", 
+                        border: "1px solid var(--hud-border)", 
+                        borderRadius: "6px", 
+                        color: "var(--hud-text-primary)", 
+                        fontSize: "0.72rem", 
+                        padding: "2px 4px", 
+                        outline: "none" 
+                      }} 
+                    />
+                  </div>
+                </div>
 
+                {/* Exit day focus button */}
                 <button 
                   onClick={() => setHudState(2)} // Return to Week-wide ambient outlook
                   className="hud-btn" 
-                  style={{ padding: "4px 10px" }}
+                  style={{ padding: "4px 10px", marginLeft: "10px" }}
                 >
                   <X size={12} />
                   <span>Exit Scrub</span>
@@ -931,6 +1265,124 @@ export default function Home() {
           </div>
         </div>
       )}
-    </div>
+
+        {/* Weekly Commute Planner HUD Sliding/Overlay Card */}
+        {isWeeklyPlannerOpen && (
+          <div 
+            className="hud-card" 
+            style={{ 
+              position: "absolute", 
+              top: "74px", 
+              left: "20px", 
+              width: "380px", 
+              zIndex: 99999, 
+              display: "flex", 
+              flexDirection: "column", 
+              gap: "16px", 
+              maxHeight: "80vh", 
+              overflowY: "auto", 
+              border: "1px solid var(--hud-border)",
+              pointerEvents: "auto"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hud-border)", paddingBottom: "10px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Calendar size={18} style={{ color: "var(--color-emerald)" }} />
+                <h4 style={{ fontFamily: "var(--font-heading)", fontSize: "1rem", fontWeight: "800" }}>📅 Weekly Commute Planner</h4>
+              </div>
+              <button onClick={() => setIsWeeklyPlannerOpen(false)} style={{ background: "none", border: "none", color: "var(--hud-text-secondary)", cursor: "pointer" }}><X size={16} /></button>
+            </div>
+
+            <p style={{ fontSize: "0.74rem", color: "var(--hud-text-secondary)", lineHeight: "1.45" }}>
+              Assign different routes and schedules to specific days of the week. The 7-day ribbon and interactive forecasts will automatically update to reflect your commute choices!
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              {[1, 2, 3, 4, 5, 6, 0].map((dayOfWeek) => {
+                const dayLabel = WEEKDAYS_FULL[dayOfWeek];
+                const daySched = weeklySchedule[dayOfWeek] || { routeId: null, outbound: "08:00", return: "17:30" };
+                
+                return (
+                  <div key={dayOfWeek} style={{ background: "rgba(255,255,255,0.03)", padding: "12px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.05)", display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--hud-text-primary)" }}>{dayLabel}</span>
+                    </div>
+
+                    {/* Route Selector */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Commute Route</span>
+                      <select
+                        className="hud-input"
+                        value={daySched.routeId || ""}
+                        onChange={(e) => {
+                          const val = e.target.value ? e.target.value : null;
+                          setWeeklySchedule(prev => ({
+                            ...prev,
+                            [dayOfWeek]: { ...prev[dayOfWeek], routeId: val }
+                          }));
+                        }}
+                        style={{ background: "#111827", border: "1px solid var(--hud-border)", fontSize: "0.74rem", padding: "6px" }}
+                      >
+                        <option value="">🗺️ Follow Active / Default Route</option>
+                        {savedRoutes.map(r => (
+                          <option key={r.id} value={r.id}>🔖 {r.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Outbound & Return Times */}
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Outbound (AM)</span>
+                        <input
+                          type="time"
+                          value={daySched.outbound}
+                          onChange={(e) => {
+                            setWeeklySchedule(prev => ({
+                              ...prev,
+                              [dayOfWeek]: { ...prev[dayOfWeek], outbound: e.target.value }
+                            }));
+                          }}
+                          style={{
+                            background: "rgba(255,255,255,0.06)",
+                            border: "1px solid var(--hud-border)",
+                            borderRadius: "6px",
+                            color: "var(--hud-text-primary)",
+                            fontSize: "0.74rem",
+                            padding: "4px 6px",
+                            outline: "none"
+                          }}
+                        />
+                      </div>
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Return (PM)</span>
+                        <input
+                          type="time"
+                          value={daySched.return}
+                          onChange={(e) => {
+                            setWeeklySchedule(prev => ({
+                              ...prev,
+                              [dayOfWeek]: { ...prev[dayOfWeek], return: e.target.value }
+                            }));
+                          }}
+                          style={{
+                            background: "rgba(255,255,255,0.06)",
+                            border: "1px solid var(--hud-border)",
+                            borderRadius: "6px",
+                            color: "var(--hud-text-primary)",
+                            fontSize: "0.74rem",
+                            padding: "4px 6px",
+                            outline: "none"
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
   );
 }
