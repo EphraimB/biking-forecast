@@ -14,7 +14,8 @@ export default function RouteMap({
   customSpeed = 18,
   isDrawingMode = false,
   onMapClick = null,
-  unitSystem = "metric"
+  unitSystem = "metric",
+  hudState = 0
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -379,18 +380,38 @@ export default function RouteMap({
   // 3. Sync and animate ambient atmospheric weather values
   useEffect(() => {
     if (weatherResults.length === 0) return;
-    const currentHourIdx = selectedDay * 24 + selectedHour;
+    
     const midIdx = Math.floor(weatherResults.length / 2);
     const midHourly = weatherResults[midIdx]?.hourly;
 
     if (midHourly) {
+      let currentHourIdx;
+      if (hudState === 3) {
+        // If actively scrubbing the timeline in State 3, sync with the scrubber values
+        currentHourIdx = selectedDay * 24 + selectedHour;
+      } else {
+        // If in ambient state (State 0, 1, or 2), display the actual current local hour
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = (now.getMonth() + 1).toString().padStart(2, "0");
+        const date = now.getDate().toString().padStart(2, "0");
+        const hour = now.getHours().toString().padStart(2, "0");
+        const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
+        
+        let matchedIdx = midHourly.time?.indexOf(currentHourStr);
+        if (matchedIdx === -1 || matchedIdx === undefined) {
+          matchedIdx = now.getHours(); // Fallback to current local hour index
+        }
+        currentHourIdx = matchedIdx;
+      }
+
       setAmbientTemp(midHourly.temperature_2m?.[currentHourIdx] ?? 20);
       setAmbientRain(midHourly.precipitation_probability?.[currentHourIdx] ?? 0);
       setAmbientWindSpeed(midHourly.wind_speed_10m?.[currentHourIdx] ?? 10);
       setAmbientWindDir(midHourly.wind_direction_10m?.[currentHourIdx] ?? 0);
       setAmbientGusts(midHourly.wind_gusts_10m?.[currentHourIdx] ?? 0);
     }
-  }, [weatherResults, selectedDay, selectedHour]);
+  }, [weatherResults, selectedDay, selectedHour, hudState]);
 
   // Compute temperature tint color based on ambientTemp
   let tempWashColor = "transparent";

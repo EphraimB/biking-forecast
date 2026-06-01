@@ -1126,6 +1126,7 @@ export default function Home() {
             }
           }}
           unitSystem={unitSystem}
+          hudState={hudState}
         />
       </div>
 
