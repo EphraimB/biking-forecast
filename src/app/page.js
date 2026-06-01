@@ -741,6 +741,22 @@ export default function Home() {
     setIsSavedHubOpen(!isSavedHubOpen);
   };
 
+  // Get dynamic ambient weather based on timeline scrub position
+  const getDynamicAmbientWeather = () => {
+    if (!ambientWeatherForecast) return ambientWeather;
+    const hourly = ambientWeatherForecast.hourly;
+    if (!hourly) return ambientWeather;
+    const hourIdx = selectedDayOffset * 24 + selectedHour;
+    return {
+      temp: hourly.temperature_2m?.[hourIdx] ?? (ambientWeather?.temp ?? 22),
+      windSpeed: hourly.wind_speed_10m?.[hourIdx] ?? (ambientWeather?.windSpeed ?? 12),
+      windDir: getWindCompassDirection(hourly.wind_direction_10m?.[hourIdx] ?? 0),
+      desc: "Perfect Local Conditions"
+    };
+  };
+
+  const dynamicAmbientWeather = getDynamicAmbientWeather();
+
   // Get active forecast details for Top HUD bubbles
   const getActiveForecast = () => {
     if (activeRouteData.weatherResults.length === 0) return null;
@@ -1141,12 +1157,12 @@ export default function Home() {
           📐 <span className="mobile-hide">{unitSystem === "metric" ? "METRIC" : "IMPERIAL"}</span>
         </button>
 
-        {ambientWeather && (
+        {dynamicAmbientWeather && (
           <div className="hud-bubble" style={{ pointerEvents: "none" }}>
             <SunDim size={16} style={{ color: "var(--color-amber)", animation: "spin 12s linear infinite" }} />
             <span style={{ fontSize: "0.82rem", fontWeight: "600" }}>
-              {formatTemp(ambientWeather.temp)}
-              <span className="mobile-hide"> • {formatWind(ambientWeather.windSpeed)} {ambientWeather.windDir}</span>
+              {formatTemp(dynamicAmbientWeather.temp)}
+              <span className="mobile-hide"> • {formatWind(dynamicAmbientWeather.windSpeed)} {dynamicAmbientWeather.windDir}</span>
             </span>
           </div>
         )}
