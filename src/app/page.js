@@ -2046,7 +2046,7 @@ export default function Home() {
               {/* Bulk Times */}
               <div style={{ display: "flex", gap: "8px" }}>
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Arrive by (AM)</span>
+                  <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Arrive by</span>
                   <input
                     type="time"
                     value={bulkOutbound}
@@ -2063,7 +2063,7 @@ export default function Home() {
                   />
                 </div>
                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Leave at (PM)</span>
+                  <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Leave at</span>
                   <input
                     type="time"
                     value={bulkReturn}
