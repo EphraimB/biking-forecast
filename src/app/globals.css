@@ -190,6 +190,23 @@ html, body {
   }
 }
 
+/* Center HUD zoom-in scale animation */
+.hud-zoom-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.95);
+  opacity: 0;
+  animation: zoomInCenter 0.4s var(--ease-premium) forwards;
+}
+
+@keyframes zoomInCenter {
+  to {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
 /* Pulsing rings for dynamic alert states */
 @keyframes ring-glow-pulse {
   0% {
