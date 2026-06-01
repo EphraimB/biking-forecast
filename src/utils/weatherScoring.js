@@ -85,7 +85,25 @@ export function calculateSegmentSpeed(segment, windSpeed, windDir, baseSpeed) {
  */
 export function calculateCommuteScore(hourIndex, routeSegments, baseSpeed, weatherResults, preferences = {}) {
   if (!routeSegments || routeSegments.length === 0 || !weatherResults || weatherResults.length === 0) {
-    return { score: 0, duration: 0, speed: baseSpeed, windImpact: "None" };
+    return {
+      score: 0,
+      duration: 0,
+      speed: baseSpeed,
+      distance: 0,
+      headwind: 0,
+      crosswind: 0,
+      windSpeed: 0,
+      windDir: 0,
+      gusts: 0,
+      temp: 20,
+      rainProb: 0,
+      precip: 0,
+      weatherCode: 0,
+      wmoDesc: "Clear",
+      wmoEmoji: "☀️",
+      penalties: { temp: 0, rain: 0, wind: 0, wmo: 0 },
+      windImpact: "None"
+    };
   }
   
   const numSamples = weatherResults.length;
@@ -156,16 +174,19 @@ export function calculateCommuteScore(hourIndex, routeSegments, baseSpeed, weath
   }
   rainPenalty = Math.min(rainPenalty, preferences.maxRainPenalty ?? 80);
   
-  // Wind Speed & Gusts Penalty
+  // Wind Speed & Gusts Penalty (aerodynamically progressive for cycling comfort)
   let windPenalty = 0;
-  if (avgHeadwind > 12) {
-    windPenalty += (avgHeadwind - 12) * 1.2;
+  if (avgHeadwind > 8) {
+    // Headwinds above 8 km/h (5 mph) progressively increase drag resistance
+    windPenalty += (avgHeadwind - 8) * 2.5;
   }
-  if (avgCrosswind > 18) {
-    windPenalty += (avgCrosswind - 18) * 1.0;
+  if (avgCrosswind > 12) {
+    // Crosswinds above 12 km/h (7.5 mph) create noticeable lateral stability challenges
+    windPenalty += (avgCrosswind - 12) * 1.5;
   }
-  if (gusts > 30) {
-    windPenalty += (gusts - 30) * 1.2;
+  if (gusts > 25) {
+    // Gusts above 25 km/h (15.5 mph) represent erratic, dangerous cycling conditions
+    windPenalty += (gusts - 25) * 1.8;
   }
   windPenalty = Math.min(windPenalty, preferences.maxWindPenalty ?? 60);
   
