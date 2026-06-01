@@ -1,0 +1,174 @@
+.scoreMetricContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.scoreMetricTitle {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--slate-700);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sparklesIcon {
+  color: var(--primary);
+}
+
+.statsOuterContainer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+}
+
+.radialScoreVal {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--slate-800);
+  line-height: 1;
+}
+
+.radialScoreLabel {
+  font-size: 0.6rem;
+  color: var(--slate-400);
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.overviewStats {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 160px;
+}
+
+.conditionTitle {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--slate-900);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.conditionText {
+  font-size: 0.78rem;
+  font-weight: 800;
+  margin-top: 2px;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.statCard {
+  padding: 6px 10px;
+}
+
+.statLabel {
+  font-size: 0.62rem;
+  color: var(--slate-400);
+  font-weight: 600;
+}
+
+.statVal {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--slate-800);
+}
+
+.windFlowVal {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--slate-800);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.windBreakdownCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.windBreakdownTitle {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--slate-400);
+}
+
+.windGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.windSubLabel {
+  font-size: 0.62rem;
+  color: var(--slate-400);
+}
+
+.windSubVal {
+  font-size: 0.82rem;
+  font-weight: 800;
+  margin-top: 2px;
+}
+
+.penaltiesContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.penaltiesTitle {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--slate-400);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.penaltyRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.72rem;
+}
+
+.penaltyLabel {
+  color: var(--slate-500);
+}
+
+.penaltyVal {
+  font-weight: 700;
+}
+
+.safetyWarning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(225, 29, 72, 0.06);
+  border: 1px solid rgba(225, 29, 72, 0.15);
+  border-radius: 8px;
+  padding: 8px;
+  color: var(--rose);
+  font-size: 0.72rem;
+}

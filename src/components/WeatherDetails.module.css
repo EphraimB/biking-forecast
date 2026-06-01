@@ -1,0 +1,146 @@
+.weatherDetailsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.weatherDetailsTitle {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--slate-700);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.weatherPointsList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pointCard {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+}
+
+.locationCol {
+  flex-grow: 1;
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.locationLabel {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--slate-400);
+  font-weight: 700;
+}
+
+.locationName {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--slate-800);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 160px;
+}
+
+.tempCol {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 90px;
+}
+
+.weatherEmoji {
+  font-size: 1.4rem;
+}
+
+.tempVals {
+  display: flex;
+  flex-direction: column;
+}
+
+.tempDisp {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--slate-800);
+}
+
+.conditionDesc {
+  font-size: 0.68rem;
+  color: var(--slate-400);
+}
+
+.rainCol {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 60px;
+}
+
+.rainLabel {
+  font-size: 0.62rem;
+  color: var(--slate-400);
+  font-weight: 600;
+}
+
+.rainVal {
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.windCol {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 90px;
+}
+
+.windTextGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.windLabel {
+  font-size: 0.62rem;
+  color: var(--slate-400);
+  font-weight: 600;
+}
+
+.windVal {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--slate-800);
+  white-space: nowrap;
+}
+
+.windUnit {
+  font-size: 0.68rem;
+  color: var(--slate-500);
+  font-weight: normal;
+}
+
+.compassBadge {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  transition: transform 0.5s ease;
+}
