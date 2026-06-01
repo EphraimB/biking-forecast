@@ -505,12 +505,36 @@ html, body {
     margin-top: 4px !important;
   }
 
-  /* State 1 Configurations Overlay */
+  /* State 1 Search Container & Config Panel mobile styling */
+  .hud-search-container {
+    position: fixed !important;
+    top: 10px !important;
+    width: calc(100% - 20px) !important;
+    max-width: none !important;
+    left: 10px !important;
+    transform: none !important;
+    z-index: 99999 !important;
+  }
+
+  .hud-search-container .hud-card {
+    padding: 10px !important;
+    gap: 8px !important;
+  }
+
   .hud-config-card {
+    position: fixed !important;
     left: 10px !important;
     right: 10px !important;
     width: calc(100% - 20px) !important;
-    bottom: 15px !important;
+    bottom: 120px !important; /* Anchored relative to viewport to completely bypass browser address bar clipping */
+    z-index: 99999 !important;
+  }
+
+  .hud-config-card .hud-card {
+    max-height: 38vh !important; /* Compact view height to guarantee room for search inputs and map visibility */
+    overflow-y: auto !important;
+    padding: 12px !important;
+    gap: 12px !important;
   }
 
   /* Leaflet Map Controls Offset */

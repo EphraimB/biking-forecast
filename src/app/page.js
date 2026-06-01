@@ -881,7 +881,7 @@ export default function Home() {
         <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 9999 }}>
           
           {/* Top Center: Search inputs Bar */}
-          <div style={{ position: "absolute", top: "20px", left: "50%", transform: "translateX(-50%)", width: "420px", maxWidth: "calc(100% - 40px)", display: "flex", flexDirection: "column", gap: "8px" }} className="hud-slide-top">
+          <div style={{ position: "absolute", top: "20px", left: "50%", transform: "translateX(-50%)", width: "420px", maxWidth: "calc(100% - 40px)", display: "flex", flexDirection: "column", gap: "8px" }} className="hud-slide-top hud-search-container">
             <div className="hud-card" style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "10px", pointerEvents: "auto" }}>
               
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
