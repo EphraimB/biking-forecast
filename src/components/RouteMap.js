@@ -261,6 +261,9 @@ export default function RouteMap({
             ? `${(adjustedSpeed * 0.621371).toFixed(1)} mph` 
             : `${adjustedSpeed.toFixed(1)} km/h`;
 
+          const maxSpeedScale = 45; // max scale boundary
+          const speedPercent = Math.min(100, Math.max(10, (adjustedSpeed / maxSpeedScale) * 100));
+
           // Broad interactive hover overlay (invisible but makes hover targeting effortless)
           const hoverPoly = L.polyline(polyCoords, {
             color: "transparent",
@@ -270,15 +273,65 @@ export default function RouteMap({
             interactive: true
           }).addTo(map);
 
-          // Bind Tooltip once at creation time to the broad invisible overlay
+          // Bind Tooltip once at creation time to the broad invisible overlay with dynamic inline SVGs
           hoverPoly.bindTooltip(`
-            <div style="font-size: 11px; padding: 2px; line-height: 1.5; color: var(--hud-text-primary); font-family: var(--font-body);">
-              <strong style="color: ${color}; font-size: 12.5px; font-family: var(--font-heading); display: block; margin-bottom: 4px;">${difficulty}</strong>
-              📏 Distance: <strong>${displayDist}</strong><br/>
-              🧭 Bearing: <strong>${getCompassDirection(seg.bearing)}</strong><br/>
-              💨 Wind: <strong>${displayWind} ${getCompassDirection(windDir)}</strong><br/>
-              🚴 Speed: <strong>${displaySpeed}</strong><br/>
-              🚴 Resistance: <strong>${displayHeadwind}</strong>
+            <div style="min-width: 220px; color: var(--hud-text-primary); padding: 4px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.12); padding-bottom: 6px; margin-bottom: 8px;">
+                <span style="font-family: var(--font-heading); font-size: 13px; font-weight: 800; color: ${color};">${difficulty}</span>
+                <span style="font-size: 10px; color: var(--hud-text-secondary); text-transform: uppercase;">Segment #${idx + 1}</span>
+              </div>
+              
+              <!-- 2-Column Telemetry Grid -->
+              <div class="tooltip-grid-container">
+                
+                <!-- Left Column: Speedometer & Distance Stats -->
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                  <div class="tooltip-cell">
+                    <span class="tooltip-label">DISTANCE</span>
+                    <strong class="tooltip-val">${displayDist}</strong>
+                  </div>
+                  <div class="tooltip-cell">
+                    <span class="tooltip-label">BIKER SPEED</span>
+                    <strong class="tooltip-val" style="color: ${color};">${displaySpeed}</strong>
+                    
+                    <!-- Biker Speedometer Bar SVG -->
+                    <svg width="100%" height="8" style="margin-top: 4px; overflow: visible;">
+                      <rect x="0" y="2" width="100%" height="4" rx="2" fill="rgba(255,255,255,0.1)"/>
+                      <rect x="0" y="2" width="${speedPercent}%" height="4" rx="2" fill="${color}"/>
+                    </svg>
+                  </div>
+                </div>
+                
+                <!-- Right Column: Dual Wind Dial SVG Widget -->
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); padding: 6px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+                  <span class="tooltip-label" style="margin-bottom: 4px; text-align: center;">WIND ALIGN</span>
+                  
+                  <svg width="44" height="44" viewBox="0 0 44 44" style="overflow: visible;">
+                    <!-- Compass Ring -->
+                    <circle cx="22" cy="22" r="19" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+                    <text x="22" y="7" font-size="6" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-weight="700">N</text>
+                    
+                    <!-- Rider Bearing Vector (Silver dashed line arrow) -->
+                    <g transform="rotate(${seg.bearing}, 22, 22)">
+                      <line x1="22" y1="22" x2="22" y2="5" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" stroke-dasharray="2,2"/>
+                      <polygon points="22,3 25,7 19,7" fill="rgba(255,255,255,0.6)"/>
+                    </g>
+                    
+                    <!-- Wind Vector (Solid arrow pointing in wind direction) -->
+                    <g transform="rotate(${windDir}, 22, 22)">
+                      <!-- Line showing wind source direction -->
+                      <line x1="22" y1="38" x2="22" y2="22" stroke="${color}" stroke-width="2"/>
+                      <!-- arrowhead pointing towards center to show direction it is blowing -->
+                      <polygon points="22,20 18,25 26,25" fill="${color}" style="filter: drop-shadow(0 0 2px ${color});"/>
+                    </g>
+                  </svg>
+                  <span style="font-size: 8px; font-weight: 700; color: var(--hud-text-primary); margin-top: 4px; text-align: center;">${displayWind}</span>
+                </div>
+              </div>
+              
+              <div class="tooltip-divider">
+                🚴 Resistance: <strong style="color: ${color};">${displayHeadwind}</strong>
+              </div>
             </div>
           `, { 
             sticky: true,
