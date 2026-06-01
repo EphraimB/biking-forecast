@@ -566,11 +566,11 @@ html, body {
   /* State 1 Search Container & Config Panel mobile styling */
   .hud-search-container {
     position: fixed !important;
-    top: 10px !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
     width: calc(100% - 20px) !important;
-    max-width: none !important;
-    left: 10px !important;
-    transform: none !important;
+    max-width: 420px !important;
     z-index: 99999 !important;
   }
 
