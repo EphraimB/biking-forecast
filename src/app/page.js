@@ -685,6 +685,39 @@ export default function Home() {
 
     const checklist = [];
 
+    // Calculate exact water and carbs needed based on distance and weather
+    const activeFc = getActiveForecast();
+    const avgHeadwind = activeFc?.headwind ?? 0;
+    
+    const waterPerKm = temp > 27 ? (350 / 5) : (350 / 8); // ml per km
+    const totalWaterMl = totalDist * waterPerKm;
+    const totalWaterOzs = totalWaterMl * 0.033814;
+    
+    const carbsPerKm = avgHeadwind > 12 ? (30 / 12) : (30 / 16); // g per km
+    const totalCarbsG = totalDist * carbsPerKm;
+    const totalKcal = totalCarbsG * 4;
+    
+    const waterDisplay = unitSystem === "imperial"
+      ? `${Math.round(totalWaterOzs)} fl oz (${(totalWaterOzs / 20).toFixed(1)} standard bottles)`
+      : `${Math.round(totalWaterMl)} ml (${(totalWaterMl / 750).toFixed(1)} bottles)`;
+      
+    const carbsDisplay = `${Math.round(totalCarbsG)}g Carbs (~${Math.round(totalKcal)} kcal)`;
+
+    // Push high-priority water and carbs recommendations
+    checklist.push({
+      id: "hydration-pack",
+      emoji: "🥤",
+      item: `Total Fluid Intake: ${waterDisplay}`,
+      advice: `Pack at least ${waterDisplay} of fluid for this ${formatDistance(totalDist)} trip. Calculated sweat rate matches active segment temperature: ${formatTemp(temp)}.`
+    });
+
+    checklist.push({
+      id: "carbs-pack",
+      emoji: "🍌",
+      item: `Total Carbohydrates: ${carbsDisplay}`,
+      advice: `Carry ${carbsDisplay} of fuel (e.g. gels, chews, or bananas) for this commute. Caloric depletion rate is adjusted for energy expenditure under ${activeFc?.windImpact || "standard"} wind resistance.`
+    });
+
     // 1. Weather Shaders (Sunscreen & Rain Protection)
     if (uvIndex >= 6) {
       checklist.push({
