@@ -190,6 +190,8 @@ export default function RouteMap({
       if (routeSegments && routeSegments.length > 0 && weatherResults.length > 0) {
         // Track overall route distance to place items appropriately
         let accumulatedDistance = 0;
+        let lastHydrationDistance = 0;
+        let lastNutritionDistance = 0;
 
         routeSegments.forEach((seg, idx) => {
           const sampleIdx = Math.min(Math.floor((idx / routeSegments.length) * numSamples), numSamples - 1);
@@ -363,19 +365,22 @@ export default function RouteMap({
           // WEATHER-ADAPTIVE PHYSICAL TELEMETRY PINS (💧, 🍌)
           // -----------------------------------------------------------
           const isMidPointSegment = idx === Math.floor(routeSegments.length / 2);
-          const isQuarterPointSegment = idx === Math.floor(routeSegments.length / 4);
           const isThreeQuarterPointSegment = idx === Math.floor(routeSegments.length * 0.75);
 
-          // A. Hydration Pin (💧)
-          // Scale dynamically: Place in hot segments (>27°C / 80°F) or at the quarter point on sunny rides
-          const needsHeatHydration = tempVal > 27 && (isQuarterPointSegment || isThreeQuarterPointSegment);
-          const needsStandardHydration = isMidPointSegment && accumulatedDistance > 5; // Long commute default
+          // A. Hydration Pin (💧) - Dynamic intervals matching commute length
+          const hydrationInterval = tempVal > 27 ? 5 : 8; // Hot segments: 5km, Standard: 8km
+          const meetsHydrationInterval = (accumulatedDistance - lastHydrationDistance >= hydrationInterval);
+          const isDefaultMidpointHyd = isMidPointSegment && lastHydrationDistance === 0;
 
-          if (needsHeatHydration || needsStandardHydration) {
+          if (meetsHydrationInterval || isDefaultMidpointHyd) {
+            lastHydrationDistance = accumulatedDistance;
             const waterAmount = isImperial ? "12 fl oz" : "350 ml";
             const whyText = tempVal > 27 
               ? `Extreme heat detected (${tempVal.toFixed(1)}°C / ${(tempVal * 1.8 + 32).toFixed(0)}°F). Sweating rates are elevated.`
               : `Commute exertion depletion checkpoint.`;
+            const displayCheckpointDist = isImperial 
+              ? `${(accumulatedDistance * 0.621371).toFixed(1)} mi` 
+              : `${accumulatedDistance.toFixed(1)} km`;
 
             const waterIcon = L.divIcon({
               className: "",
@@ -405,7 +410,7 @@ export default function RouteMap({
                 <h4 style="font-family: var(--font-heading); color: #3b82f6; font-size: 14px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">💧 Hydration Alert</h4>
                 <p style="margin-bottom: 8px; line-height: 1.45;">${whyText}</p>
                 <div style="background: rgba(255,255,255,0.06); padding: 8px; border-radius: 8px; text-align: center;">
-                  Drink <strong>${waterAmount}</strong> of fluid at this coordinate.
+                  Drink <strong>${waterAmount}</strong> of fluid at this coordinate (${displayCheckpointDist}).
                 </div>
               </div>
             `);
@@ -413,16 +418,20 @@ export default function RouteMap({
             layersRef.current.telemetries.push(hydMarker);
           }
 
-          // B. Nutrition Pin (🍌)
-          // Scale dynamically: Place preceding a steep headwind segment (>15km/h) or at midpoint on long rides (>15km)
-          const needsHeadwindFuel = headwind > 12 && isMidPointSegment;
-          const needsStandardFuel = isThreeQuarterPointSegment && accumulatedDistance > 12; // Long mileage default
+          // B. Nutrition Pin (🍌) - Dynamic intervals matching commute length
+          const nutritionInterval = headwind > 12 ? 12 : 16; // Wind struggle: 12km, Standard: 16km
+          const meetsNutritionInterval = (accumulatedDistance - lastNutritionDistance >= nutritionInterval);
+          const isDefaultMidpointNut = isThreeQuarterPointSegment && lastNutritionDistance === 0;
 
-          if (needsHeadwindFuel || needsStandardFuel) {
+          if (meetsNutritionInterval || isDefaultMidpointNut) {
+            lastNutritionDistance = accumulatedDistance;
             const carbAmount = "30g Carbs (120 kcal)";
             const whyText = headwind > 12 
               ? `Heavy wind resistance active (${displayHeadwind}). Energy burning rate is increased by 35%.`
               : `Long-distance muscle glycogen depletion check.`;
+            const displayCheckpointDist = isImperial 
+              ? `${(accumulatedDistance * 0.621371).toFixed(1)} mi` 
+              : `${accumulatedDistance.toFixed(1)} km`;
 
             const foodIcon = L.divIcon({
               className: "",
@@ -452,7 +461,7 @@ export default function RouteMap({
                 <h4 style="font-family: var(--font-heading); color: #f59e0b; font-size: 14px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">🍌 Caloric Fuel Alert</h4>
                 <p style="margin-bottom: 8px; line-height: 1.45;">${whyText}</p>
                 <div style="background: rgba(255,255,255,0.06); padding: 8px; border-radius: 8px; text-align: center;">
-                  Consume <strong>${carbAmount}</strong> to fuel through this segment.
+                  Consume <strong>${carbAmount}</strong> to fuel through this segment (${displayCheckpointDist}).
                 </div>
               </div>
             `);
