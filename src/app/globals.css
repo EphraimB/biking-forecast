@@ -346,6 +346,14 @@ html, body {
   background-color: rgba(255, 255, 255, 0.15) !important;
 }
 
+.leaflet-popup-pane {
+  z-index: 10010 !important;
+}
+
+.leaflet-tooltip-pane {
+  z-index: 10009 !important;
+}
+
 /* Leaflet Popups to HUD overlay standards */
 .leaflet-popup-content-wrapper {
   background: var(--hud-bg-card) !important;
