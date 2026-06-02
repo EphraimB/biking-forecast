@@ -640,6 +640,18 @@ export default function Home() {
     }
   };
 
+  const handleCloseRouteSetup = () => {
+    if (routeCoordinates.length > 0) {
+      setHudState(2);
+    } else {
+      setHudState(0);
+      setDraftStart(null);
+      setDraftEnd(null);
+      setStartQuery("");
+      setEndQuery("");
+    }
+  };
+
   const handleLoadSavedRoute = (route) => {
     setDraftStart(route.start);
     setDraftEnd(route.end);
@@ -1508,6 +1520,9 @@ export default function Home() {
           hudState={hudState}
           onMapClick={(coord) => {
             const label = `Pinned coordinate (${coord.lat.toFixed(4)}, ${coord.lon.toFixed(4)})`;
+            if (hudState !== 1) {
+              setHudState(1);
+            }
             if (!draftStart) {
               setDraftStart({ ...coord, label });
               setStartQuery(label);
@@ -1912,7 +1927,7 @@ export default function Home() {
               
               <div className={styles.setupHeader}>
                 <span className={styles.setupTitle}>Plan Custom Route</span>
-                <button onClick={() => setHudState(0)} className={styles.closeBtn}><X size={16} /></button>
+                 <button onClick={handleCloseRouteSetup} className={styles.closeBtn}><X size={16} /></button>
               </div>
 
               {/* Start input */}
@@ -2324,7 +2339,7 @@ export default function Home() {
 
               {/* Exit day focus button */}
               <button 
-                onClick={() => setHudState(2)} // Return to Week-wide ambient outlook
+                onClick={() => setHudState(routeCoordinates.length > 0 ? 2 : 0)} // Return to Week-wide ambient outlook or Ambient map
                 className={`hud-btn ${styles.exitScrubBtn}`}
               >
                 <X size={12} />
