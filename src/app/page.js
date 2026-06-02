@@ -190,6 +190,8 @@ export default function Home() {
   // Coordinates & Planned segments
   const [draftStart, setDraftStart] = useState(null);
   const [draftEnd, setDraftEnd] = useState(null);
+  const [confirmedStart, setConfirmedStart] = useState(null);
+  const [confirmedEnd, setConfirmedEnd] = useState(null);
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [routeSegments, setRouteSegments] = useState([]);
   const [weatherResults, setWeatherResults] = useState([]);
@@ -201,26 +203,14 @@ export default function Home() {
   const [shouldSaveRoute, setShouldSaveRoute] = useState(false);
 
   // Recurring Weekly Commute Schedules (Assign different routes & outbound/return times per day)
-  const [weeklySchedule, setWeeklySchedule] = useState(() => {
-    if (typeof window !== "undefined") {
-      const savedWeeklySchedule = localStorage.getItem("hud_weekly_schedule");
-      if (savedWeeklySchedule) {
-        try {
-          return JSON.parse(savedWeeklySchedule);
-        } catch (e) {
-          console.error("Error loading weekly schedule:", e);
-        }
-      }
-    }
-    return {
-      1: { routeId: null, outbound: "08:00", return: "17:30" }, // Monday
-      2: { routeId: null, outbound: "08:00", return: "17:30" }, // Tuesday
-      3: { routeId: null, outbound: "08:00", return: "17:30" }, // Wednesday
-      4: { routeId: null, outbound: "08:00", return: "17:30" }, // Thursday
-      5: { routeId: null, outbound: "08:00", return: "17:30" }, // Friday
-      6: { routeId: null, outbound: "08:00", return: "17:30" }, // Saturday
-      0: { routeId: null, outbound: "08:00", return: "17:30" }  // Sunday
-    };
+  const [weeklySchedule, setWeeklySchedule] = useState({
+    1: { routeId: null, outbound: "08:00", return: "17:30" }, // Monday
+    2: { routeId: null, outbound: "08:00", return: "17:30" }, // Tuesday
+    3: { routeId: null, outbound: "08:00", return: "17:30" }, // Wednesday
+    4: { routeId: null, outbound: "08:00", return: "17:30" }, // Thursday
+    5: { routeId: null, outbound: "08:00", return: "17:30" }, // Friday
+    6: { routeId: null, outbound: "08:00", return: "17:30" }, // Saturday
+    0: { routeId: null, outbound: "08:00", return: "17:30" }  // Sunday
   });
 
   const [isWeeklyPlannerOpen, setIsWeeklyPlannerOpen] = useState(false);
@@ -233,19 +223,7 @@ export default function Home() {
   const [bulkSelectedDays, setBulkSelectedDays] = useState([]);
 
   // Saved Routes Hub (🔖 Persistence)
-  const [savedRoutes, setSavedRoutes] = useState(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("hud_saved_routes");
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch (e) {
-          console.error("Error loading saved routes:", e);
-        }
-      }
-    }
-    return [];
-  });
+  const [savedRoutes, setSavedRoutes] = useState([]);
   const [isSavedHubOpen, setIsSavedHubOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -299,8 +277,9 @@ export default function Home() {
 
 
   // Derived state: weatherLocationName represents active route's starting city or fallback base location
-  const weatherLocationName = (draftStart && draftStart.label && baseWeatherLocationName !== "Map Viewport")
-    ? (draftStart.label.split(",")[0] || "Route Start")
+  const activeStartLoc = (hudState === 2 || hudState === 3) ? confirmedStart : draftStart;
+  const weatherLocationName = (activeStartLoc && activeStartLoc.label && baseWeatherLocationName !== "Map Viewport")
+    ? (activeStartLoc.label.split(",")[0] || "Route Start")
     : baseWeatherLocationName;
 
   // Memoized callback triggers to satisfy strict react-hooks rules and avoid hoisting issues
@@ -351,7 +330,7 @@ export default function Home() {
     }
   }, []);
 
-  const loadRouteDetails = useCallback(async (start, end, bikeType, speed, overrideState = null) => {
+  const loadRouteDetails = useCallback(async (start, end, bikeType, speed, overrideState = null, shouldSave = false, saveName = "") => {
     setIsLoading(true);
     setError(null);
     try {
@@ -365,7 +344,31 @@ export default function Home() {
       const weatherData = await fetchRouteWeather(decodedCoords, routeData.distance);
       setWeatherResults(weatherData);
 
+      setConfirmedStart(start);
+      setConfirmedEnd(end);
       setHudState(overrideState !== null ? overrideState : 2);
+
+      if (shouldSave) {
+        const name = saveName.trim() || `Route: ${start.label.split(",")[0]} ⇆ ${end.label.split(",")[0]}`;
+        const newRoute = {
+          id: Date.now().toString(),
+          name,
+          start,
+          end,
+          bikeType,
+          speed,
+          coordinates: decodedCoords,
+          segments: segments,
+          distance: routeData.distance
+        };
+        setSavedRoutes(prev => {
+          const updated = [...prev, newRoute];
+          localStorage.setItem("hud_saved_routes", JSON.stringify(updated));
+          return updated;
+        });
+        setShouldSaveRoute(false);
+        setSaveRouteName("");
+      }
     } catch (err) {
       console.error(err);
       setError(err.message || "Route validation pipeline failed.");
@@ -448,7 +451,26 @@ export default function Home() {
   // 1. Initial Mount: Restore Active View State
   useEffect(() => {
     const handle = setTimeout(() => {
-      // Restore independent preferences first (rider profile and unit system)
+      // Restore weekly schedule and saved routes first
+      const savedWeeklySchedule = localStorage.getItem("hud_weekly_schedule");
+      if (savedWeeklySchedule) {
+        try {
+          setWeeklySchedule(JSON.parse(savedWeeklySchedule));
+        } catch (e) {
+          console.error("Error loading weekly schedule:", e);
+        }
+      }
+
+      const saved = localStorage.getItem("hud_saved_routes");
+      if (saved) {
+        try {
+          setSavedRoutes(JSON.parse(saved));
+        } catch (e) {
+          console.error("Error loading saved routes:", e);
+        }
+      }
+
+      // Restore independent preferences next (rider profile and unit system)
       const savedBikeType = localStorage.getItem("hud_rider_profile_bike_type");
       if (savedBikeType) setNewBikeType(savedBikeType);
 
@@ -479,21 +501,27 @@ export default function Home() {
           if (state.newSpeed !== undefined && !savedSpeed) setNewSpeed(state.newSpeed);
           if (state.unitSystem !== undefined && !savedUnitSystem) setUnitSystem(state.unitSystem);
           
-          if (state.draftStart && state.draftEnd && (state.hudState === 2 || state.hudState === 3)) {
-            setDraftStart(state.draftStart);
-            setDraftEnd(state.draftEnd);
-            setStartQuery(state.draftStart.label);
-            setEndQuery(state.draftEnd.label);
+          const startLoc = state.confirmedStart || state.draftStart;
+          const endLoc = state.confirmedEnd || state.draftEnd;
+          if (startLoc && endLoc && (state.hudState === 2 || state.hudState === 3)) {
+            setConfirmedStart(startLoc);
+            setConfirmedEnd(endLoc);
+            setDraftStart(startLoc);
+            setDraftEnd(endLoc);
+            setStartQuery(startLoc.label);
+            setEndQuery(endLoc.label);
             
             // Re-trigger background fetches, maintaining correct visual state
             loadRouteDetails(
-              state.draftStart, 
-              state.draftEnd, 
+              startLoc, 
+              endLoc, 
               state.newBikeType || savedBikeType || "Hybrid", 
               state.newSpeed || (savedSpeed ? parseInt(savedSpeed, 10) : 18), 
               state.hudState
             );
           } else {
+            setConfirmedStart(null);
+            setConfirmedEnd(null);
             setDraftStart(null);
             setDraftEnd(null);
             setStartQuery("");
@@ -543,6 +571,8 @@ export default function Home() {
   useEffect(() => {
     if (!isRestored) return;
     const activeState = {
+      confirmedStart,
+      confirmedEnd,
       draftStart,
       draftEnd,
       selectedDayOffset,
@@ -554,7 +584,7 @@ export default function Home() {
       hudState
     };
     localStorage.setItem("hud_active_view_state", JSON.stringify(activeState));
-  }, [draftStart, draftEnd, selectedDayOffset, selectedHour, isReturnTripMode, newBikeType, newSpeed, unitSystem, hudState, isRestored]);
+  }, [confirmedStart, confirmedEnd, draftStart, draftEnd, selectedDayOffset, selectedHour, isReturnTripMode, newBikeType, newSpeed, unitSystem, hudState, isRestored]);
 
   // 3. Persist Rider Profile and Unit System preferences separately
   useEffect(() => {
@@ -599,30 +629,7 @@ export default function Home() {
   }, [hudState]);
 
 
-  // Save Route Action Persistence
-  const handleSaveRoute = () => {
-    if (!draftStart || !draftEnd) return;
-    const name = saveRouteName.trim() || `Route: ${draftStart.label.split(",")[0]} ⇆ ${draftEnd.label.split(",")[0]}`;
-    const totalDist = routeSegments.reduce((sum, seg) => sum + seg.distance, 0);
-    
-    const newRoute = {
-      id: Date.now().toString(),
-      name,
-      start: draftStart,
-      end: draftEnd,
-      bikeType: newBikeType,
-      speed: newSpeed,
-      coordinates: routeCoordinates,
-      segments: routeSegments,
-      distance: totalDist
-    };
 
-    const updated = [...savedRoutes, newRoute];
-    setSavedRoutes(updated);
-    localStorage.setItem("hud_saved_routes", JSON.stringify(updated));
-    setShouldSaveRoute(false);
-    setSaveRouteName("");
-  };
 
   const handleDeleteSavedRoute = (id, e) => {
     e.stopPropagation();
@@ -645,10 +652,16 @@ export default function Home() {
   };
 
   const handleCloseRouteSetup = () => {
-    if (routeCoordinates.length > 0) {
+    if (routeCoordinates.length > 0 && confirmedStart && confirmedEnd) {
       setHudState(2);
+      setDraftStart(confirmedStart);
+      setDraftEnd(confirmedEnd);
+      setStartQuery(confirmedStart.label || "");
+      setEndQuery(confirmedEnd.label || "");
     } else {
       setHudState(0);
+      setConfirmedStart(null);
+      setConfirmedEnd(null);
       setDraftStart(null);
       setDraftEnd(null);
       setStartQuery("");
@@ -659,8 +672,15 @@ export default function Home() {
   const handleLoadSavedRoute = (route) => {
     setDraftStart(route.start);
     setDraftEnd(route.end);
+    setConfirmedStart(route.start);
+    setConfirmedEnd(route.end);
+    setStartQuery(route.start.label || "");
+    setEndQuery(route.end.label || "");
+    if (route.bikeType) setNewBikeType(route.bikeType);
+    if (route.speed) setNewSpeed(route.speed);
     
-    if (route.coordinates && route.segments) {
+    if (route.coordinates && route.coordinates.length > 0 && route.segments && route.segments.length > 0) {
+      setWeatherResults([]); // Clear previous weather to prevent stale/incorrect overlay calculations
       setRouteCoordinates(route.coordinates);
       setRouteSegments(route.segments);
       fetchRouteWeather(route.coordinates, route.distance || 10).then(weatherData => {
@@ -668,7 +688,7 @@ export default function Home() {
       }).catch(e => console.error("Error fetching weather for loaded route:", e));
       setHudState(2);
     } else {
-      loadRouteDetails(route.start, route.end, newBikeType, newSpeed);
+      loadRouteDetails(route.start, route.end, route.bikeType || newBikeType, route.speed || newSpeed);
     }
     
     setIsSavedHubOpen(false);
@@ -935,8 +955,8 @@ export default function Home() {
         coordinates: [...routeCoordinates].reverse(),
         segments: getReturnSegments(routeSegments),
         weatherResults: [...activeWeatherResults].reverse(),
-        startLocation: draftEnd,
-        endLocation: draftStart,
+        startLocation: confirmedEnd || draftEnd,
+        endLocation: confirmedStart || draftStart,
         speed: newSpeed,
         name: "Active Route (Return)"
       };
@@ -946,8 +966,8 @@ export default function Home() {
       coordinates: routeCoordinates,
       segments: routeSegments,
       weatherResults: activeWeatherResults,
-      startLocation: draftStart,
-      endLocation: draftEnd,
+      startLocation: confirmedStart || draftStart,
+      endLocation: confirmedEnd || draftEnd,
       speed: newSpeed,
       name: "Active Route"
     };
@@ -1004,6 +1024,55 @@ export default function Home() {
   };
 
   const activeForecast = getActiveForecast();
+
+  const getLeaveNowOverlayData = () => {
+    if (!activeForecast) return null;
+    
+    const duration = activeForecast.duration;
+    
+    let depDate;
+    let label;
+    if (hudState === 3) {
+      depDate = new Date();
+      depDate.setDate(depDate.getDate() + selectedDayOffset);
+      depDate.setHours(selectedHour, 0, 0, 0);
+      label = `Trip at ${formatTimeToAMPM(`${selectedHour.toString().padStart(2, "0")}:00`)}`;
+    } else {
+      depDate = new Date();
+      label = "Leave Now";
+    }
+    
+    const arrivalDate = new Date(depDate.getTime() + duration * 60 * 1000);
+    const arrivalTimeStr = formatTimeAMPM(arrivalDate);
+    const depTimeStr = formatTimeAMPM(depDate);
+    
+    // Packing list
+    const checkHour = depDate.getHours();
+    const temp = activeForecast.temp;
+    const isRaining = activeForecast.precip > 0.1;
+    const isSunset = checkHour > 18 || checkHour < 7;
+    
+    const items = [];
+    items.push("🥤 Fluid");
+    items.push("🍌 Fuel");
+    if (isRaining) items.push("🧥 Rain Jacket");
+    if (temp < 12) items.push("🧣 Warm Gear");
+    if (isSunset) items.push("🔦 Lights");
+    
+    const isImperial = unitSystem === "imperial";
+    const displayDist = isImperial
+      ? `${Math.round(activeForecast.distance * 0.621371 * 10) / 10} mi`
+      : `${activeForecast.distance.toFixed(1)} km`;
+
+    return {
+      duration,
+      distance: displayDist,
+      depTimeStr,
+      arrivalTimeStr,
+      label,
+      packingList: items.join(", ")
+    };
+  };
 
   // Pure derived state: Packing list calculated synchronously inside render (satisfies react-hooks linter rules)
   const getDynamicPackingList = () => {
@@ -1350,9 +1419,8 @@ export default function Home() {
 
   // Calculate 7-day commute tracks data for Double-Sided Ribbon
   const get7DayCommuteData = () => {
-    if (weatherResults.length === 0 && Object.keys(scheduledRoutesWeather).length === 0) return [];
-    
     const isAnyDayScheduled = Object.values(weeklySchedule).some(sched => sched.routeId !== null);
+    if (!isAnyDayScheduled) return [];
     
     const ribbonDays = [];
     for (let offset = 0; offset < 7; offset++) {
@@ -1374,8 +1442,9 @@ export default function Home() {
       let destinationName = "Destination";
       if (boundRoute) {
         destinationName = boundRoute.end.label.split(",")[0] || "Destination";
-      } else if (draftEnd) {
-        destinationName = draftEnd.label.split(",")[0] || "Destination";
+      } else if (confirmedEnd || draftEnd) {
+        const destLoc = confirmedEnd || draftEnd;
+        destinationName = destLoc.label.split(",")[0] || "Destination";
       }
 
       if (boundRoute && boundWeatherEntry) {
@@ -1539,6 +1608,7 @@ export default function Home() {
           userLocation={userLocation}
           ambientWeatherForecast={ambientWeatherForecast}
           onMapMove={handleMapMove}
+          leaveNowOverlayData={getLeaveNowOverlayData()}
         />
       </div>
 
@@ -1586,6 +1656,8 @@ export default function Home() {
                   setRouteCoordinates([]);
                   setRouteSegments([]);
                   setWeatherResults([]);
+                  setConfirmedStart(null);
+                  setConfirmedEnd(null);
                   setDraftStart(null);
                   setDraftEnd(null);
                   setStartQuery("");
@@ -1919,7 +1991,7 @@ export default function Home() {
         <div className={styles.setupCover}>
           
           {/* Centered: Search inputs Bar */}
-          <div className={`${styles.setupSearchContainer} hud-zoom-center`}>
+          <div className={`${styles.setupSearchContainer} hud-slide-top`}>
             <div 
               className={`hud-card ${styles.setupCard}`}
               onMouseDown={(e) => e.stopPropagation()}
@@ -2042,10 +2114,7 @@ export default function Home() {
                 className={`${styles.confirmBtn} hud-btn ${draftStart && draftEnd ? "active" : ""}`}
                 disabled={!draftStart || !draftEnd || isLoading}
                 onClick={() => {
-                  if (shouldSaveRoute) {
-                    handleSaveRoute();
-                  }
-                  loadRouteDetails(draftStart, draftEnd, newBikeType, newSpeed);
+                  loadRouteDetails(draftStart, draftEnd, newBikeType, newSpeed, null, shouldSaveRoute, saveRouteName);
                 }}
               >
                 {isLoading ? "Analyzing..." : "Confirm & Map HUD"}
