@@ -120,7 +120,8 @@ export default function RouteMap({
           maxZoom: 20
         }).addTo(map);
 
-        if (!L.Browser.touch) {
+        const isFinePointer = typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches;
+        if (isFinePointer) {
           L.control.zoom({
             position: "bottomright"
           }).addTo(map);
@@ -328,7 +329,8 @@ export default function RouteMap({
             />
           );
 
-          if (!L.Browser.touch) {
+          const supportsHover = typeof window !== "undefined" && window.matchMedia("(hover: hover)").matches;
+          if (supportsHover) {
             hoverPoly.bindTooltip(tooltipHtml, { 
               sticky: true,
               className: "leaflet-tooltip" 
