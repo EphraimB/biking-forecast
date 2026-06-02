@@ -203,26 +203,14 @@ export default function Home() {
   const [shouldSaveRoute, setShouldSaveRoute] = useState(false);
 
   // Recurring Weekly Commute Schedules (Assign different routes & outbound/return times per day)
-  const [weeklySchedule, setWeeklySchedule] = useState(() => {
-    if (typeof window !== "undefined") {
-      const savedWeeklySchedule = localStorage.getItem("hud_weekly_schedule");
-      if (savedWeeklySchedule) {
-        try {
-          return JSON.parse(savedWeeklySchedule);
-        } catch (e) {
-          console.error("Error loading weekly schedule:", e);
-        }
-      }
-    }
-    return {
-      1: { routeId: null, outbound: "08:00", return: "17:30" }, // Monday
-      2: { routeId: null, outbound: "08:00", return: "17:30" }, // Tuesday
-      3: { routeId: null, outbound: "08:00", return: "17:30" }, // Wednesday
-      4: { routeId: null, outbound: "08:00", return: "17:30" }, // Thursday
-      5: { routeId: null, outbound: "08:00", return: "17:30" }, // Friday
-      6: { routeId: null, outbound: "08:00", return: "17:30" }, // Saturday
-      0: { routeId: null, outbound: "08:00", return: "17:30" }  // Sunday
-    };
+  const [weeklySchedule, setWeeklySchedule] = useState({
+    1: { routeId: null, outbound: "08:00", return: "17:30" }, // Monday
+    2: { routeId: null, outbound: "08:00", return: "17:30" }, // Tuesday
+    3: { routeId: null, outbound: "08:00", return: "17:30" }, // Wednesday
+    4: { routeId: null, outbound: "08:00", return: "17:30" }, // Thursday
+    5: { routeId: null, outbound: "08:00", return: "17:30" }, // Friday
+    6: { routeId: null, outbound: "08:00", return: "17:30" }, // Saturday
+    0: { routeId: null, outbound: "08:00", return: "17:30" }  // Sunday
   });
 
   const [isWeeklyPlannerOpen, setIsWeeklyPlannerOpen] = useState(false);
@@ -235,19 +223,7 @@ export default function Home() {
   const [bulkSelectedDays, setBulkSelectedDays] = useState([]);
 
   // Saved Routes Hub (🔖 Persistence)
-  const [savedRoutes, setSavedRoutes] = useState(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("hud_saved_routes");
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch (e) {
-          console.error("Error loading saved routes:", e);
-        }
-      }
-    }
-    return [];
-  });
+  const [savedRoutes, setSavedRoutes] = useState([]);
   const [isSavedHubOpen, setIsSavedHubOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -453,7 +429,26 @@ export default function Home() {
   // 1. Initial Mount: Restore Active View State
   useEffect(() => {
     const handle = setTimeout(() => {
-      // Restore independent preferences first (rider profile and unit system)
+      // Restore weekly schedule and saved routes first
+      const savedWeeklySchedule = localStorage.getItem("hud_weekly_schedule");
+      if (savedWeeklySchedule) {
+        try {
+          setWeeklySchedule(JSON.parse(savedWeeklySchedule));
+        } catch (e) {
+          console.error("Error loading weekly schedule:", e);
+        }
+      }
+
+      const saved = localStorage.getItem("hud_saved_routes");
+      if (saved) {
+        try {
+          setSavedRoutes(JSON.parse(saved));
+        } catch (e) {
+          console.error("Error loading saved routes:", e);
+        }
+      }
+
+      // Restore independent preferences next (rider profile and unit system)
       const savedBikeType = localStorage.getItem("hud_rider_profile_bike_type");
       if (savedBikeType) setNewBikeType(savedBikeType);
 
@@ -1373,9 +1368,8 @@ export default function Home() {
 
   // Calculate 7-day commute tracks data for Double-Sided Ribbon
   const get7DayCommuteData = () => {
-    if (weatherResults.length === 0 && Object.keys(scheduledRoutesWeather).length === 0) return [];
-    
     const isAnyDayScheduled = Object.values(weeklySchedule).some(sched => sched.routeId !== null);
+    if (!isAnyDayScheduled) return [];
     
     const ribbonDays = [];
     for (let offset = 0; offset < 7; offset++) {
