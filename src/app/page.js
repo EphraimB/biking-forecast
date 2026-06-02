@@ -1271,6 +1271,7 @@ export default function Home() {
           selectedHour={selectedHour}
           customSpeed={activeRouteData.speed}
           isDrawingMode={hudState === 1}
+          hudState={hudState}
           onMapClick={(coord) => {
             const label = `Pinned coordinate (${coord.lat.toFixed(4)}, ${coord.lon.toFixed(4)})`;
             if (!draftStart) {
