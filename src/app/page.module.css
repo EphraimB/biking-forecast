@@ -427,6 +427,40 @@
   color: #f8fafc;
 }
 
+.timeInput,
+.bulkTimeInput {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--hud-border);
+  border-radius: 6px;
+  color: var(--hud-text-primary);
+  font-family: var(--font-body);
+  font-size: 0.74rem;
+  padding: 2px 4px;
+  outline: none;
+  cursor: text;
+  text-align: center;
+  transition: all 0.2s ease;
+  width: 28px;
+}
+
+.timeInput:hover,
+.bulkTimeInput:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.timeInput:focus,
+.bulkTimeInput:focus {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: var(--color-emerald);
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.bulkTimeInput {
+  padding: 4px 6px;
+  width: 32px;
+}
+
 
 
 .saveToggleRow {

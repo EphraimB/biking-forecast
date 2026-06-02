@@ -51,116 +51,182 @@ function getWindCompassDirection(degrees) {
 
 function CustomTimeInput({ value, onChange, unitSystem, isBulk = false }) {
   const [hStr, mStr] = (value || "08:00").split(":");
-  let hour = parseInt(hStr, 10);
-  if (isNaN(hour)) hour = 8;
-  let minute = parseInt(mStr, 10);
-  if (isNaN(minute)) minute = 0;
+  let propHour = parseInt(hStr, 10);
+  if (isNaN(propHour)) propHour = 8;
+  let propMinute = parseInt(mStr, 10);
+  if (isNaN(propMinute)) propMinute = 0;
 
-  const handleHourChange = (newHour) => {
-    const formattedHour = newHour.toString().padStart(2, "0");
-    const formattedMinute = minute.toString().padStart(2, "0");
+  const getHourDisplayValue = (h) => {
+    if (unitSystem === "metric") {
+      return h.toString().padStart(2, "0");
+    } else {
+      const displayHour = h % 12 === 0 ? 12 : h % 12;
+      return displayHour.toString().padStart(2, "0");
+    }
+  };
+
+  const getMinuteDisplayValue = (m) => {
+    return m.toString().padStart(2, "0");
+  };
+
+  const [prevValue, setPrevValue] = useState(value);
+  const [prevUnitSystem, setPrevUnitSystem] = useState(unitSystem);
+  const [localHour, setLocalHour] = useState(getHourDisplayValue(propHour));
+  const [localMinute, setLocalMinute] = useState(getMinuteDisplayValue(propMinute));
+
+  if (value !== prevValue || unitSystem !== prevUnitSystem) {
+    setPrevValue(value);
+    setPrevUnitSystem(unitSystem);
+    setLocalHour(getHourDisplayValue(propHour));
+    setLocalMinute(getMinuteDisplayValue(propMinute));
+  }
+
+  const handleLocalHourInputChange = (e) => {
+    const val = e.target.value.replace(/\D/g, "");
+    setLocalHour(val);
+  };
+
+  const handleLocalMinuteInputChange = (e) => {
+    const val = e.target.value.replace(/\D/g, "");
+    setLocalMinute(val);
+  };
+
+  const commitHour = (rawVal) => {
+    let newHourNum = parseInt(rawVal, 10);
+    if (isNaN(newHourNum)) {
+      setLocalHour(getHourDisplayValue(propHour));
+      return;
+    }
+
+    let finalHour24 = newHourNum;
+    if (unitSystem === "metric") {
+      newHourNum = Math.max(0, Math.min(23, newHourNum));
+      finalHour24 = newHourNum;
+    } else {
+      newHourNum = Math.max(1, Math.min(12, newHourNum));
+      const period = propHour >= 12 ? "PM" : "AM";
+      const isPM = period === "PM";
+      if (isPM && newHourNum !== 12) finalHour24 = newHourNum + 12;
+      else if (!isPM && newHourNum === 12) finalHour24 = 0;
+      else finalHour24 = isPM ? newHourNum + 12 : newHourNum;
+    }
+
+    const formattedHour = finalHour24.toString().padStart(2, "0");
+    const formattedMinute = propMinute.toString().padStart(2, "0");
+    setLocalHour(newHourNum.toString().padStart(2, "0"));
     onChange(`${formattedHour}:${formattedMinute}`);
   };
 
-  const handleMinuteChange = (newMinute) => {
-    const formattedHour = hour.toString().padStart(2, "0");
-    const formattedMinute = newMinute.toString().padStart(2, "0");
+  const commitMinute = (rawVal) => {
+    let newMinNum = parseInt(rawVal, 10);
+    if (isNaN(newMinNum)) {
+      setLocalMinute(getMinuteDisplayValue(propMinute));
+      return;
+    }
+
+    newMinNum = Math.max(0, Math.min(59, newMinNum));
+    const formattedHour = propHour.toString().padStart(2, "0");
+    const formattedMinute = newMinNum.toString().padStart(2, "0");
+    setLocalMinute(newMinNum.toString().padStart(2, "0"));
     onChange(`${formattedHour}:${formattedMinute}`);
   };
 
   const handlePeriodChange = (newPeriod) => {
-    let new24Hour = hour;
+    let new24Hour = propHour;
     const isPM = newPeriod === "PM";
-    const currentIsPM = hour >= 12;
+    const currentIsPM = propHour >= 12;
     if (isPM && !currentIsPM) {
-      new24Hour = (hour % 12) + 12;
+      new24Hour = (propHour % 12) + 12;
     } else if (!isPM && currentIsPM) {
-      new24Hour = hour % 12;
+      new24Hour = propHour % 12;
     }
     const formattedHour = new24Hour.toString().padStart(2, "0");
-    const formattedMinute = minute.toString().padStart(2, "0");
+    const formattedMinute = propMinute.toString().padStart(2, "0");
     onChange(`${formattedHour}:${formattedMinute}`);
   };
 
+  const inputClass = isBulk ? styles.bulkTimeInput : styles.timeInput;
   const selectClass = isBulk ? styles.bulkTimeSelect : styles.timeSelect;
 
   if (unitSystem === "metric") {
-    const hours = Array.from({ length: 24 }, (_, i) => i);
-    const minutes = Array.from({ length: 60 }, (_, i) => i);
-
     return (
       <div style={{ display: "inline-flex", alignItems: "center", gap: "2px" }}>
-        <select
-          value={hour}
-          onChange={(e) => handleHourChange(parseInt(e.target.value, 10))}
-          className={selectClass}
-        >
-          {hours.map((h) => (
-            <option key={h} value={h}>
-              {h.toString().padStart(2, "0")}
-            </option>
-          ))}
-        </select>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={2}
+          value={localHour}
+          onChange={handleLocalHourInputChange}
+          onBlur={(e) => commitHour(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.target.blur();
+            }
+          }}
+          className={inputClass}
+        />
         <span style={{ fontSize: "0.72rem", color: "var(--hud-text-secondary)" }}>:</span>
-        <select
-          value={minute}
-          onChange={(e) => handleMinuteChange(parseInt(e.target.value, 10))}
-          className={selectClass}
-        >
-          {minutes.map((m) => (
-            <option key={m} value={m}>
-              {m.toString().padStart(2, "0")}
-            </option>
-          ))}
-        </select>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={2}
+          value={localMinute}
+          onChange={handleLocalMinuteInputChange}
+          onBlur={(e) => commitMinute(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.target.blur();
+            }
+          }}
+          className={inputClass}
+        />
       </div>
     );
   } else {
-    const displayHour = hour % 12 === 0 ? 12 : hour % 12;
-    const period = hour >= 12 ? "PM" : "AM";
-    const hours = Array.from({ length: 12 }, (_, i) => i + 1);
-    const minutes = Array.from({ length: 60 }, (_, i) => i);
-
+    const period = propHour >= 12 ? "PM" : "AM";
     return (
       <div style={{ display: "inline-flex", alignItems: "center", gap: "2px" }}>
-        <select
-          value={displayHour}
-          onChange={(e) => {
-            const val = parseInt(e.target.value, 10);
-            const isPM = period === "PM";
-            let new24Hour = val;
-            if (isPM && val !== 12) new24Hour = val + 12;
-            if (!isPM && val === 12) new24Hour = 0;
-            handleHourChange(new24Hour);
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={2}
+          value={localHour}
+          onChange={handleLocalHourInputChange}
+          onBlur={(e) => commitHour(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.target.blur();
+            }
           }}
-          className={selectClass}
-        >
-          {hours.map((h) => (
-            <option key={h} value={h}>
-              {h.toString().padStart(2, "0")}
-            </option>
-          ))}
-        </select>
+          className={inputClass}
+        />
         <span style={{ fontSize: "0.72rem", color: "var(--hud-text-secondary)" }}>:</span>
-        <select
-          value={minute}
-          onChange={(e) => handleMinuteChange(parseInt(e.target.value, 10))}
-          className={selectClass}
-        >
-          {minutes.map((m) => (
-            <option key={m} value={m}>
-              {m.toString().padStart(2, "0")}
-            </option>
-          ))}
-        </select>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={2}
+          value={localMinute}
+          onChange={handleLocalMinuteInputChange}
+          onBlur={(e) => commitMinute(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.target.blur();
+            }
+          }}
+          className={inputClass}
+        />
         <select
           value={period}
           onChange={(e) => handlePeriodChange(e.target.value)}
           className={selectClass}
           style={{ marginLeft: "2px" }}
         >
-          <option value="AM">AM</option>
-          <option value="PM">PM</option>
+          <option value="AM" style={{ background: "#0f172a", color: "#f8fafc" }}>AM</option>
+          <option value="PM" style={{ background: "#0f172a", color: "#f8fafc" }}>PM</option>
         </select>
       </div>
     );
@@ -230,6 +296,7 @@ export default function Home() {
   // Time & Timeline Scrub Scopes (State 3)
   const [selectedDayOffset, setSelectedDayOffset] = useState(0); // 0 (Today) to 6 (Day + 6)
   const [selectedHour, setSelectedHour] = useState(8); // 6:00 AM to 8:00 PM (commuter scrubber scale)
+  const [selectedMinute, setSelectedMinute] = useState(0);
   const [isReturnTripMode, setIsReturnTripMode] = useState(false);
   const [isDepartureTimeCustom, setIsDepartureTimeCustom] = useState(false);
 
@@ -495,6 +562,7 @@ export default function Home() {
             setSelectedHour(state.selectedHour);
             restoredHour = true;
           }
+          if (state.selectedMinute !== undefined) setSelectedMinute(state.selectedMinute);
           if (state.isReturnTripMode !== undefined) setIsReturnTripMode(state.isReturnTripMode);
           
           // Only overwrite if present in view state and not already set by independent keys
@@ -538,8 +606,12 @@ export default function Home() {
       }
 
       if (!restoredHour) {
-        const currentHour = new Date().getHours();
+        const now = new Date();
+        const currentHour = now.getHours();
         setSelectedHour(Math.max(6, Math.min(20, currentHour)));
+        const currentMin = now.getMinutes();
+        const roundedMin = Math.round(currentMin / 15) * 15 % 60;
+        setSelectedMinute(roundedMin);
       }
 
       // Centered location default ambient lookup
@@ -578,6 +650,7 @@ export default function Home() {
       draftEnd,
       selectedDayOffset,
       selectedHour,
+      selectedMinute,
       isReturnTripMode,
       newBikeType,
       newSpeed,
@@ -585,7 +658,7 @@ export default function Home() {
       hudState
     };
     localStorage.setItem("hud_active_view_state", JSON.stringify(activeState));
-  }, [confirmedStart, confirmedEnd, draftStart, draftEnd, selectedDayOffset, selectedHour, isReturnTripMode, newBikeType, newSpeed, unitSystem, hudState, isRestored]);
+  }, [confirmedStart, confirmedEnd, draftStart, draftEnd, selectedDayOffset, selectedHour, selectedMinute, isReturnTripMode, newBikeType, newSpeed, unitSystem, hudState, isRestored]);
 
   // 3. Persist Rider Profile and Unit System preferences separately
   useEffect(() => {
@@ -641,10 +714,45 @@ export default function Home() {
       setIsDepartureTimeCustom(true);
     };
 
+    window.handleOverlayHour12Change = (val) => {
+      setSelectedHour(prev => {
+        const isPM = prev >= 12;
+        let newHour = parseInt(val, 10) % 12;
+        if (isPM) newHour += 12;
+        return newHour;
+      });
+      setIsDepartureTimeCustom(true);
+    };
+
+    window.handleOverlayMinuteChange = (val) => {
+      setSelectedMinute(parseInt(val, 10));
+      setIsDepartureTimeCustom(true);
+    };
+
+    window.handleOverlayPeriodChange = (val) => {
+      setSelectedHour(prev => {
+        let new24Hour = prev;
+        const isPM = val === "PM";
+        const currentIsPM = prev >= 12;
+        if (isPM && !currentIsPM) {
+          new24Hour = (prev % 12) + 12;
+        } else if (!isPM && currentIsPM) {
+          new24Hour = prev % 12;
+        }
+        return new24Hour;
+      });
+      setIsDepartureTimeCustom(true);
+    };
+
     window.handleOverlayResetClick = () => {
       const now = new Date();
       setSelectedDayOffset(0);
       setSelectedHour(now.getHours());
+      
+      const currentMin = now.getMinutes();
+      const roundedMin = Math.round(currentMin / 15) * 15 % 60;
+      setSelectedMinute(roundedMin);
+
       setIsDepartureTimeCustom(false);
     };
 
@@ -674,6 +782,9 @@ export default function Home() {
     return () => {
       delete window.handleOverlayDayChange;
       delete window.handleOverlayHourChange;
+      delete window.handleOverlayHour12Change;
+      delete window.handleOverlayMinuteChange;
+      delete window.handleOverlayPeriodChange;
       delete window.handleOverlayResetClick;
       delete window.handleOverlayReverseClick;
     };
@@ -1049,6 +1160,10 @@ export default function Home() {
     let hourIdx;
     if (hudState === 3 || isDepartureTimeCustom) {
       hourIdx = selectedDayOffset * 24 + selectedHour;
+      if (selectedMinute >= 30) {
+        hourIdx += 1;
+      }
+      hourIdx = Math.max(0, Math.min(167, hourIdx));
     } else {
       const now = new Date();
       const year = now.getFullYear();
@@ -1085,9 +1200,9 @@ export default function Home() {
     if (hudState === 3 || isDepartureTimeCustom) {
       depDate = new Date();
       depDate.setDate(depDate.getDate() + selectedDayOffset);
-      depDate.setHours(selectedHour, 0, 0, 0);
+      depDate.setHours(selectedHour, selectedMinute, 0, 0);
       label = hudState === 3
-        ? `Trip at ${formatTimeToAMPM(`${selectedHour.toString().padStart(2, "0")}:00`)}`
+        ? `Trip at ${formatTimeAMPM(depDate)}`
         : "Custom Departure";
     } else {
       depDate = new Date();
@@ -1125,6 +1240,7 @@ export default function Home() {
       packingList: items.join(", "),
       selectedDayOffset,
       selectedHour,
+      selectedMinute,
       isDepartureTimeCustom
     };
   };

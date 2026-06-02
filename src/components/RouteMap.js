@@ -537,15 +537,34 @@ export default function RouteMap({
             return `<option value="${offset}" style="background: #0f172a; color: #f8fafc;" ${isSelected ? "selected" : ""}>${label}</option>`;
           }).join("");
 
-          // Generate hour options
+          // Display values for text inputs
           const isImperial = unitSystem === "imperial";
-          const hourOptionsHtml = Array.from({ length: 24 }).map((_, h) => {
-            const displayHour = h % 12 === 0 ? 12 : h % 12;
-            const period = h >= 12 ? "PM" : "AM";
-            const label = isImperial ? `${displayHour}:00 ${period}` : `${h.toString().padStart(2, "0")}:00`;
-            const isSelected = leaveNowOverlayData.selectedHour === h;
-            return `<option value="${h}" style="background: #0f172a; color: #f8fafc;" ${isSelected ? "selected" : ""}>${label}</option>`;
-          }).join("");
+          const selHour = leaveNowOverlayData.selectedHour;
+          const selMinute = leaveNowOverlayData.selectedMinute;
+
+          const displayHour = isImperial
+            ? (selHour % 12 === 0 ? 12 : selHour % 12).toString().padStart(2, "0")
+            : selHour.toString().padStart(2, "0");
+
+          const displayMinute = selMinute.toString().padStart(2, "0");
+
+          const periodVal = selHour >= 12 ? "PM" : "AM";
+          const periodSelectHtml = isImperial
+            ? `<select onchange="window.handleOverlayPeriodChange(this.value)" style="
+                background: rgba(255,255,255,0.08);
+                border: 1px solid rgba(255,255,255,0.15);
+                border-radius: 6px;
+                color: var(--hud-text-primary);
+                font-size: 10px;
+                padding: 3px 4px;
+                cursor: pointer;
+                outline: none;
+                flex: 0.9;
+              ">
+                <option value="AM" style="background: #0f172a; color: #f8fafc;" ${periodVal === "AM" ? "selected" : ""}>AM</option>
+                <option value="PM" style="background: #0f172a; color: #f8fafc;" ${periodVal === "PM" ? "selected" : ""}>PM</option>
+              </select>`
+            : "";
 
           // Reset button html if custom departure is active
           const resetBtnHtml = leaveNowOverlayData.isDepartureTimeCustom
@@ -569,8 +588,8 @@ export default function RouteMap({
                 left: 16px;
                 top: -85px;
                 width: max-content;
-                min-width: 180px;
-                max-width: 250px;
+                min-width: 200px;
+                max-width: 270px;
                 background: rgba(15, 23, 42, 0.92);
                 backdrop-filter: blur(16px);
                 -webkit-backdrop-filter: blur(16px);
@@ -587,6 +606,9 @@ export default function RouteMap({
               onmousedown="event.stopPropagation()"
               onmouseup="event.stopPropagation()"
               onclick="event.stopPropagation()"
+              onkeydown="event.stopPropagation()"
+              onkeyup="event.stopPropagation()"
+              onkeypress="event.stopPropagation()"
               ontouchstart="event.stopPropagation()"
               ontouchmove="event.stopPropagation()"
               ontouchend="event.stopPropagation()"
@@ -597,7 +619,7 @@ export default function RouteMap({
                 </div>
 
                 <!-- Date & Time Selectors Row -->
-                <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+                <div style="display: flex; gap: 6px; margin-bottom: 8px; align-items: center;">
                   <select onchange="window.handleOverlayDayChange(this.value)" style="
                     background: rgba(255,255,255,0.08);
                     border: 1px solid rgba(255,255,255,0.15);
@@ -607,23 +629,68 @@ export default function RouteMap({
                     padding: 3px 6px;
                     cursor: pointer;
                     outline: none;
-                    flex: 1.2;
+                    flex: 1.5;
                   ">
                     ${dayOptionsHtml}
                   </select>
-                  <select onchange="window.handleOverlayHourChange(this.value)" style="
-                    background: rgba(255,255,255,0.08);
-                    border: 1px solid rgba(255,255,255,0.15);
-                    border-radius: 6px;
-                    color: var(--hud-text-primary);
-                    font-size: 10px;
-                    padding: 3px 6px;
-                    cursor: pointer;
-                    outline: none;
-                    flex: 1;
-                  ">
-                    ${hourOptionsHtml}
-                  </select>
+                  <div style="display: flex; gap: 3px; align-items: center; flex: 2.2;">
+                    <input type="text"
+                      inputmode="numeric"
+                      pattern="[0-9]*"
+                      maxlength="2"
+                      value="${displayHour}"
+                      oninput="this.value = this.value.replace(/\\D/g, '')"
+                      onkeydown="if(event.key === 'Enter') this.blur(); event.stopPropagation();"
+                      onkeyup="event.stopPropagation();"
+                      onkeypress="event.stopPropagation();"
+                      onfocus="this.style.borderColor='var(--color-emerald)';"
+                      onblur="this.style.borderColor='rgba(255,255,255,0.15)'; let v = parseInt(this.value, 10); if (isNaN(v)) v = 8; ${
+                        isImperial
+                          ? `v = Math.max(1, Math.min(12, v)); this.value = v.toString().padStart(2, '0'); window.handleOverlayHour12Change(v);`
+                          : `v = Math.max(0, Math.min(23, v)); this.value = v.toString().padStart(2, '0'); window.handleOverlayHourChange(v);`
+                      }"
+                      style="
+                        background: rgba(255,255,255,0.08);
+                        border: 1px solid rgba(255,255,255,0.15);
+                        border-radius: 6px;
+                        color: var(--hud-text-primary);
+                        font-size: 10px;
+                        padding: 3px 2px;
+                        outline: none;
+                        text-align: center;
+                        width: 24px;
+                        cursor: text;
+                        transition: border-color 0.2s ease;
+                      "
+                    />
+                    <span style="color: var(--hud-text-secondary); font-size: 10px;">:</span>
+                    <input type="text"
+                      inputmode="numeric"
+                      pattern="[0-9]*"
+                      maxlength="2"
+                      value="${displayMinute}"
+                      oninput="this.value = this.value.replace(/\\D/g, '')"
+                      onkeydown="if(event.key === 'Enter') this.blur(); event.stopPropagation();"
+                      onkeyup="event.stopPropagation();"
+                      onkeypress="event.stopPropagation();"
+                      onfocus="this.style.borderColor='var(--color-emerald)';"
+                      onblur="this.style.borderColor='rgba(255,255,255,0.15)'; let v = parseInt(this.value, 10); if (isNaN(v)) v = 0; v = Math.max(0, Math.min(59, v)); this.value = v.toString().padStart(2, '0'); window.handleOverlayMinuteChange(v);"
+                      style="
+                        background: rgba(255,255,255,0.08);
+                        border: 1px solid rgba(255,255,255,0.15);
+                        border-radius: 6px;
+                        color: var(--hud-text-primary);
+                        font-size: 10px;
+                        padding: 3px 2px;
+                        outline: none;
+                        text-align: center;
+                        width: 24px;
+                        cursor: text;
+                        transition: border-color 0.2s ease;
+                      "
+                    />
+                    ${periodSelectHtml}
+                  </div>
                 </div>
 
                 <div style="margin-bottom: 5px; display: flex; align-items: center; gap: 4px;">
