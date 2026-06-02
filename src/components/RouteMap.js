@@ -22,7 +22,7 @@ export default function RouteMap({
   unitSystem = "metric",
   hudState = 0,
   userLocation = null,
-  focusedWeatherIndex = 0,
+  ambientWeatherForecast = null,
   onMapMove = null
 }) {
   const mapContainerRef = useRef(null);
@@ -483,16 +483,15 @@ export default function RouteMap({
 
     });
 
-  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState, customSpeed, focusedWeatherIndex]);
+  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState, customSpeed, ambientWeatherForecast]);
 
   // Synchronously compute derived environmental metrics in render (avoiding useEffect cascading triggers)
   const getAmbientWeatherMetrics = () => {
-    if (weatherResults.length === 0) {
+    if (!ambientWeatherForecast) {
       return { temp: 20, rain: 0, windSpeed: 10, windDir: 0, gusts: 0 };
     }
-    const targetIdx = Math.max(0, Math.min(focusedWeatherIndex, weatherResults.length - 1));
-    const targetHourly = weatherResults[targetIdx]?.hourly;
-    if (!targetHourly) {
+    const hourly = ambientWeatherForecast.hourly;
+    if (!hourly) {
       return { temp: 20, rain: 0, windSpeed: 10, windDir: 0, gusts: 0 };
     }
 
@@ -507,7 +506,7 @@ export default function RouteMap({
       const hour = now.getHours().toString().padStart(2, "0");
       const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
       
-      let matchedIdx = targetHourly.time?.indexOf(currentHourStr);
+      let matchedIdx = hourly.time?.indexOf(currentHourStr);
       if (matchedIdx === -1 || matchedIdx === undefined) {
         matchedIdx = now.getHours();
       }
@@ -515,11 +514,11 @@ export default function RouteMap({
     }
 
     return {
-      temp: targetHourly.temperature_2m?.[currentHourIdx] ?? 20,
-      rain: targetHourly.precipitation_probability?.[currentHourIdx] ?? 0,
-      windSpeed: targetHourly.wind_speed_10m?.[currentHourIdx] ?? 10,
-      windDir: targetHourly.wind_direction_10m?.[currentHourIdx] ?? 0,
-      gusts: targetHourly.wind_gusts_10m?.[currentHourIdx] ?? 0
+      temp: hourly.temperature_2m?.[currentHourIdx] ?? 20,
+      rain: hourly.precipitation_probability?.[currentHourIdx] ?? 0,
+      windSpeed: hourly.wind_speed_10m?.[currentHourIdx] ?? 10,
+      windDir: hourly.wind_direction_10m?.[currentHourIdx] ?? 0,
+      gusts: hourly.wind_gusts_10m?.[currentHourIdx] ?? 0
     };
   };
 

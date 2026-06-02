@@ -137,7 +137,6 @@ export default function Home() {
 
   // Adaptive Unit Toggle (📐 Metric / Imperial)
   const [unitSystem, setUnitSystem] = useState("metric");
-  const [focusedWeatherIndex, setFocusedWeatherIndex] = useState(0);
 
   // Helper unit formatting functions
   const formatTemp = (celsius) => {
@@ -171,7 +170,7 @@ export default function Home() {
   const geocodeTimeoutRef = useRef(null);
 
   // Derived state: weatherLocationName represents active route's starting city or fallback base location
-  const weatherLocationName = (draftStart && draftStart.label)
+  const weatherLocationName = (draftStart && draftStart.label && baseWeatherLocationName !== "Map Viewport")
     ? (draftStart.label.split(",")[0] || "Route Start")
     : baseWeatherLocationName;
 
@@ -236,7 +235,6 @@ export default function Home() {
 
       const weatherData = await fetchRouteWeather(decodedCoords, routeData.distance);
       setWeatherResults(weatherData);
-      setFocusedWeatherIndex(0);
 
       setHudState(overrideState !== null ? overrideState : 2);
     } catch (err) {
@@ -429,7 +427,6 @@ export default function Home() {
       setRouteSegments(route.segments);
       fetchRouteWeather(route.coordinates, route.distance || 10).then(weatherData => {
         setWeatherResults(weatherData);
-        setFocusedWeatherIndex(0);
       }).catch(e => console.error("Error fetching weather for loaded route:", e));
       setHudState(2);
     } else {
@@ -695,19 +692,7 @@ export default function Home() {
     }, 500); // 500ms panning debounce
   }, [fetchAmbientWeather, isLoading]);
 
-  // Route travel simulation: auto-cycle focused weather index over time when a route is active
-  useEffect(() => {
-    const numStations = activeRouteData?.weatherResults?.length || 0;
-    if (numStations <= 1) {
-      return;
-    }
 
-    const interval = setInterval(() => {
-      setFocusedWeatherIndex((prevIdx) => (prevIdx + 1) % numStations);
-    }, 4000); // cycle focused station every 4 seconds
-
-    return () => clearInterval(interval);
-  }, [activeRouteData?.weatherResults]);
 
   // Get active forecast details for Top HUD bubbles (declared before accessed by packing logic)
   const getActiveForecast = () => {
@@ -922,9 +907,7 @@ export default function Home() {
 
   // Get dynamic ambient weather based on timeline scrub position
   const getDynamicAmbientWeather = () => {
-    const activeWeatherSource = (activeRouteData && activeRouteData.weatherResults && activeRouteData.weatherResults.length > 0)
-      ? activeRouteData.weatherResults[focusedWeatherIndex]
-      : ambientWeatherForecast;
+    const activeWeatherSource = ambientWeatherForecast;
 
     if (!activeWeatherSource) return ambientWeather;
     const hourly = activeWeatherSource.hourly;
@@ -948,26 +931,11 @@ export default function Home() {
       hourIdx = currentHourIdx;
     }
 
-    // Determine location label for the HUD title
-    let locationLabel = "Origin";
-    const numStations = activeRouteData?.weatherResults?.length || 0;
-    if (numStations > 1) {
-      if (focusedWeatherIndex === 0) {
-        locationLabel = activeRouteData.startLocation?.label?.split(",")[0] || "Origin";
-      } else if (focusedWeatherIndex === numStations - 1) {
-        locationLabel = activeRouteData.endLocation?.label?.split(",")[0] || "Destination";
-      } else {
-        locationLabel = `Midpoint #${focusedWeatherIndex}`;
-      }
-    } else {
-      locationLabel = weatherLocationName;
-    }
-
     return {
       temp: hourly.temperature_2m?.[hourIdx] ?? (ambientWeather?.temp ?? 22),
       windSpeed: hourly.wind_speed_10m?.[hourIdx] ?? (ambientWeather?.windSpeed ?? 12),
       windDir: getWindCompassDirection(hourly.wind_direction_10m?.[hourIdx] ?? 0),
-      desc: locationLabel
+      desc: weatherLocationName
     };
   };
 
@@ -1274,9 +1242,8 @@ export default function Home() {
             }
           }}
           unitSystem={unitSystem}
-          hudState={hudState}
           userLocation={userLocation}
-          focusedWeatherIndex={focusedWeatherIndex}
+          ambientWeatherForecast={ambientWeatherForecast}
           onMapMove={handleMapMove}
         />
       </div>
@@ -1325,7 +1292,6 @@ export default function Home() {
                   setRouteCoordinates([]);
                   setRouteSegments([]);
                   setWeatherResults([]);
-                  setFocusedWeatherIndex(0);
                   setDraftStart(null);
                   setDraftEnd(null);
                   setStartQuery("");
