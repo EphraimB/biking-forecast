@@ -333,16 +333,90 @@
   gap: 4px;
   display: flex;
   flex-direction: column;
+  background: rgba(10, 15, 30, 0.95);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+}
+
+.setupDropBox::-webkit-scrollbar {
+  width: 6px;
+}
+
+.setupDropBox::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.setupDropBox::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+}
+
+.setupDropBox::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .setupDropItem {
   padding: 8px 12px;
   border-radius: 8px;
-  background: none;
-  border: none;
-  justify-content: flex-start;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--hud-text-primary);
+  font-size: 0.74rem;
+  font-family: var(--font-body);
+  display: flex;
+  align-items: center;
+  gap: 8px;
   cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  width: 100%;
 }
+
+.setupDropItem:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.10);
+  color: var(--color-emerald);
+}
+
+.timeSelect,
+.bulkTimeSelect {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--hud-border);
+  border-radius: 6px;
+  color: var(--hud-text-primary);
+  font-family: var(--font-body);
+  font-size: 0.74rem;
+  padding: 2px 4px;
+  outline: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.timeSelect:hover,
+.bulkTimeSelect:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.timeSelect:focus,
+.bulkTimeSelect:focus {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: var(--color-emerald);
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.bulkTimeSelect {
+  padding: 4px 6px;
+  width: 100%;
+}
+
 
 .saveToggleRow {
   display: flex;

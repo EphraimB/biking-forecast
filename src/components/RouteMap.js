@@ -338,7 +338,8 @@ export default function RouteMap({
           }
 
           hoverPoly.bindPopup(tooltipHtml, {
-            className: "leaflet-popup-segment"
+            className: "leaflet-popup-segment",
+            closeOnClick: false
           });
 
           // Style animations synced to broad hover triggers
@@ -407,7 +408,7 @@ export default function RouteMap({
                   Drink <strong>${waterAmount}</strong> of fluid at this coordinate (${displayCheckpointDist}).
                 </div>
               </div>
-            `);
+            `, { closeOnClick: false });
 
             layersRef.current.telemetries.push(hydMarker);
           }
@@ -458,7 +459,7 @@ export default function RouteMap({
                   Consume <strong>${carbAmount}</strong> to fuel through this segment (${displayCheckpointDist}).
                 </div>
               </div>
-            `);
+            `, { closeOnClick: false });
 
             layersRef.current.telemetries.push(nutMarker);
           }

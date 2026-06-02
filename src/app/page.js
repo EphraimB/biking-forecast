@@ -49,6 +49,124 @@ function getWindCompassDirection(degrees) {
   return directions[index];
 }
 
+function CustomTimeInput({ value, onChange, unitSystem, isBulk = false }) {
+  const [hStr, mStr] = (value || "08:00").split(":");
+  let hour = parseInt(hStr, 10);
+  if (isNaN(hour)) hour = 8;
+  let minute = parseInt(mStr, 10);
+  if (isNaN(minute)) minute = 0;
+
+  const handleHourChange = (newHour) => {
+    const formattedHour = newHour.toString().padStart(2, "0");
+    const formattedMinute = minute.toString().padStart(2, "0");
+    onChange(`${formattedHour}:${formattedMinute}`);
+  };
+
+  const handleMinuteChange = (newMinute) => {
+    const formattedHour = hour.toString().padStart(2, "0");
+    const formattedMinute = newMinute.toString().padStart(2, "0");
+    onChange(`${formattedHour}:${formattedMinute}`);
+  };
+
+  const handlePeriodChange = (newPeriod) => {
+    let new24Hour = hour;
+    const isPM = newPeriod === "PM";
+    const currentIsPM = hour >= 12;
+    if (isPM && !currentIsPM) {
+      new24Hour = (hour % 12) + 12;
+    } else if (!isPM && currentIsPM) {
+      new24Hour = hour % 12;
+    }
+    const formattedHour = new24Hour.toString().padStart(2, "0");
+    const formattedMinute = minute.toString().padStart(2, "0");
+    onChange(`${formattedHour}:${formattedMinute}`);
+  };
+
+  const selectClass = isBulk ? styles.bulkTimeSelect : styles.timeSelect;
+
+  if (unitSystem === "metric") {
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+    const minutes = Array.from({ length: 60 }, (_, i) => i);
+
+    return (
+      <div style={{ display: "inline-flex", alignItems: "center", gap: "2px" }}>
+        <select
+          value={hour}
+          onChange={(e) => handleHourChange(parseInt(e.target.value, 10))}
+          className={selectClass}
+        >
+          {hours.map((h) => (
+            <option key={h} value={h}>
+              {h.toString().padStart(2, "0")}
+            </option>
+          ))}
+        </select>
+        <span style={{ fontSize: "0.72rem", color: "var(--hud-text-secondary)" }}>:</span>
+        <select
+          value={minute}
+          onChange={(e) => handleMinuteChange(parseInt(e.target.value, 10))}
+          className={selectClass}
+        >
+          {minutes.map((m) => (
+            <option key={m} value={m}>
+              {m.toString().padStart(2, "0")}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  } else {
+    const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+    const period = hour >= 12 ? "PM" : "AM";
+    const hours = Array.from({ length: 12 }, (_, i) => i + 1);
+    const minutes = Array.from({ length: 60 }, (_, i) => i);
+
+    return (
+      <div style={{ display: "inline-flex", alignItems: "center", gap: "2px" }}>
+        <select
+          value={displayHour}
+          onChange={(e) => {
+            const val = parseInt(e.target.value, 10);
+            const isPM = period === "PM";
+            let new24Hour = val;
+            if (isPM && val !== 12) new24Hour = val + 12;
+            if (!isPM && val === 12) new24Hour = 0;
+            handleHourChange(new24Hour);
+          }}
+          className={selectClass}
+        >
+          {hours.map((h) => (
+            <option key={h} value={h}>
+              {h.toString().padStart(2, "0")}
+            </option>
+          ))}
+        </select>
+        <span style={{ fontSize: "0.72rem", color: "var(--hud-text-secondary)" }}>:</span>
+        <select
+          value={minute}
+          onChange={(e) => handleMinuteChange(parseInt(e.target.value, 10))}
+          className={selectClass}
+        >
+          {minutes.map((m) => (
+            <option key={m} value={m}>
+              {m.toString().padStart(2, "0")}
+            </option>
+          ))}
+        </select>
+        <select
+          value={period}
+          onChange={(e) => handlePeriodChange(e.target.value)}
+          className={selectClass}
+          style={{ marginLeft: "2px" }}
+        >
+          <option value="AM">AM</option>
+          <option value="PM">PM</option>
+        </select>
+      </div>
+    );
+  }
+}
+
 export default function Home() {
   // Hydration & localStorage restoration guard
   const [isRestored, setIsRestored] = useState(false);
@@ -176,6 +294,9 @@ export default function Home() {
   const startGeocodeTimeoutRef = useRef(null);
   const endGeocodeTimeoutRef = useRef(null);
   const mapMoveTimeoutRef = useRef(null);
+  const startInputRef = useRef(null);
+  const endInputRef = useRef(null);
+
 
   // Derived state: weatherLocationName represents active route's starting city or fallback base location
   const weatherLocationName = (draftStart && draftStart.label && baseWeatherLocationName !== "Map Viewport")
@@ -304,6 +425,24 @@ export default function Home() {
         }
       }, 600);
     }
+  }, []);
+
+  // Click outside to close autosuggestions dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (startInputRef.current && !startInputRef.current.contains(event.target)) {
+        setStartResults([]);
+      }
+      if (endInputRef.current && !endInputRef.current.contains(event.target)) {
+        setEndResults([]);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
   }, []);
 
   // 1. Initial Mount: Restore Active View State
@@ -1777,7 +1916,7 @@ export default function Home() {
               </div>
 
               {/* Start input */}
-              <div className={styles.relativeWrapper}>
+              <div ref={startInputRef} className={styles.relativeWrapper}>
                 <input 
                   type="text" 
                   className="hud-input" 
@@ -1808,7 +1947,8 @@ export default function Home() {
                           }
                         }}
                       >
-                        {loc.label}
+                        <MapPin size={12} style={{ color: "var(--color-emerald)", flexShrink: 0 }} />
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{loc.label}</span>
                       </div>
                     ))}
                   </div>
@@ -1816,7 +1956,7 @@ export default function Home() {
               </div>
 
               {/* End input */}
-              <div className={styles.relativeWrapper}>
+              <div ref={endInputRef} className={styles.relativeWrapper}>
                 <input 
                   type="text" 
                   className="hud-input" 
@@ -1847,7 +1987,8 @@ export default function Home() {
                           }
                         }}
                       >
-                        {loc.label}
+                        <MapPin size={12} style={{ color: "var(--color-emerald)", flexShrink: 0 }} />
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{loc.label}</span>
                       </div>
                     ))}
                   </div>
@@ -2165,20 +2306,18 @@ export default function Home() {
               <div className={`${styles.timeInputsGroup} time-inputs-group`}>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Outbound:</span>
-                  <input 
-                    type="time" 
+                  <CustomTimeInput 
                     value={weeklySchedule[currentDayOfWeek]?.outbound || "08:00"}
-                    onChange={(e) => updateDailySchedule(selectedDayOffset, 'outbound', e.target.value)}
-                    className={styles.timeFieldInput}
+                    onChange={(val) => updateDailySchedule(selectedDayOffset, 'outbound', val)}
+                    unitSystem={unitSystem}
                   />
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Return:</span>
-                  <input 
-                    type="time" 
+                  <CustomTimeInput 
                     value={weeklySchedule[currentDayOfWeek]?.return || "17:30"}
-                    onChange={(e) => updateDailySchedule(selectedDayOffset, 'return', e.target.value)}
-                    className={styles.timeFieldInput}
+                    onChange={(val) => updateDailySchedule(selectedDayOffset, 'return', val)}
+                    unitSystem={unitSystem}
                   />
                 </div>
               </div>
@@ -2245,20 +2384,20 @@ export default function Home() {
             <div style={{ display: "flex", gap: "8px" }}>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
                 <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Arrive by</span>
-                <input
-                  type="time"
+                <CustomTimeInput
                   value={bulkOutbound}
-                  onChange={(e) => setBulkOutbound(e.target.value)}
-                  className={styles.bulkTimeFieldInput}
+                  onChange={setBulkOutbound}
+                  unitSystem={unitSystem}
+                  isBulk={true}
                 />
               </div>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
                 <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Leave at</span>
-                <input
-                  type="time"
+                <CustomTimeInput
                   value={bulkReturn}
-                  onChange={(e) => setBulkReturn(e.target.value)}
-                  className={styles.bulkTimeFieldInput}
+                  onChange={setBulkReturn}
+                  unitSystem={unitSystem}
+                  isBulk={true}
                 />
               </div>
             </div>
