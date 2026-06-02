@@ -1693,14 +1693,14 @@ export default function Home() {
       */}
       {/* 7-Day Biking Commute Forecast Ribbon (Always Visible in States 0, 2, 3) */}
       {(hudState === 0 || hudState === 2 || hudState === 3) && ribbonDaysData.length > 0 && (
-        <div className={`${styles.ribbonOuter} hud-slide-bottom`}>
+        <div className={styles.ribbonOuter}>
           <div className={styles.ribbonHeaderRow}>
             <span className={styles.ribbonTitle}>
               🚴 7-Day Commuter Biking Forecast
             </span>
           </div>
 
-          <div className={`${styles.ribbonBox} hud-card ribbon-container`}>
+          <div className={`${styles.ribbonBox} hud-card`}>
             {ribbonDaysData.map((day) => {
               const isSelected = hudState === 3 && selectedDayOffset === day.offset;
               const hasOutbound = day.outbound && day.outbound.departure !== null && day.outbound.score !== null;
@@ -1709,7 +1709,7 @@ export default function Home() {
               return (
                 <div 
                   key={day.offset} 
-                  className={`${styles.ribbonItem} ribbon-item ${isSelected ? "selected" : ""}`}
+                  className={`${styles.ribbonItem} ${isSelected ? "selected" : ""}`}
                   onClick={() => {
                     if (hasOutbound || hasReturn) {
                       setSelectedDayOffset(day.offset);
@@ -1976,7 +1976,7 @@ export default function Home() {
               {/* Exit day focus button */}
               <button 
                 onClick={() => setHudState(2)} // Return to Week-wide ambient outlook
-                className={`hud-btn ${styles.exitScrubBtn} exit-scrub-btn`}
+                className={`hud-btn ${styles.exitScrubBtn}`}
               >
                 <X size={12} />
                 <span>Exit Scrub</span>

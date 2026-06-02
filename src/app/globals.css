@@ -507,50 +507,6 @@ html, body {
     z-index: 999999 !important;
   }
 
-  /* Bottom Ribbon and Scrubber container alignment */
-  .hud-slide-bottom {
-    left: 10px !important;
-    right: 10px !important;
-    width: calc(100% - 20px) !important;
-    bottom: 15px !important;
-  }
-
-  /* Ribbon Items Scroll Container on Mobile */
-  .ribbon-container {
-    gap: 8px !important;
-    padding: 8px 10px !important;
-    overflow-x: auto !important;
-    justify-content: flex-start !important;
-    scroll-behavior: smooth;
-    -webkit-overflow-scrolling: touch;
-  }
-  .ribbon-container::-webkit-scrollbar {
-    height: 4px;
-  }
-  .ribbon-container::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .ribbon-container::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: 2px;
-  }
-
-  .ribbon-item {
-    padding: 6px 6px !important;
-    border-radius: 12px !important;
-    flex-shrink: 0 !important;
-    width: 100px !important;
-  }
-
-  .ribbon-item > span {
-    font-size: 0.62rem !important;
-  }
-
-  .ribbon-item div {
-    font-size: 0.58rem !important;
-    gap: 2px !important;
-  }
-
   /* Timeline Scrubber stacked column layout */
   .timeline-scrubber-container {
     flex-direction: column !important;
@@ -570,13 +526,6 @@ html, body {
     padding-top: 10px !important;
     justify-content: space-between !important;
     width: 100% !important;
-  }
-
-  .timeline-scrubber-container .exit-scrub-btn {
-    width: 100% !important;
-    justify-content: center !important;
-    margin-left: 0 !important;
-    margin-top: 4px !important;
   }
 
   /* State 1 Search Container & Config Panel mobile styling */
