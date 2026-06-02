@@ -1023,6 +1023,55 @@ export default function Home() {
 
   const activeForecast = getActiveForecast();
 
+  const getLeaveNowOverlayData = () => {
+    if (!activeForecast) return null;
+    
+    const duration = activeForecast.duration;
+    
+    let depDate;
+    let label;
+    if (hudState === 3) {
+      depDate = new Date();
+      depDate.setDate(depDate.getDate() + selectedDayOffset);
+      depDate.setHours(selectedHour, 0, 0, 0);
+      label = `Trip at ${formatTimeToAMPM(`${selectedHour.toString().padStart(2, "0")}:00`)}`;
+    } else {
+      depDate = new Date();
+      label = "Leave Now";
+    }
+    
+    const arrivalDate = new Date(depDate.getTime() + duration * 60 * 1000);
+    const arrivalTimeStr = formatTimeAMPM(arrivalDate);
+    const depTimeStr = formatTimeAMPM(depDate);
+    
+    // Packing list
+    const checkHour = depDate.getHours();
+    const temp = activeForecast.temp;
+    const isRaining = activeForecast.precip > 0.1;
+    const isSunset = checkHour > 18 || checkHour < 7;
+    
+    const items = [];
+    items.push("🥤 Fluid");
+    items.push("🍌 Fuel");
+    if (isRaining) items.push("🧥 Rain Jacket");
+    if (temp < 12) items.push("🧣 Warm Gear");
+    if (isSunset) items.push("🔦 Lights");
+    
+    const isImperial = unitSystem === "imperial";
+    const displayDist = isImperial
+      ? `${Math.round(activeForecast.distance * 0.621371 * 10) / 10} mi`
+      : `${activeForecast.distance.toFixed(1)} km`;
+
+    return {
+      duration,
+      distance: displayDist,
+      depTimeStr,
+      arrivalTimeStr,
+      label,
+      packingList: items.join(", ")
+    };
+  };
+
   // Pure derived state: Packing list calculated synchronously inside render (satisfies react-hooks linter rules)
   const getDynamicPackingList = () => {
     if (!isPackingOpen || activeRouteData.weatherResults.length === 0) return [];
@@ -1557,6 +1606,7 @@ export default function Home() {
           userLocation={userLocation}
           ambientWeatherForecast={ambientWeatherForecast}
           onMapMove={handleMapMove}
+          leaveNowOverlayData={getLeaveNowOverlayData()}
         />
       </div>
 

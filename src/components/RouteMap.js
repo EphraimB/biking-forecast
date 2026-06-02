@@ -23,7 +23,8 @@ export default function RouteMap({
   hudState = 0,
   userLocation = null,
   ambientWeatherForecast = null,
-  onMapMove = null
+  onMapMove = null,
+  leaveNowOverlayData = null
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -516,6 +517,55 @@ export default function RouteMap({
         });
         const endMarker = L.marker([endLocation.lat, endLocation.lon], { icon: endIcon }).addTo(map);
         layersRef.current.markers.push(endMarker);
+
+        // Render Leave Now Summary Overlay card to the side of the end pin
+        if (leaveNowOverlayData) {
+          const overlayIcon = L.divIcon({
+            className: "",
+            html: `
+              <div class="route-summary-overlay-card" style="
+                position: absolute;
+                left: 16px;
+                top: -65px;
+                width: max-content;
+                min-width: 170px;
+                max-width: 250px;
+                background: rgba(15, 23, 42, 0.88);
+                backdrop-filter: blur(16px);
+                -webkit-backdrop-filter: blur(16px);
+                border: 1.5px solid rgba(255, 255, 255, 0.12);
+                border-radius: 12px;
+                padding: 10px 12px;
+                box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+                color: var(--hud-text-primary);
+                font-family: var(--font-body);
+                font-size: 11px;
+                pointer-events: auto;
+                z-index: 1000;
+              ">
+                <div style="font-weight: 800; color: #ef4444; font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
+                  🏁 ${leaveNowOverlayData.label}
+                </div>
+                <div style="margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
+                  <span>⏱️</span>
+                  <span><strong>Ride</strong>: ${leaveNowOverlayData.duration} mins (${leaveNowOverlayData.distance})</span>
+                </div>
+                <div style="margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
+                  <span>⏰</span>
+                  <span><strong>Arrival</strong>: ${leaveNowOverlayData.arrivalTimeStr}</span>
+                </div>
+                <div style="border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 6px; display: flex; flex-direction: column; gap: 2px;">
+                  <span style="color: var(--hud-text-secondary); font-weight: 600; font-size: 10px;">🎒 RECOMMENDATION</span>
+                  <span style="font-size: 10.5px; color: var(--color-emerald); font-weight: 700;">${leaveNowOverlayData.packingList}</span>
+                </div>
+              </div>
+            `,
+            iconSize: [0, 0],
+            iconAnchor: [0, 0]
+          });
+          const overlayMarker = L.marker([endLocation.lat, endLocation.lon], { icon: overlayIcon }).addTo(map);
+          layersRef.current.markers.push(overlayMarker);
+        }
       }
 
       // Draw user's current GPS location marker (pulsing blue circle)
@@ -537,7 +587,7 @@ export default function RouteMap({
 
     });
 
-  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState, customSpeed, userLocation]);
+  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState, customSpeed, userLocation, leaveNowOverlayData]);
 
   // Synchronously compute derived environmental metrics in render (avoiding useEffect cascading triggers)
   const getAmbientWeatherMetrics = () => {
