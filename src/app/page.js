@@ -509,6 +509,15 @@ export default function Home() {
     return `${displayH}:${displayM} ${ampm}`;
   };
 
+  const getShortLabel = (label) => {
+    if (!label) return "";
+    const parts = label.split(",");
+    if (parts.length > 1 && !isNaN(parts[0].trim())) {
+      return `${parts[0].trim()} ${parts[1].trim()}`;
+    }
+    return parts[0].trim();
+  };
+
   const getSuggestedDeparture = (routeId, day, targetArrivalTimeStr, isReturn = false) => {
     const route = savedRoutes.find(r => r.id === routeId);
     const boundWeatherEntry = scheduledRoutesWeather[routeId];
@@ -1752,7 +1761,7 @@ export default function Home() {
                       className={styles.trackCard}
                     >
                       <div className={styles.trackHeaderRow}>
-                        <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.6rem" }}>🌅 {day.outbound.toLabel || "Outbound"}</span>
+                        <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.6rem" }}>🌅 Outbound</span>
                         {hasOutbound ? (
                           <span 
                             className={styles.scoreBadge}
@@ -1805,7 +1814,7 @@ export default function Home() {
                       className={styles.trackCard}
                     >
                       <div className={styles.trackHeaderRow}>
-                        <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.6rem" }}>🌇 {day.return.fromLabel || "Inbound"}</span>
+                        <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.6rem" }}>🌇 Inbound</span>
                         {hasReturn ? (
                           <span 
                             className={styles.scoreBadge}
@@ -1851,7 +1860,7 @@ export default function Home() {
           {hudState === 3 && (
             <div className={`${styles.scrubberContainer} hud-card timeline-scrubber-container`}>
               {/* Timeline Scrubber */}
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, flexWrap: "wrap" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
                   <Clock size={14} style={{ color: "var(--hud-text-secondary)" }} />
                   <span style={{ fontSize: "0.78rem", fontWeight: "700", width: "64px" }}>
@@ -1871,9 +1880,11 @@ export default function Home() {
                     borderRadius: "12px",
                     display: "flex",
                     alignItems: "center",
-                    gap: "4px"
+                    gap: "4px",
+                    whiteSpace: "nowrap",
+                    flexShrink: 0
                   }}>
-                    {isReturnTripMode ? "🔙 Inbound to" : "🚴 Outbound to"}: {activeRouteData.endLocation.label.split(",")[0]}
+                    {isReturnTripMode ? "🌇 Inbound" : "🌅 Outbound"}
                   </span>
                 )}
 
