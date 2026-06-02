@@ -543,7 +543,7 @@ html, body {
   /* Centered Viewport Overlay Panels (Saved Routes, Gear Check, Planner) */
   .hud-card-responsive {
     position: fixed !important;
-    top: 105px !important; /* Clears the stacked double-row controls */
+    top: 60px !important; /* Clears the thin single-row controls */
     left: 10px !important;
     right: 10px !important;
     width: calc(100% - 20px) !important;
@@ -617,22 +617,23 @@ html, body {
     top: 10px !important;
     left: 10px !important;
     right: 10px !important;
-    flex-direction: column !important;
-    align-items: stretch !important;
-    gap: 8px !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 6px !important;
   }
 
   .hud-top-left {
     justify-content: flex-start !important;
     flex-wrap: nowrap !important;
-    width: 100% !important;
+    width: auto !important;
     gap: 6px !important;
   }
 
   .hud-top-right {
     justify-content: flex-end !important;
     flex-wrap: nowrap !important;
-    width: 100% !important;
+    width: auto !important;
     gap: 6px !important;
   }
 }

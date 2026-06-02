@@ -1604,7 +1604,7 @@ export default function Home() {
                   {dynamicAmbientWeather.desc}:
                 </span>
                 {formatTemp(dynamicAmbientWeather.temp)}
-                <span className="mobile-hide"> • {formatWind(dynamicAmbientWeather.windSpeed)} {dynamicAmbientWeather.windDir}</span>
+                <span> • {formatWind(dynamicAmbientWeather.windSpeed)} {dynamicAmbientWeather.windDir}</span>
               </span>
             </div>
           )}
