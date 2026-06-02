@@ -405,7 +405,9 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance, forceRe
     mockData.errorMessage = error.message || "Network request failed";
 
     if (mockData.errorType === "429") {
-      mockData.cooldownUntil = Date.now() + 120 * 1000; // 2 minutes cooldown
+      const now = new Date();
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+      mockData.cooldownUntil = midnight.getTime(); // Lock until local midnight
     }
 
     const now = new Date();

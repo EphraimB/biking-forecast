@@ -390,15 +390,15 @@ export default function Home() {
         cdTime = weatherData.cooldownUntil || (Date.now() + 120 * 1000);
         setCooldownTime(cdTime);
         localStorage.setItem("weather_429_cooldown_until", cdTime.toString());
+        // Do not display a toast notification for rate limit errors as requested by the user
+        return weatherData;
       }
       
       setToast(prev => {
         const remaining = cdTime ? Math.max(0, Math.ceil((cdTime - Date.now()) / 1000)) : 0;
-        const message = isRateLimit
-          ? `Weather rate limit active. Using offline forecast. Retry in ${formatCooldown(remaining || 120)}.`
-          : `Weather API offline. Using simulated forecast.`;
+        const message = `Weather API offline. Using simulated forecast.`;
           
-        const newId = isRateLimit ? "toast-429" : Math.random().toString();
+        const newId = Math.random().toString();
         
         if (prev && prev.message === message) {
           return prev;
@@ -406,9 +406,9 @@ export default function Home() {
         
         return {
           id: newId,
-          type: isRateLimit ? "warning" : "info",
+          type: "info",
           message,
-          isPersistent: isRateLimit
+          isPersistent: false
         };
       });
     }
@@ -670,6 +670,8 @@ export default function Home() {
       return () => clearTimeout(timer);
     }
   }, [toast]);
+
+
 
   // Cooldown countdown interval
   useEffect(() => {
@@ -2107,22 +2109,24 @@ export default function Home() {
           key={toast.id}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className={styles.toastContent}>
-            <span className={styles.toastIcon}>
-              {toast.type === "error" && "🚨"}
-              {toast.type === "warning" && "⚠️"}
-              {toast.type === "success" && "✅"}
-              {toast.type === "info" && "ℹ️"}
-            </span>
-            <span className={styles.toastMessage}>{toast.message}</span>
+          <div className={styles.toastContainer}>
+            <div className={styles.toastContent}>
+              <span className={styles.toastIcon}>
+                {toast.type === "error" && "🚨"}
+                {toast.type === "warning" && "⚠️"}
+                {toast.type === "success" && "✅"}
+                {toast.type === "info" && "ℹ️"}
+              </span>
+              <span className={styles.toastMessage}>{toast.message}</span>
+            </div>
+            <button 
+              onClick={() => setToast(null)} 
+              className={styles.toastCloseBtn}
+              title="Dismiss Alert"
+            >
+              <X size={12} />
+            </button>
           </div>
-          <button 
-            onClick={() => setToast(null)} 
-            className={styles.toastCloseBtn}
-            title="Dismiss Alert"
-          >
-            <X size={12} />
-          </button>
         </div>
       )}
 
@@ -2476,7 +2480,7 @@ export default function Home() {
                 {formatTemp(dynamicAmbientWeather.temp)}
                 <span> • {formatWind(dynamicAmbientWeather.windSpeed)} {dynamicAmbientWeather.windDir}</span>
                 {cooldownRemaining > 0 && (
-                  <span className={styles.cooldownBadge} title="Simulated weather is active due to API rate limits.">
+                  <span className={styles.cooldownBadge} title="Open-Meteo API rate-limit (429) active. Serving a localized mathematical simulation modeling temperature waves, humidity, wind patterns, and diurnal solar curves.">
                     ⚠️ SIMULATED <span className="mobile-hide">(Retry {formatCooldown(cooldownRemaining)})</span>
                   </span>
                 )}
@@ -2487,7 +2491,7 @@ export default function Home() {
                   handleRefreshWeather();
                 }} 
                 className={`${styles.weatherRefreshBtn} ${isRefreshingWeather ? styles.spinning : ""}`}
-                title={cooldownRemaining > 0 ? `API rate-limit cooldown: retry available in ${formatCooldown(cooldownRemaining)}` : "Refresh Weather"}
+                title={cooldownRemaining > 0 ? `API rate-limit active. Using mathematical simulation. Retry available in ${formatCooldown(cooldownRemaining)}` : "Refresh Weather"}
                 disabled={isRefreshingWeather || cooldownRemaining > 0}
                 style={{ opacity: cooldownRemaining > 0 ? 0.35 : 1, cursor: cooldownRemaining > 0 ? "not-allowed" : "pointer" }}
               >
