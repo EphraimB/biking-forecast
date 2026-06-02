@@ -2230,42 +2230,7 @@ export default function Home() {
             </button>
           )}
 
-          {/* State 2 & 3: Active Route Score bubble */}
-          {(hudState === 2 || hudState === 3) && activeForecast && (
-            <div className={`hud-bubble ${styles.weatherBubble}`}>
-              <div 
-                className={`${styles.pulseDot} ${activeForecast.score >= 85 ? "hud-pulse-emerald" : activeForecast.score >= 50 ? "hud-pulse-amber" : "hud-pulse-ruby"}`}
-                style={{
-                  background: activeForecast.score >= 85 ? "var(--color-emerald)" : activeForecast.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)",
-                  boxShadow: `0 0 10px ${activeForecast.score >= 85 ? "var(--color-emerald-glow)" : activeForecast.score >= 50 ? "var(--color-amber-glow)" : "var(--color-ruby-glow)"}`
-                }} 
-              />
-              <span style={{ fontSize: "0.88rem", fontWeight: "700" }}>
-                <span className="mobile-hide">Score: </span>{activeForecast.score}% • {activeForecast.wmoEmoji} <span className="mobile-hide">{activeForecast.wmoDesc}</span>
-              </span>
-              <button 
-                onClick={() => {
-                  setHudState(0);
-                  setRouteCoordinates([]);
-                  setRouteSegments([]);
-                  setWeatherResults([]);
-                  setConfirmedStart(null);
-                  setConfirmedEnd(null);
-                  setDraftStart(null);
-                  setDraftEnd(null);
-                  setStartQuery("");
-                  setEndQuery("");
-                  setIsDepartureTimeCustom(false);
-                  setIsReturnTripMode(false);
-                  localStorage.removeItem("hud_active_view_state"); // Clear cached route state on manual reset
-                }} 
-                className={styles.clearRouteBtn}
-                title="Clear Route"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          )}
+          {/* Combined active route weather score bubble inside the departure container header */}
 
           {/* State 2 & 3: Change Route button */}
           {(hudState === 2 || hudState === 3) && (
@@ -2810,9 +2775,63 @@ export default function Home() {
               onTouchMove={(e) => e.stopPropagation()}
               onTouchEnd={(e) => e.stopPropagation()}
             >
-              {/* Header: Title and Reset */}
-              <div className={styles.setupHeader}>
-                <span className={styles.setupTitle} style={{ color: "#ef4444", display: "flex", alignItems: "center", gap: "6px" }}>
+              {/* Header: Route Score & Clear Route (Combined) */}
+              <div className={styles.setupHeader} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "8px", marginBottom: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div 
+                    className={`${styles.pulseDot} ${activeForecast.score >= 85 ? "hud-pulse-emerald" : activeForecast.score >= 50 ? "hud-pulse-amber" : "hud-pulse-ruby"}`}
+                    style={{
+                      background: activeForecast.score >= 85 ? "var(--color-emerald)" : activeForecast.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)",
+                      boxShadow: `0 0 10px ${activeForecast.score >= 85 ? "var(--color-emerald-glow)" : activeForecast.score >= 50 ? "var(--color-amber-glow)" : "var(--color-ruby-glow)"}`,
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      flexShrink: 0
+                    }} 
+                  />
+                  <span style={{ fontSize: "0.85rem", fontWeight: "700", display: "flex", alignItems: "center", gap: "4px" }}>
+                    Score: {activeForecast.score}% • {activeForecast.wmoEmoji} {activeForecast.wmoDesc}
+                  </span>
+                </div>
+                <button 
+                  onClick={() => {
+                    setHudState(0);
+                    setRouteCoordinates([]);
+                    setRouteSegments([]);
+                    setWeatherResults([]);
+                    setConfirmedStart(null);
+                    setConfirmedEnd(null);
+                    setDraftStart(null);
+                    setDraftEnd(null);
+                    setStartQuery("");
+                    setEndQuery("");
+                    setIsDepartureTimeCustom(false);
+                    setIsReturnTripMode(false);
+                    localStorage.removeItem("hud_active_view_state"); // Clear cached route state on manual reset
+                  }} 
+                  className={styles.clearRouteBtn}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--hud-text-secondary)",
+                    cursor: "pointer",
+                    padding: "4px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "color 0.2s ease"
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.color = "var(--color-ruby)"}
+                  onMouseOut={(e) => e.currentTarget.style.color = "var(--hud-text-secondary)"}
+                  title="Clear Route"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              {/* Departure Mode Title & Reset */}
+              <div className={styles.setupHeader} style={{ marginBottom: "6px" }}>
+                <span className={styles.setupTitle} style={{ color: "#ef4444", display: "flex", alignItems: "center", gap: "6px", fontSize: "0.82rem" }}>
                   🏁 {getLeaveNowOverlayData().isDepartureTimeCustom ? (getLeaveNowOverlayData().timeMode === "arrive" ? "Custom Arrival" : "Custom Departure") : "Leave Now"}
                 </span>
                 {getLeaveNowOverlayData().isDepartureTimeCustom && (
@@ -2826,7 +2845,7 @@ export default function Home() {
                       textDecoration: "underline",
                       cursor: "pointer",
                       padding: 0,
-                      fontSize: "11px",
+                      fontSize: "10px",
                     }}
                   >
                     Reset to Now
