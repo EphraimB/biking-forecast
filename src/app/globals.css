@@ -499,11 +499,26 @@ html, body {
   animation: route-flow 4s linear infinite !important;
 }
 
+/* Responsive visibility overrides */
+.mobile-only {
+  display: none !important;
+}
+.desktop-only {
+  display: flex !important;
+}
+
 /* ------------------------------------------------------------- */
 /* PREMIUM RESPONSIVE DESIGN ADJUSTMENTS                         */
 /* ------------------------------------------------------------- */
 
 @media (max-width: 768px) {
+  .mobile-only {
+    display: flex !important;
+  }
+  .desktop-only {
+    display: none !important;
+  }
+
   .hud-bubble {
     padding: 8px 14px !important;
     font-size: 0.78rem !important;
@@ -528,7 +543,7 @@ html, body {
   /* Centered Viewport Overlay Panels (Saved Routes, Gear Check, Planner) */
   .hud-card-responsive {
     position: fixed !important;
-    top: 60px !important; /* Clears the thin single-row controls */
+    top: 105px !important; /* Clears the stacked double-row controls */
     left: 10px !important;
     right: 10px !important;
     width: calc(100% - 20px) !important;
@@ -602,23 +617,22 @@ html, body {
     top: 10px !important;
     left: 10px !important;
     right: 10px !important;
-    flex-direction: row !important;
-    justify-content: space-between !important;
-    align-items: center !important;
-    gap: 6px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
   }
 
   .hud-top-left {
     justify-content: flex-start !important;
     flex-wrap: nowrap !important;
-    width: auto !important;
+    width: 100% !important;
     gap: 6px !important;
   }
 
   .hud-top-right {
     justify-content: flex-end !important;
     flex-wrap: nowrap !important;
-    width: auto !important;
+    width: 100% !important;
     gap: 6px !important;
   }
 }
