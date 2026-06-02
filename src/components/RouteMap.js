@@ -555,11 +555,11 @@ export default function RouteMap({
                 border: 1px solid rgba(255,255,255,0.15);
                 border-radius: 6px;
                 color: var(--hud-text-primary);
-                font-size: 10px;
-                padding: 3px 4px;
+                font-size: 11px;
+                padding: 4px 6px;
                 cursor: pointer;
                 outline: none;
-                flex: 0.9;
+                flex: 1.1;
               ">
                 <option value="AM" style="background: #0f172a; color: #f8fafc;" ${periodVal === "AM" ? "selected" : ""}>AM</option>
                 <option value="PM" style="background: #0f172a; color: #f8fafc;" ${periodVal === "PM" ? "selected" : ""}>PM</option>
@@ -580,26 +580,55 @@ export default function RouteMap({
               ">Reset to Now</button>`
             : "";
 
+          // Determine route incoming direction to place the card on the opposite side
+          let isEnteringFromRight = true;
+          if (coordinates && coordinates.length >= 2) {
+            const dest = coordinates[coordinates.length - 1];
+            const prev = coordinates[coordinates.length - 2];
+            isEnteringFromRight = prev[1] > dest[1];
+          } else if (startLocation && endLocation) {
+            isEnteringFromRight = startLocation.lon > endLocation.lon;
+          }
+
+          const cardLeftOffset = isEnteringFromRight ? "-285px" : "20px";
+          const timeMode = leaveNowOverlayData.timeMode || "leave";
+
+          const telemetryHtml = timeMode === "arrive"
+            ? `<div style="margin-bottom: 6px; display: flex; align-items: center; gap: 6px; font-size: 11px;">
+                 <span>⏱️</span>
+                 <span><strong>Ride</strong>: ${leaveNowOverlayData.duration} mins (${leaveNowOverlayData.distance})</span>
+               </div>
+               <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 6px; font-size: 11px;">
+                 <span>🚀</span>
+                 <span><strong>Depart by</strong>: ${leaveNowOverlayData.depTimeStr}</span>
+               </div>`
+            : `<div style="margin-bottom: 6px; display: flex; align-items: center; gap: 6px; font-size: 11px;">
+                 <span>⏱️</span>
+                 <span><strong>Ride</strong>: ${leaveNowOverlayData.duration} mins (${leaveNowOverlayData.distance})</span>
+               </div>
+               <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 6px; font-size: 11px;">
+                 <span>⏰</span>
+                 <span><strong>Arrival</strong>: ${leaveNowOverlayData.arrivalTimeStr}</span>
+               </div>`;
+
           const overlayIcon = L.divIcon({
             className: "",
             html: `
               <div class="route-summary-overlay-card" style="
                 position: absolute;
-                left: 16px;
-                top: -85px;
-                width: max-content;
-                min-width: 200px;
-                max-width: 270px;
+                left: ${cardLeftOffset};
+                top: -100px;
+                width: 260px;
                 background: rgba(15, 23, 42, 0.92);
                 backdrop-filter: blur(16px);
                 -webkit-backdrop-filter: blur(16px);
                 border: 1.5px solid rgba(255, 255, 255, 0.12);
                 border-radius: 12px;
-                padding: 12px;
-                box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+                padding: 14px;
+                box-shadow: 0 12px 36px rgba(0, 0, 0, 0.75);
                 color: var(--hud-text-primary);
                 font-family: var(--font-body);
-                font-size: 11px;
+                font-size: 12px;
                 pointer-events: auto;
                 z-index: 1000;
               "
@@ -613,23 +642,60 @@ export default function RouteMap({
               ontouchmove="event.stopPropagation()"
               ontouchend="event.stopPropagation()"
               >
-                <div style="font-weight: 800; color: #ef4444; font-size: 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 4px;">
-                  🏁 ${leaveNowOverlayData.isDepartureTimeCustom ? "Custom Departure" : "Leave Now"}
+                <div style="font-weight: 800; color: #ef4444; font-size: 13px; margin-bottom: 10px; display: flex; align-items: center; gap: 4px;">
+                  🏁 ${leaveNowOverlayData.isDepartureTimeCustom ? (timeMode === "arrive" ? "Custom Arrival" : "Custom Departure") : "Leave Now"}
                   ${resetBtnHtml}
                 </div>
 
+                <!-- Leave / Arrive Toggle Segmented Control -->
+                <div style="
+                  display: flex;
+                  background: rgba(0,0,0,0.3);
+                  border: 1px solid rgba(255,255,255,0.08);
+                  border-radius: 8px;
+                  padding: 2px;
+                  margin-bottom: 10px;
+                ">
+                  <button onclick="window.handleOverlayTimeModeChange('leave')" style="
+                    flex: 1;
+                    background: ${timeMode === "leave" ? "rgba(255, 255, 255, 0.12)" : "transparent"};
+                    border: none;
+                    border-radius: 6px;
+                    color: ${timeMode === "leave" ? "var(--color-emerald)" : "var(--hud-text-secondary)"};
+                    font-size: 10px;
+                    font-weight: 700;
+                    padding: 5px;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    outline: none;
+                  ">Leave At</button>
+                  <button onclick="window.handleOverlayTimeModeChange('arrive')" style="
+                    flex: 1;
+                    background: ${timeMode === "arrive" ? "rgba(255, 255, 255, 0.12)" : "transparent"};
+                    border: none;
+                    border-radius: 6px;
+                    color: ${timeMode === "arrive" ? "var(--color-emerald)" : "var(--hud-text-secondary)"};
+                    font-size: 10px;
+                    font-weight: 700;
+                    padding: 5px;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    outline: none;
+                  ">Arrive At</button>
+                </div>
+
                 <!-- Date & Time Selectors Row -->
-                <div style="display: flex; gap: 6px; margin-bottom: 8px; align-items: center;">
+                <div style="display: flex; gap: 6px; margin-bottom: 10px; align-items: center;">
                   <select onchange="window.handleOverlayDayChange(this.value)" style="
                     background: rgba(255,255,255,0.08);
                     border: 1px solid rgba(255,255,255,0.15);
                     border-radius: 6px;
                     color: var(--hud-text-primary);
-                    font-size: 10px;
-                    padding: 3px 6px;
+                    font-size: 11px;
+                    padding: 4px 6px;
                     cursor: pointer;
                     outline: none;
-                    flex: 1.5;
+                    flex: 1.6;
                   ">
                     ${dayOptionsHtml}
                   </select>
@@ -654,16 +720,16 @@ export default function RouteMap({
                         border: 1px solid rgba(255,255,255,0.15);
                         border-radius: 6px;
                         color: var(--hud-text-primary);
-                        font-size: 10px;
-                        padding: 3px 2px;
+                        font-size: 11px;
+                        padding: 4px 3px;
                         outline: none;
                         text-align: center;
-                        width: 24px;
+                        width: 28px;
                         cursor: text;
                         transition: border-color 0.2s ease;
                       "
                     />
-                    <span style="color: var(--hud-text-secondary); font-size: 10px;">:</span>
+                    <span style="color: var(--hud-text-secondary); font-size: 11px;">:</span>
                     <input type="text"
                       inputmode="numeric"
                       pattern="[0-9]*"
@@ -680,11 +746,11 @@ export default function RouteMap({
                         border: 1px solid rgba(255,255,255,0.15);
                         border-radius: 6px;
                         color: var(--hud-text-primary);
-                        font-size: 10px;
-                        padding: 3px 2px;
+                        font-size: 11px;
+                        padding: 4px 3px;
                         outline: none;
                         text-align: center;
-                        width: 24px;
+                        width: 28px;
                         cursor: text;
                         transition: border-color 0.2s ease;
                       "
@@ -693,14 +759,7 @@ export default function RouteMap({
                   </div>
                 </div>
 
-                <div style="margin-bottom: 5px; display: flex; align-items: center; gap: 4px;">
-                  <span>⏱️</span>
-                  <span><strong>Ride</strong>: ${leaveNowOverlayData.duration} mins (${leaveNowOverlayData.distance})</span>
-                </div>
-                <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 4px;">
-                  <span>⏰</span>
-                  <span><strong>Arrival</strong>: ${leaveNowOverlayData.arrivalTimeStr}</span>
-                </div>
+                ${telemetryHtml}
 
                 <!-- Actions Row -->
                 <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; display: flex; justify-content: flex-end;">

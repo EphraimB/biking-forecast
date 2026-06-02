@@ -299,6 +299,7 @@ export default function Home() {
   const [selectedMinute, setSelectedMinute] = useState(0);
   const [isReturnTripMode, setIsReturnTripMode] = useState(false);
   const [isDepartureTimeCustom, setIsDepartureTimeCustom] = useState(false);
+  const [timeMode, setTimeMode] = useState("leave");
 
 
   // Dynamic Packing Drawer Scope (🎒 checklist toggle)
@@ -564,6 +565,7 @@ export default function Home() {
           }
           if (state.selectedMinute !== undefined) setSelectedMinute(state.selectedMinute);
           if (state.isReturnTripMode !== undefined) setIsReturnTripMode(state.isReturnTripMode);
+          if (state.timeMode !== undefined) setTimeMode(state.timeMode);
           
           // Only overwrite if present in view state and not already set by independent keys
           if (state.newBikeType !== undefined && !savedBikeType) setNewBikeType(state.newBikeType);
@@ -652,13 +654,14 @@ export default function Home() {
       selectedHour,
       selectedMinute,
       isReturnTripMode,
+      timeMode,
       newBikeType,
       newSpeed,
       unitSystem,
       hudState
     };
     localStorage.setItem("hud_active_view_state", JSON.stringify(activeState));
-  }, [confirmedStart, confirmedEnd, draftStart, draftEnd, selectedDayOffset, selectedHour, selectedMinute, isReturnTripMode, newBikeType, newSpeed, unitSystem, hudState, isRestored]);
+  }, [confirmedStart, confirmedEnd, draftStart, draftEnd, selectedDayOffset, selectedHour, selectedMinute, isReturnTripMode, timeMode, newBikeType, newSpeed, unitSystem, hudState, isRestored]);
 
   // 3. Persist Rider Profile and Unit System preferences separately
   useEffect(() => {
@@ -744,6 +747,11 @@ export default function Home() {
       setIsDepartureTimeCustom(true);
     };
 
+    window.handleOverlayTimeModeChange = (val) => {
+      setTimeMode(val);
+      setIsDepartureTimeCustom(true);
+    };
+
     window.handleOverlayResetClick = () => {
       const now = new Date();
       setSelectedDayOffset(0);
@@ -753,6 +761,7 @@ export default function Home() {
       const roundedMin = Math.round(currentMin / 15) * 15 % 60;
       setSelectedMinute(roundedMin);
 
+      setTimeMode("leave");
       setIsDepartureTimeCustom(false);
     };
 
@@ -787,6 +796,7 @@ export default function Home() {
       delete window.handleOverlayPeriodChange;
       delete window.handleOverlayResetClick;
       delete window.handleOverlayReverseClick;
+      delete window.handleOverlayTimeModeChange;
     };
   }, [confirmedStart, confirmedEnd, newBikeType, newSpeed, loadRouteDetails]);
 
@@ -1159,9 +1169,36 @@ export default function Home() {
     
     let hourIdx;
     if (hudState === 3 || isDepartureTimeCustom) {
-      hourIdx = selectedDayOffset * 24 + selectedHour;
-      if (selectedMinute >= 30) {
-        hourIdx += 1;
+      if (timeMode === "arrive") {
+        const totalDist = activeRouteData.segments.reduce((sum, seg) => sum + seg.distance, 0);
+        const baseSpeed = activeRouteData.speed || 18;
+        const durationMins = (totalDist / baseSpeed) * 60;
+
+        const arrDate = new Date();
+        arrDate.setDate(arrDate.getDate() + selectedDayOffset);
+        arrDate.setHours(selectedHour, selectedMinute, 0, 0);
+
+        const depDate = new Date(arrDate.getTime() - durationMins * 60 * 1000);
+        
+        const now = new Date();
+        now.setSeconds(0, 0);
+        depDate.setSeconds(0, 0);
+        
+        const diffTime = depDate.getTime() - now.getTime();
+        const diffDays = Math.floor(diffTime / (24 * 60 * 60 * 1000));
+        const depDayOffset = Math.max(0, diffDays);
+        const depHour = depDate.getHours();
+        const depMin = depDate.getMinutes();
+
+        hourIdx = depDayOffset * 24 + depHour;
+        if (depMin >= 30) {
+          hourIdx += 1;
+        }
+      } else {
+        hourIdx = selectedDayOffset * 24 + selectedHour;
+        if (selectedMinute >= 30) {
+          hourIdx += 1;
+        }
       }
       hourIdx = Math.max(0, Math.min(167, hourIdx));
     } else {
@@ -1198,12 +1235,20 @@ export default function Home() {
     let depDate;
     let label;
     if (hudState === 3 || isDepartureTimeCustom) {
-      depDate = new Date();
-      depDate.setDate(depDate.getDate() + selectedDayOffset);
-      depDate.setHours(selectedHour, selectedMinute, 0, 0);
-      label = hudState === 3
-        ? `Trip at ${formatTimeAMPM(depDate)}`
-        : "Custom Departure";
+      if (timeMode === "arrive") {
+        const arrDate = new Date();
+        arrDate.setDate(arrDate.getDate() + selectedDayOffset);
+        arrDate.setHours(selectedHour, selectedMinute, 0, 0);
+        depDate = new Date(arrDate.getTime() - duration * 60 * 1000);
+        label = "Custom Arrival";
+      } else {
+        depDate = new Date();
+        depDate.setDate(depDate.getDate() + selectedDayOffset);
+        depDate.setHours(selectedHour, selectedMinute, 0, 0);
+        label = hudState === 3
+          ? `Trip at ${formatTimeAMPM(depDate)}`
+          : "Custom Departure";
+      }
     } else {
       depDate = new Date();
       label = "Leave Now";
@@ -1241,7 +1286,8 @@ export default function Home() {
       selectedDayOffset,
       selectedHour,
       selectedMinute,
-      isDepartureTimeCustom
+      isDepartureTimeCustom,
+      timeMode
     };
   };
 
