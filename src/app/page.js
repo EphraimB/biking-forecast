@@ -1919,7 +1919,7 @@ export default function Home() {
         <div className={styles.setupCover}>
           
           {/* Centered: Search inputs Bar */}
-          <div className={`${styles.setupSearchContainer} hud-zoom-center`}>
+          <div className={`${styles.setupSearchContainer} hud-slide-top`}>
             <div 
               className={`hud-card ${styles.setupCard}`}
               onMouseDown={(e) => e.stopPropagation()}
