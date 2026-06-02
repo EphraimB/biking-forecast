@@ -337,6 +337,8 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance) {
 }
 
 export async function reverseGeocode(lat, lon) {
+  const BOROUGHS = ["Manhattan", "Brooklyn", "Queens", "Bronx", "Staten Island"];
+
   // 1. Try Nominatim reverse (Primary)
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`;
@@ -350,7 +352,28 @@ export async function reverseGeocode(lat, lon) {
       const addr = data.address || {};
       
       // Select the most specific location label
-      const placeName = addr.neighbourhood || addr.suburb || addr.quarter || addr.city_district || addr.village || addr.town || addr.city || addr.road;
+      const specificFields = [
+        addr.neighbourhood,
+        addr.quarter,
+        addr.park,
+        addr.leisure,
+        addr.tourism,
+        addr.village,
+        addr.town
+      ];
+      
+      let placeName = specificFields.find(val => val && !BOROUGHS.includes(val));
+      
+      if (!placeName && addr.suburb && !BOROUGHS.includes(addr.suburb)) {
+        placeName = addr.suburb;
+      }
+      if (!placeName && addr.city_district && !BOROUGHS.includes(addr.city_district)) {
+        placeName = addr.city_district;
+      }
+      if (!placeName) {
+        placeName = addr.road || addr.suburb || addr.city_district || addr.city;
+      }
+      
       if (placeName) {
         return placeName;
       }
@@ -369,7 +392,18 @@ export async function reverseGeocode(lat, lon) {
       if (data.features && data.features.length > 0) {
         const feat = data.features[0];
         const prop = feat.properties || {};
-        const placeName = prop.district || prop.locality || prop.name || prop.street;
+        
+        let placeName = null;
+        if (prop.locality && !BOROUGHS.includes(prop.locality)) {
+          placeName = prop.locality;
+        }
+        if (!placeName && prop.district && !BOROUGHS.includes(prop.district)) {
+          placeName = prop.district;
+        }
+        if (!placeName) {
+          placeName = prop.name || prop.street || prop.locality || prop.district;
+        }
+        
         if (placeName) {
           return placeName;
         }

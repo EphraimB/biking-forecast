@@ -6,7 +6,7 @@ import {
   Bike, Plus, Trash2, Calendar, Clock, MapPin, Navigation, 
   Search, ShieldAlert, Sparkles, Sun, Compass, Play, 
   Check, ChevronRight, X, ArrowLeftRight, HelpCircle, 
-  Bookmark, Sliders, SunDim, Award, Info, Menu
+  Bookmark, Sliders, SunDim, Award, Info, Menu, Edit2
 } from "lucide-react";
 
 import { fetchBicycleRoute, fetchRouteWeather, geocodeAddress, reverseGeocode } from "@/utils/api";
@@ -290,6 +290,8 @@ export default function Home() {
   const [savedRoutes, setSavedRoutes] = useState([]);
   const [isSavedHubOpen, setIsSavedHubOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [editingRouteId, setEditingRouteId] = useState(null);
+  const [editingRouteName, setEditingRouteName] = useState("");
 
   // Time & Timeline Scrub Scopes (State 3)
   const [selectedDayOffset, setSelectedDayOffset] = useState(0); // 0 (Today) to 6 (Day + 6)
@@ -857,6 +859,19 @@ export default function Home() {
     if (scheduleChanged) {
       setWeeklySchedule(updatedSchedule);
     }
+  };
+
+  const handleRenameSavedRoute = (id, newName) => {
+    if (!newName || !newName.trim()) return;
+    const updated = savedRoutes.map(r => {
+      if (r.id === id) {
+        return { ...r, name: newName.trim() };
+      }
+      return r;
+    });
+    setSavedRoutes(updated);
+    localStorage.setItem("hud_saved_routes", JSON.stringify(updated));
+    setEditingRouteId(null);
   };
 
   const handleCloseRouteSetup = () => {
@@ -2070,21 +2085,90 @@ export default function Home() {
               {savedRoutes.length === 0 ? (
                 <p className={styles.emptyMsg}>No saved routes yet. Plan a route and save it to display here.</p>
               ) : (
-                savedRoutes.map((route) => (
-                  <div 
-                    key={route.id} 
-                    className={`hud-btn ${styles.savedRouteItem}`} 
-                    onClick={() => handleLoadSavedRoute(route)}
-                  >
-                    <span className={styles.savedRouteText}>{route.name}</span>
-                    <button 
-                      onClick={(e) => handleDeleteSavedRoute(route.id, e)} 
-                      className={styles.deleteRouteBtn}
+                savedRoutes.map((route) => {
+                  const isEditing = editingRouteId === route.id;
+                  
+                  if (isEditing) {
+                    return (
+                      <div 
+                        key={route.id} 
+                        className={styles.savedRouteItemEditing}
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onMouseUp={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="text"
+                          className={styles.renameInput}
+                          value={editingRouteName}
+                          onChange={(e) => setEditingRouteName(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === "Enter") {
+                              handleRenameSavedRoute(route.id, editingRouteName);
+                            } else if (e.key === "Escape") {
+                              setEditingRouteId(null);
+                            }
+                          }}
+                          autoFocus
+                        />
+                        <div className={styles.editActions}>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRenameSavedRoute(route.id, editingRouteName);
+                            }}
+                            className={styles.saveRouteBtn}
+                            title="Save Name"
+                          >
+                            <Check size={13} />
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingRouteId(null);
+                            }}
+                            className={styles.cancelRouteBtn}
+                            title="Cancel Editing"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div 
+                      key={route.id} 
+                      className={`hud-btn ${styles.savedRouteItem}`} 
+                      onClick={() => handleLoadSavedRoute(route)}
                     >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                ))
+                      <span className={styles.savedRouteText}>{route.name}</span>
+                      <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingRouteId(route.id);
+                            setEditingRouteName(route.name);
+                          }} 
+                          className={styles.editRouteBtn}
+                          title="Rename Route"
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                        <button 
+                          onClick={(e) => handleDeleteSavedRoute(route.id, e)} 
+                          className={styles.deleteRouteBtn}
+                          title="Delete Route"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
               )}
             </div>
           )}

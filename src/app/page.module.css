@@ -100,7 +100,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  width: 80%;
+  width: 65%;
 }
 
 .deleteRouteBtn {
@@ -110,6 +110,95 @@
   cursor: pointer;
   display: flex;
   align-items: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.deleteRouteBtn:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.savedRouteItemEditing {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.renameInput {
+  flex: 1;
+  font-size: 0.78rem;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(15, 23, 42, 0.9);
+  color: var(--hud-text-primary);
+  width: 100%;
+}
+
+.renameInput:focus {
+  outline: none;
+  border-color: var(--color-emerald);
+}
+
+.editActions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.saveRouteBtn {
+  background: none;
+  border: none;
+  color: var(--color-emerald);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.saveRouteBtn:hover {
+  background: rgba(16, 185, 129, 0.2);
+}
+
+.cancelRouteBtn {
+  background: none;
+  border: none;
+  color: var(--hud-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.cancelRouteBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.editRouteBtn {
+  background: none;
+  border: none;
+  color: var(--hud-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.2s, background 0.2s;
+}
+
+.editRouteBtn:hover {
+  color: var(--color-emerald);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .topRightControls {
