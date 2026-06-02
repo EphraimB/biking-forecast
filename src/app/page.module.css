@@ -417,6 +417,13 @@
   width: 100%;
 }
 
+.timeSelect option,
+.bulkTimeSelect option {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+
 
 .saveToggleRow {
   display: flex;
