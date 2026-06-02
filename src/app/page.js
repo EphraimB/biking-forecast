@@ -1898,26 +1898,6 @@ export default function Home() {
                   </span>
                 </div>
 
-                {/* Active Direction Badge */}
-                {activeRouteData.endLocation && (
-                  <span style={{ 
-                    fontSize: "0.72rem", 
-                    fontWeight: "600", 
-                    color: isReturnTripMode ? "var(--color-amber)" : "var(--color-emerald)",
-                    background: isReturnTripMode ? "rgba(245,158,11,0.12)" : "rgba(16,185,129,0.12)",
-                    border: isReturnTripMode ? "1px solid rgba(245,158,11,0.2)" : "1px solid rgba(16,185,129,0.2)",
-                    padding: "2px 8px",
-                    borderRadius: "12px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "4px",
-                    whiteSpace: "nowrap",
-                    flexShrink: 0
-                  }}>
-                    {isReturnTripMode ? "🌇 Inbound" : "🌅 Outbound"}
-                  </span>
-                )}
-
                 {/* Outbound / Return Quick Snapper Toggle */}
                 <div className={styles.quickSnapperToggle}>
                   <button 
