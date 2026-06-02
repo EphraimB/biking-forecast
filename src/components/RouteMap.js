@@ -526,10 +526,10 @@ export default function RouteMap({
               <div class="route-summary-overlay-card" style="
                 position: absolute;
                 left: 16px;
-                top: -65px;
+                top: -55px;
                 width: max-content;
-                min-width: 170px;
-                max-width: 250px;
+                min-width: 150px;
+                max-width: 220px;
                 background: rgba(15, 23, 42, 0.88);
                 backdrop-filter: blur(16px);
                 -webkit-backdrop-filter: blur(16px);
@@ -550,13 +550,9 @@ export default function RouteMap({
                   <span>⏱️</span>
                   <span><strong>Ride</strong>: ${leaveNowOverlayData.duration} mins (${leaveNowOverlayData.distance})</span>
                 </div>
-                <div style="margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
+                <div style="display: flex; align-items: center; gap: 4px;">
                   <span>⏰</span>
                   <span><strong>Arrival</strong>: ${leaveNowOverlayData.arrivalTimeStr}</span>
-                </div>
-                <div style="border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 6px; display: flex; flex-direction: column; gap: 2px;">
-                  <span style="color: var(--hud-text-secondary); font-weight: 600; font-size: 10px;">🎒 RECOMMENDATION</span>
-                  <span style="font-size: 10.5px; color: var(--color-emerald); font-weight: 700;">${leaveNowOverlayData.packingList}</span>
                 </div>
               </div>
             `,
