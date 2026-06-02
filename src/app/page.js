@@ -50,6 +50,9 @@ function getWindCompassDirection(degrees) {
 }
 
 export default function Home() {
+  // Hydration & localStorage restoration guard
+  const [isRestored, setIsRestored] = useState(false);
+
   // HUD UI States: 
   // 0: Ambient Map
   // 1: Route Setup
@@ -276,21 +279,36 @@ export default function Home() {
   // 1. Initial Mount: Restore Active View State
   useEffect(() => {
     const handle = setTimeout(() => {
+      // Restore independent preferences first (rider profile and unit system)
+      const savedBikeType = localStorage.getItem("hud_rider_profile_bike_type");
+      if (savedBikeType) setNewBikeType(savedBikeType);
+
+      const savedSpeed = localStorage.getItem("hud_rider_profile_speed");
+      if (savedSpeed) {
+        const parsedSpeed = parseInt(savedSpeed, 10);
+        if (!isNaN(parsedSpeed)) setNewSpeed(parsedSpeed);
+      }
+
+      const savedUnitSystem = localStorage.getItem("hud_unit_system");
+      if (savedUnitSystem) setUnitSystem(savedUnitSystem);
+
       // Restore Global View-State Caching (Reload Survival)
       const cachedState = localStorage.getItem("hud_active_view_state");
       let restoredHour = false;
       if (cachedState) {
         try {
           const state = JSON.parse(cachedState);
-           if (state.selectedDayOffset !== undefined) setSelectedDayOffset(state.selectedDayOffset);
+          if (state.selectedDayOffset !== undefined) setSelectedDayOffset(state.selectedDayOffset);
           if (state.selectedHour !== undefined) {
             setSelectedHour(state.selectedHour);
             restoredHour = true;
           }
           if (state.isReturnTripMode !== undefined) setIsReturnTripMode(state.isReturnTripMode);
-          if (state.newBikeType !== undefined) setNewBikeType(state.newBikeType);
-          if (state.newSpeed !== undefined) setNewSpeed(state.newSpeed);
-          if (state.unitSystem !== undefined) setUnitSystem(state.unitSystem);
+          
+          // Only overwrite if present in view state and not already set by independent keys
+          if (state.newBikeType !== undefined && !savedBikeType) setNewBikeType(state.newBikeType);
+          if (state.newSpeed !== undefined && !savedSpeed) setNewSpeed(state.newSpeed);
+          if (state.unitSystem !== undefined && !savedUnitSystem) setUnitSystem(state.unitSystem);
           
           if (state.draftStart && state.draftEnd) {
             setDraftStart(state.draftStart);
@@ -302,8 +320,8 @@ export default function Home() {
             loadRouteDetails(
               state.draftStart, 
               state.draftEnd, 
-              state.newBikeType || "Hybrid", 
-              state.newSpeed || 18, 
+              state.newBikeType || savedBikeType || "Hybrid", 
+              state.newSpeed || (savedSpeed ? parseInt(savedSpeed, 10) : 18), 
               state.hudState !== undefined ? state.hudState : 2
             );
           } else {
@@ -340,13 +358,17 @@ export default function Home() {
           }
         );
       }
+
+      // Set restoration flag complete
+      setIsRestored(true);
     }, 0);
 
     return () => clearTimeout(handle);
   }, [fetchAmbientWeather, loadRouteDetails]);
 
-  // 2. Global View State Cache Synchronizer
+  // 2. Global View State Cache Synchronizer (Guarded)
   useEffect(() => {
+    if (!isRestored) return;
     const activeState = {
       draftStart,
       draftEnd,
@@ -359,7 +381,15 @@ export default function Home() {
       hudState
     };
     localStorage.setItem("hud_active_view_state", JSON.stringify(activeState));
-  }, [draftStart, draftEnd, selectedDayOffset, selectedHour, isReturnTripMode, newBikeType, newSpeed, unitSystem, hudState]);
+  }, [draftStart, draftEnd, selectedDayOffset, selectedHour, isReturnTripMode, newBikeType, newSpeed, unitSystem, hudState, isRestored]);
+
+  // 3. Persist Rider Profile and Unit System preferences separately
+  useEffect(() => {
+    if (!isRestored) return;
+    localStorage.setItem("hud_rider_profile_bike_type", newBikeType);
+    localStorage.setItem("hud_rider_profile_speed", newSpeed.toString());
+    localStorage.setItem("hud_unit_system", unitSystem);
+  }, [newBikeType, newSpeed, unitSystem, isRestored]);
 
   // Persist Weekly Schedule Changes
   useEffect(() => {
