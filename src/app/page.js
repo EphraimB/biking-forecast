@@ -49,6 +49,124 @@ function getWindCompassDirection(degrees) {
   return directions[index];
 }
 
+function CustomTimeInput({ value, onChange, unitSystem, isBulk = false }) {
+  const [hStr, mStr] = (value || "08:00").split(":");
+  let hour = parseInt(hStr, 10);
+  if (isNaN(hour)) hour = 8;
+  let minute = parseInt(mStr, 10);
+  if (isNaN(minute)) minute = 0;
+
+  const handleHourChange = (newHour) => {
+    const formattedHour = newHour.toString().padStart(2, "0");
+    const formattedMinute = minute.toString().padStart(2, "0");
+    onChange(`${formattedHour}:${formattedMinute}`);
+  };
+
+  const handleMinuteChange = (newMinute) => {
+    const formattedHour = hour.toString().padStart(2, "0");
+    const formattedMinute = newMinute.toString().padStart(2, "0");
+    onChange(`${formattedHour}:${formattedMinute}`);
+  };
+
+  const handlePeriodChange = (newPeriod) => {
+    let new24Hour = hour;
+    const isPM = newPeriod === "PM";
+    const currentIsPM = hour >= 12;
+    if (isPM && !currentIsPM) {
+      new24Hour = (hour % 12) + 12;
+    } else if (!isPM && currentIsPM) {
+      new24Hour = hour % 12;
+    }
+    const formattedHour = new24Hour.toString().padStart(2, "0");
+    const formattedMinute = minute.toString().padStart(2, "0");
+    onChange(`${formattedHour}:${formattedMinute}`);
+  };
+
+  const selectClass = isBulk ? styles.bulkTimeSelect : styles.timeSelect;
+
+  if (unitSystem === "metric") {
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+    const minutes = Array.from({ length: 60 }, (_, i) => i);
+
+    return (
+      <div style={{ display: "inline-flex", alignItems: "center", gap: "2px" }}>
+        <select
+          value={hour}
+          onChange={(e) => handleHourChange(parseInt(e.target.value, 10))}
+          className={selectClass}
+        >
+          {hours.map((h) => (
+            <option key={h} value={h}>
+              {h.toString().padStart(2, "0")}
+            </option>
+          ))}
+        </select>
+        <span style={{ fontSize: "0.72rem", color: "var(--hud-text-secondary)" }}>:</span>
+        <select
+          value={minute}
+          onChange={(e) => handleMinuteChange(parseInt(e.target.value, 10))}
+          className={selectClass}
+        >
+          {minutes.map((m) => (
+            <option key={m} value={m}>
+              {m.toString().padStart(2, "0")}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  } else {
+    const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+    const period = hour >= 12 ? "PM" : "AM";
+    const hours = Array.from({ length: 12 }, (_, i) => i + 1);
+    const minutes = Array.from({ length: 60 }, (_, i) => i);
+
+    return (
+      <div style={{ display: "inline-flex", alignItems: "center", gap: "2px" }}>
+        <select
+          value={displayHour}
+          onChange={(e) => {
+            const val = parseInt(e.target.value, 10);
+            const isPM = period === "PM";
+            let new24Hour = val;
+            if (isPM && val !== 12) new24Hour = val + 12;
+            if (!isPM && val === 12) new24Hour = 0;
+            handleHourChange(new24Hour);
+          }}
+          className={selectClass}
+        >
+          {hours.map((h) => (
+            <option key={h} value={h}>
+              {h.toString().padStart(2, "0")}
+            </option>
+          ))}
+        </select>
+        <span style={{ fontSize: "0.72rem", color: "var(--hud-text-secondary)" }}>:</span>
+        <select
+          value={minute}
+          onChange={(e) => handleMinuteChange(parseInt(e.target.value, 10))}
+          className={selectClass}
+        >
+          {minutes.map((m) => (
+            <option key={m} value={m}>
+              {m.toString().padStart(2, "0")}
+            </option>
+          ))}
+        </select>
+        <select
+          value={period}
+          onChange={(e) => handlePeriodChange(e.target.value)}
+          className={selectClass}
+          style={{ marginLeft: "2px" }}
+        >
+          <option value="AM">AM</option>
+          <option value="PM">PM</option>
+        </select>
+      </div>
+    );
+  }
+}
+
 export default function Home() {
   // Hydration & localStorage restoration guard
   const [isRestored, setIsRestored] = useState(false);
@@ -176,6 +294,9 @@ export default function Home() {
   const startGeocodeTimeoutRef = useRef(null);
   const endGeocodeTimeoutRef = useRef(null);
   const mapMoveTimeoutRef = useRef(null);
+  const startInputRef = useRef(null);
+  const endInputRef = useRef(null);
+
 
   // Derived state: weatherLocationName represents active route's starting city or fallback base location
   const weatherLocationName = (draftStart && draftStart.label && baseWeatherLocationName !== "Map Viewport")
@@ -306,6 +427,24 @@ export default function Home() {
     }
   }, []);
 
+  // Click outside to close autosuggestions dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (startInputRef.current && !startInputRef.current.contains(event.target)) {
+        setStartResults([]);
+      }
+      if (endInputRef.current && !endInputRef.current.contains(event.target)) {
+        setEndResults([]);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, []);
+
   // 1. Initial Mount: Restore Active View State
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -340,7 +479,7 @@ export default function Home() {
           if (state.newSpeed !== undefined && !savedSpeed) setNewSpeed(state.newSpeed);
           if (state.unitSystem !== undefined && !savedUnitSystem) setUnitSystem(state.unitSystem);
           
-          if (state.draftStart && state.draftEnd) {
+          if (state.draftStart && state.draftEnd && (state.hudState === 2 || state.hudState === 3)) {
             setDraftStart(state.draftStart);
             setDraftEnd(state.draftEnd);
             setStartQuery(state.draftStart.label);
@@ -352,9 +491,13 @@ export default function Home() {
               state.draftEnd, 
               state.newBikeType || savedBikeType || "Hybrid", 
               state.newSpeed || (savedSpeed ? parseInt(savedSpeed, 10) : 18), 
-              (state.hudState !== undefined && state.hudState !== 1) ? state.hudState : 2
+              state.hudState
             );
           } else {
+            setDraftStart(null);
+            setDraftEnd(null);
+            setStartQuery("");
+            setEndQuery("");
             if (state.hudState !== undefined) {
               // Restore only safe base states if no route coordinates exist
               setHudState(state.hudState === 1 ? 0 : state.hudState);
@@ -501,6 +644,18 @@ export default function Home() {
     }
   };
 
+  const handleCloseRouteSetup = () => {
+    if (routeCoordinates.length > 0) {
+      setHudState(2);
+    } else {
+      setHudState(0);
+      setDraftStart(null);
+      setDraftEnd(null);
+      setStartQuery("");
+      setEndQuery("");
+    }
+  };
+
   const handleLoadSavedRoute = (route) => {
     setDraftStart(route.start);
     setDraftEnd(route.end);
@@ -582,6 +737,9 @@ export default function Home() {
   const formatTimeToAMPM = (timeStr) => {
     if (!timeStr) return "";
     const [h, m] = timeStr.split(":").map(Number);
+    if (unitSystem === "metric") {
+      return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+    }
     const ampm = h >= 12 ? "PM" : "AM";
     const displayH = h % 12 === 0 ? 12 : h % 12;
     const displayM = m.toString().padStart(2, "0");
@@ -1181,6 +1339,9 @@ export default function Home() {
   const formatTimeAMPM = (dateObj) => {
     const hours = dateObj.getHours();
     const minutes = dateObj.getMinutes();
+    if (unitSystem === "metric") {
+      return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+    }
     const ampm = hours >= 12 ? "PM" : "AM";
     const displayH = hours % 12 || 12;
     const displayM = minutes.toString().padStart(2, "0");
@@ -1363,6 +1524,9 @@ export default function Home() {
           hudState={hudState}
           onMapClick={(coord) => {
             const label = `Pinned coordinate (${coord.lat.toFixed(4)}, ${coord.lon.toFixed(4)})`;
+            if (hudState !== 1) {
+              setHudState(1);
+            }
             if (!draftStart) {
               setDraftStart({ ...coord, label });
               setStartQuery(label);
@@ -1767,11 +1931,11 @@ export default function Home() {
               
               <div className={styles.setupHeader}>
                 <span className={styles.setupTitle}>Plan Custom Route</span>
-                <button onClick={() => setHudState(0)} className={styles.closeBtn}><X size={16} /></button>
+                 <button onClick={handleCloseRouteSetup} className={styles.closeBtn}><X size={16} /></button>
               </div>
 
               {/* Start input */}
-              <div className={styles.relativeWrapper}>
+              <div ref={startInputRef} className={styles.relativeWrapper}>
                 <input 
                   type="text" 
                   className="hud-input" 
@@ -1802,7 +1966,8 @@ export default function Home() {
                           }
                         }}
                       >
-                        {loc.label}
+                        <MapPin size={12} style={{ color: "var(--color-emerald)", flexShrink: 0 }} />
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{loc.label}</span>
                       </div>
                     ))}
                   </div>
@@ -1810,7 +1975,7 @@ export default function Home() {
               </div>
 
               {/* End input */}
-              <div className={styles.relativeWrapper}>
+              <div ref={endInputRef} className={styles.relativeWrapper}>
                 <input 
                   type="text" 
                   className="hud-input" 
@@ -1841,7 +2006,8 @@ export default function Home() {
                           }
                         }}
                       >
-                        {loc.label}
+                        <MapPin size={12} style={{ color: "var(--color-emerald)", flexShrink: 0 }} />
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{loc.label}</span>
                       </div>
                     ))}
                   </div>
@@ -2086,7 +2252,9 @@ export default function Home() {
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
                   <Clock size={14} style={{ color: "var(--hud-text-secondary)" }} />
                   <span style={{ fontSize: "0.78rem", fontWeight: "700", width: "64px" }}>
-                    {selectedHour.toString().padStart(2, "0")}:00 {selectedHour >= 12 ? "PM" : "AM"}
+                    {unitSystem === "metric" 
+                      ? `${selectedHour.toString().padStart(2, "0")}:00` 
+                      : `${selectedHour % 12 === 0 ? 12 : selectedHour % 12}:00 ${selectedHour >= 12 ? "PM" : "AM"}`}
                   </span>
                 </div>
 
@@ -2157,27 +2325,25 @@ export default function Home() {
               <div className={`${styles.timeInputsGroup} time-inputs-group`}>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Outbound:</span>
-                  <input 
-                    type="time" 
+                  <CustomTimeInput 
                     value={weeklySchedule[currentDayOfWeek]?.outbound || "08:00"}
-                    onChange={(e) => updateDailySchedule(selectedDayOffset, 'outbound', e.target.value)}
-                    className={styles.timeFieldInput}
+                    onChange={(val) => updateDailySchedule(selectedDayOffset, 'outbound', val)}
+                    unitSystem={unitSystem}
                   />
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Return:</span>
-                  <input 
-                    type="time" 
+                  <CustomTimeInput 
                     value={weeklySchedule[currentDayOfWeek]?.return || "17:30"}
-                    onChange={(e) => updateDailySchedule(selectedDayOffset, 'return', e.target.value)}
-                    className={styles.timeFieldInput}
+                    onChange={(val) => updateDailySchedule(selectedDayOffset, 'return', val)}
+                    unitSystem={unitSystem}
                   />
                 </div>
               </div>
 
               {/* Exit day focus button */}
               <button 
-                onClick={() => setHudState(2)} // Return to Week-wide ambient outlook
+                onClick={() => setHudState(routeCoordinates.length > 0 ? 2 : 0)} // Return to Week-wide ambient outlook or Ambient map
                 className={`hud-btn ${styles.exitScrubBtn}`}
               >
                 <X size={12} />
@@ -2237,20 +2403,20 @@ export default function Home() {
             <div style={{ display: "flex", gap: "8px" }}>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
                 <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Arrive by</span>
-                <input
-                  type="time"
+                <CustomTimeInput
                   value={bulkOutbound}
-                  onChange={(e) => setBulkOutbound(e.target.value)}
-                  className={styles.bulkTimeFieldInput}
+                  onChange={setBulkOutbound}
+                  unitSystem={unitSystem}
+                  isBulk={true}
                 />
               </div>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
                 <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Leave at</span>
-                <input
-                  type="time"
+                <CustomTimeInput
                   value={bulkReturn}
-                  onChange={(e) => setBulkReturn(e.target.value)}
-                  className={styles.bulkTimeFieldInput}
+                  onChange={setBulkReturn}
+                  unitSystem={unitSystem}
+                  isBulk={true}
                 />
               </div>
             </div>

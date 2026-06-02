@@ -28,6 +28,17 @@ export default function RouteMap({
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const layersRef = useRef({ polylines: [], markers: [], telemetries: [], weatherOverlays: [] });
+  const lastFittedRouteRef = useRef("");
+  const onMapMoveRef = useRef(onMapMove);
+  const onMapClickRef = useRef(onMapClick);
+
+  useEffect(() => {
+    onMapMoveRef.current = onMapMove;
+  }, [onMapMove]);
+
+  useEffect(() => {
+    onMapClickRef.current = onMapClick;
+  }, [onMapClick]);
 
   const handleJumpToGPS = () => {
     if (mapInstanceRef.current) {
@@ -109,7 +120,8 @@ export default function RouteMap({
           maxZoom: 20
         }).addTo(map);
 
-        if (!L.Browser.touch) {
+        const isFinePointer = typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches;
+        if (isFinePointer) {
           L.control.zoom({
             position: "bottomright"
           }).addTo(map);
@@ -142,15 +154,15 @@ export default function RouteMap({
         }
 
         map.on("click", (e) => {
-          if (onMapClick) {
-            onMapClick({ lat: e.latlng.lat, lon: e.latlng.lng });
+          if (onMapClickRef.current) {
+            onMapClickRef.current({ lat: e.latlng.lat, lon: e.latlng.lng });
           }
         });
 
         map.on("moveend", () => {
           const center = map.getCenter();
-          if (onMapMove) {
-            onMapMove({ lat: center.lat, lon: center.lng });
+          if (onMapMoveRef.current) {
+            onMapMoveRef.current({ lat: center.lat, lon: center.lng });
           }
         });
       }
@@ -163,6 +175,10 @@ export default function RouteMap({
   useEffect(() => {
     if (!mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
+    
+    if (!coordinates || coordinates.length === 0) {
+      lastFittedRouteRef.current = "";
+    }
     
     // Clear old layers
     layersRef.current.polylines.forEach(p => p.remove());
@@ -313,7 +329,8 @@ export default function RouteMap({
             />
           );
 
-          if (!L.Browser.touch) {
+          const supportsHover = typeof window !== "undefined" && window.matchMedia("(hover: hover)").matches;
+          if (supportsHover) {
             hoverPoly.bindTooltip(tooltipHtml, { 
               sticky: true,
               className: "leaflet-tooltip" 
@@ -321,7 +338,8 @@ export default function RouteMap({
           }
 
           hoverPoly.bindPopup(tooltipHtml, {
-            className: "leaflet-popup-segment"
+            className: "leaflet-popup-segment",
+            closeOnClick: false
           });
 
           // Style animations synced to broad hover triggers
@@ -390,7 +408,7 @@ export default function RouteMap({
                   Drink <strong>${waterAmount}</strong> of fluid at this coordinate (${displayCheckpointDist}).
                 </div>
               </div>
-            `);
+            `, { closeOnClick: false });
 
             layersRef.current.telemetries.push(hydMarker);
           }
@@ -441,14 +459,18 @@ export default function RouteMap({
                   Consume <strong>${carbAmount}</strong> to fuel through this segment (${displayCheckpointDist}).
                 </div>
               </div>
-            `);
+            `, { closeOnClick: false });
 
             layersRef.current.telemetries.push(nutMarker);
           }
         });
 
-        const bounds = L.latLngBounds(coordinates);
-        map.fitBounds(bounds, { padding: [80, 80] });
+        const coordsSerialized = JSON.stringify(coordinates);
+        if (lastFittedRouteRef.current !== coordsSerialized) {
+          lastFittedRouteRef.current = coordsSerialized;
+          const bounds = L.latLngBounds(coordinates);
+          map.fitBounds(bounds, { padding: [80, 80] });
+        }
       }
 
       // Draw start location pin (Pulsing emerald ring)
@@ -508,7 +530,7 @@ export default function RouteMap({
 
     });
 
-  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState, customSpeed, ambientWeatherForecast, userLocation]);
+  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState, customSpeed, userLocation]);
 
   // Synchronously compute derived environmental metrics in render (avoiding useEffect cascading triggers)
   const getAmbientWeatherMetrics = () => {
