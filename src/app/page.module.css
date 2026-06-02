@@ -656,3 +656,60 @@
   flex-direction: column;
   gap: 2px;
 }
+
+@media (max-width: 768px) {
+  .ribbonOuter {
+    left: 10px;
+    right: 10px;
+    width: calc(100% - 20px);
+    bottom: 15px;
+  }
+
+  .ribbonBox {
+    padding: 8px 10px;
+    overflow-x: auto;
+    justify-content: flex-start;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    gap: 8px;
+  }
+  
+  .ribbonBox::-webkit-scrollbar {
+    height: 4px;
+  }
+  .ribbonBox::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .ribbonBox::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+  }
+
+  .ribbonItem {
+    flex: 0 0 auto;
+    width: 120px;
+    padding: 6px 6px;
+    border-radius: 12px;
+  }
+
+  .ribbonItem > span {
+    font-size: 0.62rem;
+  }
+
+  .ribbonItem div {
+    font-size: 0.58rem;
+    gap: 2px;
+  }
+
+  .trackTime {
+    font-size: 0.62rem;
+    white-space: nowrap;
+  }
+
+  .exitScrubBtn {
+    width: 100%;
+    justify-content: center;
+    margin-left: 0;
+    margin-top: 4px;
+  }
+}
