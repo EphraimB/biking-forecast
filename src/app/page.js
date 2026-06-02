@@ -6,7 +6,7 @@ import {
   Bike, Plus, Trash2, Calendar, Clock, MapPin, Navigation, 
   Search, ShieldAlert, Sparkles, Sun, Compass, Play, 
   Check, ChevronRight, X, ArrowLeftRight, HelpCircle, 
-  Bookmark, Sliders, SunDim, Award, Info
+  Bookmark, Sliders, SunDim, Award, Info, Menu
 } from "lucide-react";
 
 import { fetchBicycleRoute, fetchRouteWeather, geocodeAddress } from "@/utils/api";
@@ -129,6 +129,7 @@ export default function Home() {
     return [];
   });
   const [isSavedHubOpen, setIsSavedHubOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Time & Timeline Scrub Scopes (State 3)
   const [selectedDayOffset, setSelectedDayOffset] = useState(0); // 0 (Today) to 6 (Day + 6)
@@ -1448,10 +1449,59 @@ export default function Home() {
             </button>
           )}
 
+          {(hudState === 2 || hudState === 3) && activeForecast && (
+            <>
+              {/* Gear Check Trigger Button */}
+              <button 
+                className="hud-bubble" 
+                onClick={togglePackingList}
+                style={{ cursor: "pointer", border: isPackingOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)", pointerEvents: "auto" }}
+              >
+                <span>🎒</span>
+                <span className="mobile-hide" style={{ fontSize: "0.78rem", fontWeight: "800" }}>GEAR CHECK</span>
+              </button>
+
+              {/* Expanded Dynamic Packing Glass Card */}
+              {isPackingOpen && (
+                <div 
+                  className={`${styles.packingDropdown} hud-card hud-card-responsive`}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onMouseUp={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchMove={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
+                >
+                  <div className={styles.packingHeader}>
+                    <h4 className={styles.packingTitle}>🎒 Trip Packing List</h4>
+                    <button onClick={() => setIsPackingOpen(false)} className={styles.closeBtn}><X size={14} /></button>
+                  </div>
+                  
+                  {packingList.length === 0 ? (
+                    <p className={styles.emptyChecklist}>☀️ Clear summer skies and perfect winds. Just bring your helmet & dynamic hydration!</p>
+                  ) : (
+                    <div className={styles.packingList}>
+                      {packingList.map((p) => (
+                        <div key={p.id} className={styles.packingItemCard}>
+                          <span className={styles.packingItemTitle}>
+                            {p.emoji} {p.item}
+                          </span>
+                          <span className={styles.packingItemAdvice}>
+                            {p.advice}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+
           {/* Saved Routes Hub Trigger (Permanently Available in States 0, 2, 3) */}
           {(hudState === 0 || hudState === 2 || hudState === 3) && (
             <button 
-              className={`hud-bubble ${styles.hubBtn}`}
+              className={`hud-bubble desktop-only ${styles.hubBtn}`}
               onClick={toggleSavedHub}
               style={{ 
                 border: isSavedHubOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)"
@@ -1468,7 +1518,7 @@ export default function Home() {
           {/* Weekly Schedule Planner Trigger (Permanently Available in States 0, 2, 3) */}
           {(hudState === 0 || hudState === 2 || hudState === 3) && (
             <button 
-              className={`hud-bubble ${styles.hubBtn}`}
+              className={`hud-bubble desktop-only ${styles.hubBtn}`}
               onClick={toggleWeeklyPlanner}
               style={{ 
                 border: isWeeklyPlannerOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)"
@@ -1484,7 +1534,14 @@ export default function Home() {
 
           {/* Saved Routes Dropdown overlay */}
           {isSavedHubOpen && (hudState === 0 || hudState === 2 || hudState === 3) && (
-            <div className={`${styles.savedRoutesHubDropdown} hud-card hud-card-responsive`}>
+            <div 
+              className={`${styles.savedRoutesHubDropdown} hud-card hud-card-responsive`}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+            >
               <div className={styles.hubDropdownHeader}>
                 <h4 className={styles.hubDropdownTitle}>🔖 Saved Routes</h4>
                 <button onClick={() => setIsSavedHubOpen(false)} className={styles.closeBtn}><X size={14} /></button>
@@ -1512,12 +1569,12 @@ export default function Home() {
           )}
         </div>
 
-        {/* Right Side: Unit Toggle, Ambient Weather & Gear Check HUD */}
+        {/* Right Side: Unit Toggle, Ambient Weather, Gear Check, and Mobile Menu HUD */}
         <div className={`hud-top-right ${styles.topRightControls}`}>
           
-          {/* Rider Configuration Bubble */}
+          {/* Rider Configuration Bubble (Desktop-only) */}
           <button 
-            className={`hud-bubble ${styles.riderConfigBtn}`} 
+            className={`hud-bubble desktop-only ${styles.riderConfigBtn}`} 
             onClick={toggleRiderConfig}
             style={{ border: isRiderConfigOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)" }}
             title="Rider Profile Configurations"
@@ -1527,7 +1584,14 @@ export default function Home() {
 
           {/* Expanded Rider Configurations Glass Card */}
           {isRiderConfigOpen && (
-            <div className={`${styles.riderConfigDropdown} hud-card hud-card-responsive`}>
+            <div 
+              className={`${styles.riderConfigDropdown} hud-card hud-card-responsive`}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+            >
               <div className={styles.riderHeader}>
                 <h4 className={styles.riderTitle}>
                   🚴 Rider Configurator
@@ -1572,9 +1636,9 @@ export default function Home() {
             </div>
           )}
 
-          {/* Metric / Imperial Toggling Bubble */}
+          {/* Metric / Imperial Toggling Bubble (Desktop-only) */}
           <button 
-            className={`hud-bubble ${styles.unitsBtn}`} 
+            className={`hud-bubble desktop-only ${styles.unitsBtn}`} 
             onClick={() => setUnitSystem(unitSystem === "metric" ? "imperial" : "metric")}
             title="Switch Units"
           >
@@ -1585,54 +1649,99 @@ export default function Home() {
             <div className={`hud-bubble ${styles.weatherBubble}`} title={`Location: ${dynamicAmbientWeather.desc}`}>
               <SunDim size={16} className={styles.sunDimIcon} style={{ animation: "spin 12s linear infinite" }} />
               <span className={styles.weatherText}>
-                <span style={{ color: "var(--color-emerald)", fontWeight: "800", marginRight: "4px" }}>
+                <span className="mobile-hide" style={{ color: "var(--color-emerald)", fontWeight: "800", marginRight: "4px" }}>
                   {dynamicAmbientWeather.desc}:
                 </span>
                 {formatTemp(dynamicAmbientWeather.temp)}
-                <span className="mobile-hide"> • {formatWind(dynamicAmbientWeather.windSpeed)} {dynamicAmbientWeather.windDir}</span>
+                <span> • {formatWind(dynamicAmbientWeather.windSpeed)} {dynamicAmbientWeather.windDir}</span>
               </span>
             </div>
           )}
 
-          {(hudState === 2 || hudState === 3) && activeForecast && (
-            <>
-              <button 
-                className="hud-bubble" 
-                onClick={togglePackingList}
-                style={{ cursor: "pointer", border: isPackingOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)", pointerEvents: "auto" }}
-              >
-                <span>🎒</span>
-                <span className="mobile-hide" style={{ fontSize: "0.78rem", fontWeight: "800" }}>GEAR CHECK</span>
-              </button>
 
-              {/* Expanded Dynamic Packing Glass Card */}
-              {isPackingOpen && (
-                <div className={`${styles.packingDropdown} hud-card hud-card-responsive`}>
-                  <div className={styles.packingHeader}>
-                    <h4 className={styles.packingTitle}>🎒 Trip Packing List</h4>
-                    <button onClick={() => setIsPackingOpen(false)} className={styles.closeBtn}><X size={14} /></button>
-                  </div>
-                  
-                  {packingList.length === 0 ? (
-                    <p className={styles.emptyChecklist}>☀️ Clear summer skies and perfect winds. Just bring your helmet & dynamic hydration!</p>
-                  ) : (
-                    <div className={styles.packingList}>
-                      {packingList.map((p) => (
-                        <div key={p.id} className={styles.packingItemCard}>
-                          <span className={styles.packingItemTitle}>
-                            {p.emoji} {p.item}
-                          </span>
-                          <span className={styles.packingItemAdvice}>
-                            {p.advice}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
+
+          {/* Unified Settings & Menu Trigger Button (Mobile-only) */}
+          <button 
+            className={`hud-bubble mobile-only`}
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            style={{ border: isMobileMenuOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)" }}
+            title="Menu & Settings"
+          >
+            <Menu size={16} style={{ color: isMobileMenuOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
+          </button>
+
+          {/* Mobile settings menu dropdown card (Mobile-only) */}
+          {isMobileMenuOpen && (
+            <div 
+              className={`${styles.mobileMenuDropdown} hud-card hud-card-responsive`}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+            >
+              <div className={styles.hubDropdownHeader}>
+                <h4 className={styles.hubDropdownTitle}>⚙️ Settings & Menu</h4>
+                <button onClick={() => setIsMobileMenuOpen(false)} className={styles.closeBtn}><X size={14} /></button>
+              </div>
+
+              <div className={styles.mobileMenuList}>
+                <button 
+                  className={`hud-btn ${styles.mobileMenuItem}`}
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    setIsWeeklyPlannerOpen(false);
+                    setIsPackingOpen(false);
+                    setIsRiderConfigOpen(false);
+                    setIsSavedHubOpen(!isSavedHubOpen);
+                  }}
+                  style={{ border: isSavedHubOpen ? "1px solid var(--color-emerald)" : "1px solid rgba(255, 255, 255, 0.08)", width: "100%", textAlign: "left" }}
+                >
+                  <span style={{ fontSize: "1.1rem" }}>🔖</span> Saved Routes Library
+                </button>
+
+                <button 
+                  className={`hud-btn ${styles.mobileMenuItem}`}
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    setIsWeeklyPlannerOpen(!isWeeklyPlannerOpen);
+                    setIsPackingOpen(false);
+                    setIsRiderConfigOpen(false);
+                    setIsSavedHubOpen(false);
+                  }}
+                  style={{ border: isWeeklyPlannerOpen ? "1px solid var(--color-emerald)" : "1px solid rgba(255, 255, 255, 0.08)", width: "100%", textAlign: "left" }}
+                >
+                  <span style={{ fontSize: "1.1rem" }}>📅</span> Weekly Commute Planner
+                </button>
+
+                <button 
+                  className={`hud-btn ${styles.mobileMenuItem}`}
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    setIsWeeklyPlannerOpen(false);
+                    setIsPackingOpen(false);
+                    setIsRiderConfigOpen(!isRiderConfigOpen);
+                    setIsSavedHubOpen(false);
+                  }}
+                  style={{ border: isRiderConfigOpen ? "1px solid var(--color-emerald)" : "1px solid rgba(255, 255, 255, 0.08)", width: "100%", textAlign: "left" }}
+                >
+                  <span style={{ fontSize: "1.1rem" }}>🚴</span> Rider Configurator
+                </button>
+
+
+                <button 
+                  className={`hud-btn ${styles.mobileMenuItem}`}
+                  onClick={() => {
+                    setUnitSystem(unitSystem === "metric" ? "imperial" : "metric");
+                  }}
+                  style={{ width: "100%", textAlign: "left", border: "1px solid rgba(255, 255, 255, 0.08)" }}
+                >
+                  <span style={{ fontSize: "1.1rem" }}>📐</span> Units: <strong>{unitSystem === "metric" ? "METRIC" : "IMPERIAL"}</strong>
+                </button>
+              </div>
+            </div>
           )}
+
         </div>
 
       </div>
@@ -1647,7 +1756,14 @@ export default function Home() {
           
           {/* Centered: Search inputs Bar */}
           <div className={`${styles.setupSearchContainer} hud-zoom-center`}>
-            <div className={`hud-card ${styles.setupCard}`}>
+            <div 
+              className={`hud-card ${styles.setupCard}`}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+            >
               
               <div className={styles.setupHeader}>
                 <span className={styles.setupTitle}>Plan Custom Route</span>
@@ -1792,7 +1908,14 @@ export default function Home() {
             </span>
           </div>
 
-          <div className={`${styles.ribbonBox} hud-card`}>
+          <div 
+            className={`${styles.ribbonBox} hud-card`}
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseUp={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+          >
             {ribbonDaysData.map((day) => {
               const isSelected = hudState === 3 && selectedDayOffset === day.offset;
               const hasOutbound = day.outbound && day.outbound.departure !== null && day.outbound.score !== null;
@@ -1950,7 +2073,14 @@ export default function Home() {
             ------------------------------------------------------------- 
           */}
           {hudState === 3 && (
-            <div className={`${styles.scrubberContainer} hud-card timeline-scrubber-container`}>
+            <div 
+              className={`${styles.scrubberContainer} hud-card timeline-scrubber-container`}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+            >
               {/* Timeline Scrubber */}
               <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, flexWrap: "wrap" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
@@ -2061,7 +2191,14 @@ export default function Home() {
 
       {/* Weekly Commute Planner HUD Sliding/Overlay Card */}
       {isWeeklyPlannerOpen && (
-        <div className={`${styles.weeklyPlannerPanel} hud-card hud-card-responsive`}>
+        <div 
+          className={`${styles.weeklyPlannerPanel} hud-card hud-card-responsive`}
+          onMouseDown={(e) => e.stopPropagation()}
+          onMouseUp={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+        >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hud-border)", paddingBottom: "10px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <Calendar size={18} style={{ color: "var(--color-emerald)" }} />

@@ -71,3 +71,17 @@
   color: var(--color-emerald);
   margin-top: 4px;
 }
+
+@media (max-width: 768px) {
+  .rightToolbar {
+    right: 12px;
+    top: 130px;
+    transform: none;
+    gap: 8px;
+  }
+  
+  .toolbarBtn {
+    width: 38px;
+    height: 38px;
+  }
+}
