@@ -6,7 +6,7 @@ import {
   Bike, Plus, Trash2, Calendar, Clock, MapPin, Navigation, 
   Search, ShieldAlert, Sparkles, Sun, Compass, Play, 
   Check, ChevronRight, X, ArrowLeftRight, HelpCircle, 
-  Bookmark, Sliders, SunDim, Award, Info, Menu, Edit2
+  Bookmark, Sliders, SunDim, Award, Info, Menu, Edit2, RefreshCw
 } from "lucide-react";
 
 import { fetchBicycleRoute, fetchRouteWeather, geocodeAddress, reverseGeocode } from "@/utils/api";
@@ -338,6 +338,8 @@ export default function Home() {
   const [ambientWeatherForecast, setAmbientWeatherForecast] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [isRefreshingWeather, setIsRefreshingWeather] = useState(false);
   const startGeocodeTimeoutRef = useRef(null);
   const endGeocodeTimeoutRef = useRef(null);
   const mapMoveTimeoutRef = useRef(null);
@@ -351,11 +353,107 @@ export default function Home() {
     ? (activeStartLoc.label.split(",")[0] || "Route Start")
     : baseWeatherLocationName;
 
+  const handleWeatherResponse = useCallback((weatherData) => {
+    if (weatherData && weatherData.isOfflineForecast) {
+      const isRateLimit = weatherData.errorType === "429";
+      const message = isRateLimit
+        ? "Weather API rate limit exceeded (429). Using dynamic offline mathematical forecast."
+        : `Weather API offline (${weatherData.errorMessage || "Network error"}). Using dynamic offline mathematical forecast.`;
+      
+      setToast(prev => {
+        if (prev && prev.message === message) {
+          return prev; // Bypass state update and do not trigger a fresh toast popup
+        }
+        return {
+          id: Math.random(),
+          type: isRateLimit ? "warning" : "info",
+          message
+        };
+      });
+    }
+    return weatherData;
+  }, []);
+
+  const handleRefreshWeather = useCallback(async () => {
+    if (isRefreshingWeather) return;
+    setIsRefreshingWeather(true);
+    
+    try {
+      if (routeCoordinates && routeCoordinates.length > 0) {
+        const distance = routeSegments.reduce((sum, s) => sum + s.distance, 0) || 10;
+        const weatherData = await fetchRouteWeather(routeCoordinates, distance, true);
+        handleWeatherResponse(weatherData);
+        setWeatherResults(weatherData);
+        
+        const activeRouteId = savedRoutes.find(r => 
+          JSON.stringify(r.coordinates) === JSON.stringify(routeCoordinates)
+        )?.id;
+        if (activeRouteId) {
+          setScheduledRoutesWeather(prev => ({
+            ...prev,
+            [activeRouteId]: {
+              coordinates: routeCoordinates,
+              segments: routeSegments,
+              weather: weatherData
+            }
+          }));
+        }
+      } else {
+        const lat = activeStartLoc?.lat || userLocation?.lat || 40.7128;
+        const lon = activeStartLoc?.lon || userLocation?.lon || -74.0060;
+        const dummyCoords = [[lat, lon]];
+        const weather = await fetchRouteWeather(dummyCoords, 1, true);
+        handleWeatherResponse(weather);
+        if (weather && weather.length > 0) {
+          const hourly = weather[0]?.hourly;
+          const now = new Date();
+          const year = now.getFullYear();
+          const month = (now.getMonth() + 1).toString().padStart(2, "0");
+          const date = now.getDate().toString().padStart(2, "0");
+          const hour = now.getHours().toString().padStart(2, "0");
+          const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
+          
+          let currentHourIdx = hourly?.time?.indexOf(currentHourStr);
+          if (currentHourIdx === -1 || currentHourIdx === undefined) {
+            currentHourIdx = now.getHours();
+          }
+          
+          const resolvedTemp = hourly?.temperature_2m?.[currentHourIdx] ?? 22;
+          const resolvedWindSpeed = hourly?.wind_speed_10m?.[currentHourIdx] ?? 12;
+          const resolvedWindCompass = getWindCompassDirection(hourly?.wind_direction_10m?.[currentHourIdx] ?? 0);
+          
+          setAmbientWeather({
+            temp: resolvedTemp,
+            windSpeed: resolvedWindSpeed,
+            windDir: resolvedWindCompass,
+            desc: weatherLocationName || "Perfect Local Conditions"
+          });
+          setAmbientWeatherForecast(weather[0]);
+        }
+      }
+      
+      setToast({
+        id: Math.random(),
+        type: "success",
+        message: "Weather forecast refreshed successfully."
+      });
+    } catch (e) {
+      console.error("Refresh weather error:", e);
+      setToast({
+        id: Math.random(),
+        type: "error",
+        message: `Failed to refresh weather: ${e.message || "Network error"}`
+      });
+    } finally {
+      setIsRefreshingWeather(false);
+    }
+  }, [isRefreshingWeather, routeCoordinates, routeSegments, activeStartLoc, userLocation, weatherLocationName, savedRoutes, handleWeatherResponse]);
+
   // Memoized callback triggers to satisfy strict react-hooks rules and avoid hoisting issues
   const fetchAmbientWeather = useCallback(async (lat, lon) => {
     try {
       const dummyCoords = [[lat, lon]];
-      const weather = await fetchRouteWeather(dummyCoords, 1);
+      const weather = handleWeatherResponse(await fetchRouteWeather(dummyCoords, 1));
       if (weather && weather.length > 0) {
         const hourly = weather[0]?.hourly;
         
@@ -397,7 +495,7 @@ export default function Home() {
     } catch (e) {
       console.error("Ambient weather fetch error:", e);
     }
-  }, []);
+  }, [handleWeatherResponse]);
 
   const loadRouteDetails = useCallback(async (start, end, bikeType, speed, overrideState = null, shouldSave = false, saveName = "") => {
     setIsLoading(true);
@@ -410,7 +508,7 @@ export default function Home() {
       const segments = calculateRouteSegments(decodedCoords);
       setRouteSegments(segments);
 
-      const weatherData = await fetchRouteWeather(decodedCoords, routeData.distance);
+      const weatherData = handleWeatherResponse(await fetchRouteWeather(decodedCoords, routeData.distance));
       setWeatherResults(weatherData);
 
       setConfirmedStart(start);
@@ -449,7 +547,7 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [handleWeatherResponse]);
 
   const triggerGeocode = useCallback((query, isStart) => {
     if (!query || query.trim().length < 3) {
@@ -521,6 +619,16 @@ export default function Home() {
       document.removeEventListener("touchstart", handleClickOutside);
     };
   }, []);
+
+  // Auto-hide toast notification after 6 seconds
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => {
+        setToast(null);
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   // 1. Initial Mount: Restore Active View State
   useEffect(() => {
@@ -909,6 +1017,7 @@ export default function Home() {
       setRouteCoordinates(route.coordinates);
       setRouteSegments(route.segments);
       fetchRouteWeather(route.coordinates, route.distance || 10).then(weatherData => {
+        handleWeatherResponse(weatherData);
         setWeatherResults(weatherData);
       }).catch(e => console.error("Error fetching weather for loaded route:", e));
       setHudState(2);
@@ -1115,7 +1224,7 @@ export default function Home() {
               segments = calculateRouteSegments(coords);
             }
             
-            const wData = await fetchRouteWeather(coords, dist);
+            const wData = handleWeatherResponse(await fetchRouteWeather(coords, dist));
             newWeather[rid] = {
               weather: wData,
               coordinates: coords,
@@ -1135,7 +1244,7 @@ export default function Home() {
     };
 
     fetchScheduledWeather();
-  }, [weeklySchedule, savedRoutes, scheduledRoutesWeather, newBikeType, newSpeed]);
+  }, [weeklySchedule, savedRoutes, scheduledRoutesWeather, newBikeType, newSpeed, handleWeatherResponse]);
 
   // Compute currently displayed route based on selected day offset schedule
   const getActiveRouteData = () => {
@@ -1910,6 +2019,32 @@ export default function Home() {
         />
       </div>
 
+      {/* Premium Glassmorphic Toast Notification */}
+      {toast && (
+        <div 
+          className={`${styles.toastNotification} ${styles[toast.type]} hud-slide-top`}
+          key={toast.id}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className={styles.toastContent}>
+            <span className={styles.toastIcon}>
+              {toast.type === "error" && "🚨"}
+              {toast.type === "warning" && "⚠️"}
+              {toast.type === "success" && "✅"}
+              {toast.type === "info" && "ℹ️"}
+            </span>
+            <span className={styles.toastMessage}>{toast.message}</span>
+          </div>
+          <button 
+            onClick={() => setToast(null)} 
+            className={styles.toastCloseBtn}
+            title="Dismiss Alert"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
       {/* 
         -------------------------------------------------------------
         STATE 0: AMBIENT STATE / TOP HUD CONTROLS
@@ -2260,6 +2395,17 @@ export default function Home() {
                 {formatTemp(dynamicAmbientWeather.temp)}
                 <span> • {formatWind(dynamicAmbientWeather.windSpeed)} {dynamicAmbientWeather.windDir}</span>
               </span>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRefreshWeather();
+                }} 
+                className={`${styles.weatherRefreshBtn} ${isRefreshingWeather ? styles.spinning : ""}`}
+                title="Refresh Weather"
+                disabled={isRefreshingWeather}
+              >
+                <RefreshCw size={12} />
+              </button>
             </div>
           )}
 

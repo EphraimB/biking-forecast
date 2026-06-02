@@ -241,15 +241,71 @@ function generateMockWeather(lat, lon) {
     hourly
   };
 }
+const CACHE_PREFIX = "biking_weather_cache_";
+let lastFetchTime = 0;
+const MIN_FETCH_INTERVAL_MS = 1000;
+
+function getCacheKey(coords) {
+  return coords.map(c => `${Number(c[0]).toFixed(3)},${Number(c[1]).toFixed(3)}`).join("|");
+}
+
+function getCachedWeatherData(key) {
+  if (typeof window === "undefined") return null;
+  try {
+    const cached = localStorage.getItem(CACHE_PREFIX + key);
+    if (!cached) return null;
+    const { timestamp, data } = JSON.parse(cached);
+    
+    // Check if cache is older than 60 minutes
+    const ageMs = Date.now() - timestamp;
+    if (ageMs < 60 * 60 * 1000) {
+      console.log(`📦 [Weather Cache] Cache hit for key: ${key.substring(0, 45)}...`);
+      return data;
+    } else {
+      localStorage.removeItem(CACHE_PREFIX + key);
+    }
+  } catch (e) {
+    console.warn("Failed to read from weather localStorage cache", e);
+  }
+  return null;
+}
+
+function setCachedWeatherData(key, data) {
+  if (typeof window === "undefined") return;
+  try {
+    if (data.isOfflineForecast) return; // Skip caching offline fallbacks
+
+    const payload = {
+      timestamp: Date.now(),
+      data
+    };
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(payload));
+    console.log(`📦 [Weather Cache] Cached weather for key: ${key.substring(0, 45)}...`);
+  } catch (e) {
+    console.warn("Failed to write to weather localStorage cache", e);
+  }
+}
+
+async function throttleFetch() {
+  const now = Date.now();
+  const timeSinceLastFetch = now - lastFetchTime;
+  if (timeSinceLastFetch < MIN_FETCH_INTERVAL_MS) {
+    const delay = MIN_FETCH_INTERVAL_MS - timeSinceLastFetch;
+    console.log(`⏳ [Weather Rate Limiting] Throttling request by ${delay}ms...`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+  lastFetchTime = Date.now();
+}
 
 /**
  * Fetches hourly weather forecasts from Open-Meteo for coordinates along a route.
  * Selects 2 to 5 points depending on the route's total distance.
  * @param {Array<[number, number]>} routeCoordinates - Array of [lat, lon] route coordinates
  * @param {number} totalDistance - Total distance in km
+ * @param {boolean} forceRefresh - If true, bypasses the cache
  * @returns {Promise<Array<object>>} Array of Open-Meteo weather response objects
  */
-export async function fetchRouteWeather(routeCoordinates, totalDistance) {
+export async function fetchRouteWeather(routeCoordinates, totalDistance, forceRefresh = false) {
   if (!routeCoordinates || routeCoordinates.length === 0) return [];
   
   // Step 1: Decide sample density based on distance
@@ -265,8 +321,20 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance) {
   }
   
   const sampledPoints = sampleCoordinates(routeCoordinates, numSamples);
+  const cacheKey = getCacheKey(sampledPoints);
+
+  // Check cache first (if not forcing refresh)
+  if (!forceRefresh) {
+    const cached = getCachedWeatherData(cacheKey);
+    if (cached) {
+      return cached;
+    }
+  }
   
   try {
+    // Throttling actual network calls to limit requests to Open-Meteo
+    await throttleFetch();
+
     const lats = sampledPoints.map(p => p[0]).join(",");
     const lons = sampledPoints.map(p => p[1]).join(",");
     
@@ -288,7 +356,10 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance) {
     // but an array of objects if multiple points are requested.
     const weatherArray = Array.isArray(data) ? data : [data];
     
-    // Dynamically match the current hour to print relevant console log metrics rather than hardcoded midnight (hour 0)
+    // Cache the response
+    setCachedWeatherData(cacheKey, weatherArray);
+
+    // Dynamically match the current hour to print relevant console log metrics
     const now = new Date();
     const year = now.getFullYear();
     const month = (now.getMonth() + 1).toString().padStart(2, "0");
@@ -314,6 +385,11 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance) {
     // Return high-fidelity mock forecast fallback
     const mockData = sampledPoints.map(p => generateMockWeather(p[0], p[1]));
     
+    // Attach error states to array object
+    mockData.isOfflineForecast = true;
+    mockData.errorType = error.message?.includes("429") ? "429" : "general";
+    mockData.errorMessage = error.message || "Network request failed";
+
     const now = new Date();
     const year = now.getFullYear();
     const month = (now.getMonth() + 1).toString().padStart(2, "0");
