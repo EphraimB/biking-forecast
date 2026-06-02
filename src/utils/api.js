@@ -27,10 +27,50 @@ const FALLBACK_LOCATIONS = [
   { label: "Ferry Building, San Francisco, CA", lat: 37.7954, lon: -122.3937 }
 ];
 
+const ROUTE_CACHE_PREFIX = "biking_route_cache_";
+const GEOCODE_CACHE_PREFIX = "biking_geocode_cache_";
+const REV_GEOCODE_CACHE_PREFIX = "biking_revgeocode_cache_";
+
+function getCachedData(prefix, key, maxAgeMs = 60 * 60 * 1000) {
+  if (typeof window === "undefined") return null;
+  try {
+    const cached = localStorage.getItem(prefix + key);
+    if (!cached) return null;
+    const { timestamp, data } = JSON.parse(cached);
+    if (Date.now() - timestamp < maxAgeMs) {
+      return data;
+    }
+    localStorage.removeItem(prefix + key);
+  } catch (e) {
+    console.warn(`Failed to read cache for ${prefix}`, e);
+  }
+  return null;
+}
+
+function setCachedData(prefix, key, data) {
+  if (typeof window === "undefined") return;
+  try {
+    const payload = {
+      timestamp: Date.now(),
+      data
+    };
+    localStorage.setItem(prefix + key, JSON.stringify(payload));
+  } catch (e) {
+    console.warn(`Failed to write cache for ${prefix}`, e);
+  }
+}
+
 export async function geocodeAddress(query) {
   if (!query || query.trim().length < 3) return [];
   
   const normQuery = query.toLowerCase().trim();
+  
+  // Check cache
+  const cached = getCachedData(GEOCODE_CACHE_PREFIX, normQuery);
+  if (cached) {
+    console.log(`📦 [Geocoding Cache] Cache hit for query: "${normQuery}"`);
+    return cached;
+  }
   
   // Gather matching local fallbacks
   const localMatches = FALLBACK_LOCATIONS.filter(item => 
@@ -54,6 +94,9 @@ export async function geocodeAddress(query) {
       query
     )}&format=json&limit=5&addressdetails=1`;
     
+    // Throttling live geocode calls to Nominatim
+    await throttleFetch();
+    
     const response = await fetch(url);
     if (response.ok) {
       const data = await response.json();
@@ -62,7 +105,9 @@ export async function geocodeAddress(query) {
         lon: parseFloat(item.lon),
         label: item.display_name
       }));
-      return mergeResults(nominatimResults, localMatches);
+      const merged = mergeResults(nominatimResults, localMatches);
+      setCachedData(GEOCODE_CACHE_PREFIX, normQuery, merged);
+      return merged;
     }
     console.warn(`Nominatim throttled: ${response.status}. Failover to Photon Komoot...`);
   } catch (error) {
@@ -94,13 +139,16 @@ export async function geocodeAddress(query) {
           label: uniqueParts.join(", ")
         };
       });
-      return mergeResults(photonResults, localMatches);
+      const merged = mergeResults(photonResults, localMatches);
+      setCachedData(GEOCODE_CACHE_PREFIX, normQuery, merged);
+      return merged;
     }
   } catch (error) {
     console.warn("Photon geocoder failed, falling back to offline landmark POIs: ", error.message);
   }
 
   // 3. Fallback to Local Offline POIs
+  setCachedData(GEOCODE_CACHE_PREFIX, normQuery, localMatches);
   return localMatches;
 }
 
@@ -115,6 +163,15 @@ export async function geocodeAddress(query) {
  * @returns {Promise<{shape: string, distance: number, time: number, legs: Array<object>}>} Valhalla trip data
  */
 export async function fetchBicycleRoute(startLat, startLon, endLat, endLon, bikeType = "Hybrid", cyclingSpeed = 20) {
+  const cacheKey = `${Number(startLat).toFixed(3)},${Number(startLon).toFixed(3)}_${Number(endLat).toFixed(3)},${Number(endLon).toFixed(3)}_${bikeType}_${cyclingSpeed}`;
+  
+  // Check cache first
+  const cached = getCachedData(ROUTE_CACHE_PREFIX, cacheKey);
+  if (cached) {
+    console.log(`📦 [Routing Cache] Cache hit for route: ${cacheKey}`);
+    return cached;
+  }
+
   try {
     const valhallaRequest = {
       locations: [
@@ -137,6 +194,9 @@ export async function fetchBicycleRoute(startLat, startLon, endLat, endLon, bike
       JSON.stringify(valhallaRequest)
     )}`;
 
+    // Throttling route network calls to Valhalla
+    await throttleFetch();
+
     const response = await fetch(url, {
       headers: {
         // Proactively set a customer identifier for fair-use tracking
@@ -155,12 +215,15 @@ export async function fetchBicycleRoute(startLat, startLon, endLat, endLon, bike
       throw new Error("No route found between selected points.");
     }
 
-    return {
+    const result = {
       shape: data.trip.legs[0].shape, // Encoded polyline6
       distance: data.trip.summary.length, // in km
       time: data.trip.summary.time, // in seconds
       legs: data.trip.legs
     };
+
+    setCachedData(ROUTE_CACHE_PREFIX, cacheKey, result);
+    return result;
   } catch (error) {
     console.error("Valhalla route fetch failed:", error);
     throw error;
@@ -434,10 +497,22 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance, forceRe
 
 export async function reverseGeocode(lat, lon) {
   const BOROUGHS = ["Manhattan", "Brooklyn", "Queens", "Bronx", "Staten Island"];
+  const cacheKey = `${Number(lat).toFixed(4)},${Number(lon).toFixed(4)}`;
+
+  // Check cache first
+  const cached = getCachedData(REV_GEOCODE_CACHE_PREFIX, cacheKey);
+  if (cached) {
+    console.log(`📦 [Reverse Geocoding Cache] Cache hit for coordinates: ${cacheKey}`);
+    return cached;
+  }
 
   // 1. Try Nominatim reverse (Primary)
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`;
+    
+    // Throttle requests to Nominatim
+    await throttleFetch();
+    
     const response = await fetch(url, {
       headers: {
         "User-Agent": "BikingForecastApp"
@@ -471,9 +546,14 @@ export async function reverseGeocode(lat, lon) {
       }
       
       if (placeName) {
+        setCachedData(REV_GEOCODE_CACHE_PREFIX, cacheKey, placeName);
         return placeName;
       }
-      return data.display_name?.split(",")[0] || null;
+      const fallbackName = data.display_name?.split(",")[0] || null;
+      if (fallbackName) {
+        setCachedData(REV_GEOCODE_CACHE_PREFIX, cacheKey, fallbackName);
+      }
+      return fallbackName;
     }
   } catch (error) {
     console.warn("Nominatim reverse geocode failed: ", error.message);
@@ -501,6 +581,7 @@ export async function reverseGeocode(lat, lon) {
         }
         
         if (placeName) {
+          setCachedData(REV_GEOCODE_CACHE_PREFIX, cacheKey, placeName);
           return placeName;
         }
       }
