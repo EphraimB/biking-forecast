@@ -415,6 +415,16 @@ export default function Home() {
     return weatherData;
   }, []);
 
+  const handleShowSimulatedInfo = useCallback((e) => {
+    e.stopPropagation();
+    setToast({
+      id: "toast-429-info",
+      type: "warning",
+      message: "Daily weather limit reached. Simulated forecast active for the rest of today.",
+      isPersistent: false
+    });
+  }, []);
+
   const handleRefreshWeather = useCallback(async () => {
     if (isRefreshingWeather) return;
     setIsRefreshingWeather(true);
@@ -2480,8 +2490,13 @@ export default function Home() {
                 {formatTemp(dynamicAmbientWeather.temp)}
                 <span> • {formatWind(dynamicAmbientWeather.windSpeed)} {dynamicAmbientWeather.windDir}</span>
                 {cooldownRemaining > 0 && (
-                  <span className={styles.cooldownBadge} title="Open-Meteo API rate-limit (429) active. Serving a localized mathematical simulation modeling temperature waves, humidity, wind patterns, and diurnal solar curves.">
-                    ⚠️ SIMULATED <span className="mobile-hide">(Retry {formatCooldown(cooldownRemaining)})</span>
+                  <span 
+                    className={styles.cooldownBadge} 
+                    onClick={handleShowSimulatedInfo}
+                    style={{ cursor: "pointer" }}
+                    title="Daily weather limit reached. Simulated forecast active for the rest of today. Tap for more info."
+                  >
+                    ⚠️ SIMULATED <span className="mobile-hide">(Daily Limit)</span>
                   </span>
                 )}
               </span>
@@ -2491,7 +2506,7 @@ export default function Home() {
                   handleRefreshWeather();
                 }} 
                 className={`${styles.weatherRefreshBtn} ${isRefreshingWeather ? styles.spinning : ""}`}
-                title={cooldownRemaining > 0 ? `API rate-limit active. Using mathematical simulation. Retry available in ${formatCooldown(cooldownRemaining)}` : "Refresh Weather"}
+                title={cooldownRemaining > 0 ? "Daily weather limit reached. Simulated forecast active for the rest of today." : "Refresh Weather"}
                 disabled={isRefreshingWeather || cooldownRemaining > 0}
                 style={{ opacity: cooldownRemaining > 0 ? 0.35 : 1, cursor: cooldownRemaining > 0 ? "not-allowed" : "pointer" }}
               >
