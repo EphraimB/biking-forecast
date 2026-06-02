@@ -522,39 +522,137 @@ export default function RouteMap({
 
         // Render Leave Now Summary Overlay card to the side of the end pin
         if (leaveNowOverlayData) {
+          const getDayLabel = (offset) => {
+            const d = new Date();
+            d.setDate(d.getDate() + offset);
+            if (offset === 0) return `Today (${d.toLocaleDateString("en-US", { weekday: "short" })})`;
+            if (offset === 1) return `Tomorrow (${d.toLocaleDateString("en-US", { weekday: "short" })})`;
+            return d.toLocaleDateString("en-US", { weekday: "long" });
+          };
+
+          // Generate day options
+          const dayOptionsHtml = Array.from({ length: 7 }).map((_, offset) => {
+            const label = getDayLabel(offset);
+            const isSelected = leaveNowOverlayData.selectedDayOffset === offset;
+            return `<option value="${offset}" style="background: #0f172a; color: #f8fafc;" ${isSelected ? "selected" : ""}>${label}</option>`;
+          }).join("");
+
+          // Generate hour options
+          const isImperial = unitSystem === "imperial";
+          const hourOptionsHtml = Array.from({ length: 24 }).map((_, h) => {
+            const displayHour = h % 12 === 0 ? 12 : h % 12;
+            const period = h >= 12 ? "PM" : "AM";
+            const label = isImperial ? `${displayHour}:00 ${period}` : `${h.toString().padStart(2, "0")}:00`;
+            const isSelected = leaveNowOverlayData.selectedHour === h;
+            return `<option value="${h}" style="background: #0f172a; color: #f8fafc;" ${isSelected ? "selected" : ""}>${label}</option>`;
+          }).join("");
+
+          // Reset button html if custom departure is active
+          const resetBtnHtml = leaveNowOverlayData.isDepartureTimeCustom
+            ? `<button class="overlay-reset-btn" onclick="window.handleOverlayResetClick()" style="
+                background: none;
+                border: none;
+                color: var(--color-amber);
+                text-decoration: underline;
+                cursor: pointer;
+                padding: 0;
+                font-size: 10px;
+                margin-left: auto;
+              ">Reset to Now</button>`
+            : "";
+
           const overlayIcon = L.divIcon({
             className: "",
             html: `
               <div class="route-summary-overlay-card" style="
                 position: absolute;
                 left: 16px;
-                top: -55px;
+                top: -85px;
                 width: max-content;
-                min-width: 150px;
-                max-width: 220px;
-                background: rgba(15, 23, 42, 0.88);
+                min-width: 180px;
+                max-width: 250px;
+                background: rgba(15, 23, 42, 0.92);
                 backdrop-filter: blur(16px);
                 -webkit-backdrop-filter: blur(16px);
                 border: 1.5px solid rgba(255, 255, 255, 0.12);
                 border-radius: 12px;
-                padding: 10px 12px;
+                padding: 12px;
                 box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
                 color: var(--hud-text-primary);
                 font-family: var(--font-body);
                 font-size: 11px;
                 pointer-events: auto;
                 z-index: 1000;
-              ">
-                <div style="font-weight: 800; color: #ef4444; font-size: 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
-                  🏁 ${leaveNowOverlayData.label}
+              "
+              onmousedown="event.stopPropagation()"
+              onmouseup="event.stopPropagation()"
+              onclick="event.stopPropagation()"
+              ontouchstart="event.stopPropagation()"
+              ontouchmove="event.stopPropagation()"
+              ontouchend="event.stopPropagation()"
+              >
+                <div style="font-weight: 800; color: #ef4444; font-size: 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 4px;">
+                  🏁 ${leaveNowOverlayData.isDepartureTimeCustom ? "Custom Departure" : "Leave Now"}
+                  ${resetBtnHtml}
                 </div>
-                <div style="margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
+
+                <!-- Date & Time Selectors Row -->
+                <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+                  <select onchange="window.handleOverlayDayChange(this.value)" style="
+                    background: rgba(255,255,255,0.08);
+                    border: 1px solid rgba(255,255,255,0.15);
+                    border-radius: 6px;
+                    color: var(--hud-text-primary);
+                    font-size: 10px;
+                    padding: 3px 6px;
+                    cursor: pointer;
+                    outline: none;
+                    flex: 1.2;
+                  ">
+                    ${dayOptionsHtml}
+                  </select>
+                  <select onchange="window.handleOverlayHourChange(this.value)" style="
+                    background: rgba(255,255,255,0.08);
+                    border: 1px solid rgba(255,255,255,0.15);
+                    border-radius: 6px;
+                    color: var(--hud-text-primary);
+                    font-size: 10px;
+                    padding: 3px 6px;
+                    cursor: pointer;
+                    outline: none;
+                    flex: 1;
+                  ">
+                    ${hourOptionsHtml}
+                  </select>
+                </div>
+
+                <div style="margin-bottom: 5px; display: flex; align-items: center; gap: 4px;">
                   <span>⏱️</span>
                   <span><strong>Ride</strong>: ${leaveNowOverlayData.duration} mins (${leaveNowOverlayData.distance})</span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 4px;">
+                <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 4px;">
                   <span>⏰</span>
                   <span><strong>Arrival</strong>: ${leaveNowOverlayData.arrivalTimeStr}</span>
+                </div>
+
+                <!-- Actions Row -->
+                <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; display: flex; justify-content: flex-end;">
+                  <button onclick="window.handleOverlayReverseClick()" style="
+                    background: var(--color-emerald);
+                    border: none;
+                    border-radius: 6px;
+                    color: white;
+                    font-size: 10px;
+                    font-weight: 700;
+                    padding: 4px 8px;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+                  ">
+                    ⇅ Reverse Route
+                  </button>
                 </div>
               </div>
             `,

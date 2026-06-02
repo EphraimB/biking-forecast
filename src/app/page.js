@@ -231,6 +231,7 @@ export default function Home() {
   const [selectedDayOffset, setSelectedDayOffset] = useState(0); // 0 (Today) to 6 (Day + 6)
   const [selectedHour, setSelectedHour] = useState(8); // 6:00 AM to 8:00 PM (commuter scrubber scale)
   const [isReturnTripMode, setIsReturnTripMode] = useState(false);
+  const [isDepartureTimeCustom, setIsDepartureTimeCustom] = useState(false);
 
 
   // Dynamic Packing Drawer Scope (🎒 checklist toggle)
@@ -628,8 +629,55 @@ export default function Home() {
     }
   }, [hudState]);
 
+  // 4. Bind Map Destination Overlay Callback handlers to window (for Leaflet HTML interaction)
+  useEffect(() => {
+    window.handleOverlayDayChange = (val) => {
+      setSelectedDayOffset(parseInt(val, 10));
+      setIsDepartureTimeCustom(true);
+    };
 
+    window.handleOverlayHourChange = (val) => {
+      setSelectedHour(parseInt(val, 10));
+      setIsDepartureTimeCustom(true);
+    };
 
+    window.handleOverlayResetClick = () => {
+      const now = new Date();
+      setSelectedDayOffset(0);
+      setSelectedHour(now.getHours());
+      setIsDepartureTimeCustom(false);
+    };
+
+    window.handleOverlayReverseClick = () => {
+      if (!confirmedStart || !confirmedEnd) return;
+      const oldStart = confirmedStart;
+      const oldEnd = confirmedEnd;
+
+      // Physically swap search query values and draft locations
+      setDraftStart(oldEnd);
+      setDraftEnd(oldStart);
+      setStartQuery(oldEnd.label || "");
+      setEndQuery(oldStart.label || "");
+
+      // Physically swap confirmed endpoints
+      setConfirmedStart(oldEnd);
+      setConfirmedEnd(oldStart);
+
+      // Reset return trip modes and weather results to avoid visual lag
+      setIsReturnTripMode(false);
+      setWeatherResults([]);
+
+      // Trigger recalculation and fresh Valhalla routing
+      loadRouteDetails(oldEnd, oldStart, newBikeType, newSpeed);
+    };
+
+    return () => {
+      delete window.handleOverlayDayChange;
+      delete window.handleOverlayHourChange;
+      delete window.handleOverlayResetClick;
+      delete window.handleOverlayReverseClick;
+    };
+  }, [confirmedStart, confirmedEnd, newBikeType, newSpeed, loadRouteDetails]);
 
   const handleDeleteSavedRoute = (id, e) => {
     e.stopPropagation();
@@ -666,6 +714,8 @@ export default function Home() {
       setDraftEnd(null);
       setStartQuery("");
       setEndQuery("");
+      setIsDepartureTimeCustom(false);
+      setIsReturnTripMode(false);
     }
   };
 
@@ -997,7 +1047,7 @@ export default function Home() {
     if (!activeRouteData || !activeRouteData.segments || activeRouteData.segments.length === 0 || !activeRouteData.weatherResults || activeRouteData.weatherResults.length === 0) return null;
     
     let hourIdx;
-    if (hudState === 3) {
+    if (hudState === 3 || isDepartureTimeCustom) {
       hourIdx = selectedDayOffset * 24 + selectedHour;
     } else {
       const now = new Date();
@@ -1032,11 +1082,13 @@ export default function Home() {
     
     let depDate;
     let label;
-    if (hudState === 3) {
+    if (hudState === 3 || isDepartureTimeCustom) {
       depDate = new Date();
       depDate.setDate(depDate.getDate() + selectedDayOffset);
       depDate.setHours(selectedHour, 0, 0, 0);
-      label = `Trip at ${formatTimeToAMPM(`${selectedHour.toString().padStart(2, "0")}:00`)}`;
+      label = hudState === 3
+        ? `Trip at ${formatTimeToAMPM(`${selectedHour.toString().padStart(2, "0")}:00`)}`
+        : "Custom Departure";
     } else {
       depDate = new Date();
       label = "Leave Now";
@@ -1070,7 +1122,10 @@ export default function Home() {
       depTimeStr,
       arrivalTimeStr,
       label,
-      packingList: items.join(", ")
+      packingList: items.join(", "),
+      selectedDayOffset,
+      selectedHour,
+      isDepartureTimeCustom
     };
   };
 
@@ -1662,6 +1717,8 @@ export default function Home() {
                   setDraftEnd(null);
                   setStartQuery("");
                   setEndQuery("");
+                  setIsDepartureTimeCustom(false);
+                  setIsReturnTripMode(false);
                   localStorage.removeItem("hud_active_view_state"); // Clear cached route state on manual reset
                 }} 
                 className={styles.clearRouteBtn}
