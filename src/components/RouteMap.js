@@ -611,6 +611,43 @@ export default function RouteMap({
                  <span><strong>Arrival</strong>: ${leaveNowOverlayData.arrivalTimeStr}</span>
                </div>`;
 
+          const isSaved = leaveNowOverlayData.isSaved;
+          const saveRouteBtnHtml = isSaved
+            ? `<button disabled style="
+                background: rgba(255,255,255,0.05);
+                border: 1px solid rgba(255,255,255,0.1);
+                border-radius: 6px;
+                color: var(--hud-text-secondary);
+                font-size: 10px;
+                font-weight: 700;
+                padding: 4px 8px;
+                cursor: not-allowed;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+              ">
+                ✓ Bookmarked
+              </button>`
+            : `<button onclick="window.handleOverlaySaveRouteClick()" style="
+                background: rgba(255, 255, 255, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 6px;
+                color: var(--hud-text-primary);
+                font-size: 10px;
+                font-weight: 700;
+                padding: 4px 8px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                transition: all 0.2s ease;
+              "
+              onmouseover="this.style.background='rgba(255,255,255,0.18)'"
+              onmouseout="this.style.background='rgba(255,255,255,0.1)'"
+              >
+                💾 Save Route
+              </button>`;
+
           const overlayIcon = L.divIcon({
             className: "",
             html: `
@@ -762,7 +799,8 @@ export default function RouteMap({
                 ${telemetryHtml}
 
                 <!-- Actions Row -->
-                <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; display: flex; justify-content: flex-end;">
+                <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                  ${saveRouteBtnHtml}
                   <button onclick="window.handleOverlayReverseClick()" style="
                     background: var(--color-emerald);
                     border: none;

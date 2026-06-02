@@ -265,8 +265,6 @@ export default function Home() {
   // HUD Config Settings (State 1)
   const [newBikeType, setNewBikeType] = useState("Hybrid");
   const [newSpeed, setNewSpeed] = useState(18);
-  const [saveRouteName, setSaveRouteName] = useState("");
-  const [shouldSaveRoute, setShouldSaveRoute] = useState(false);
 
   // Recurring Weekly Commute Schedules (Assign different routes & outbound/return times per day)
   const [weeklySchedule, setWeeklySchedule] = useState({
@@ -435,8 +433,6 @@ export default function Home() {
           localStorage.setItem("hud_saved_routes", JSON.stringify(updated));
           return updated;
         });
-        setShouldSaveRoute(false);
-        setSaveRouteName("");
       }
     } catch (err) {
       console.error(err);
@@ -788,6 +784,35 @@ export default function Home() {
       loadRouteDetails(oldEnd, oldStart, newBikeType, newSpeed);
     };
 
+    window.handleOverlaySaveRouteClick = () => {
+      if (!confirmedStart || !confirmedEnd || !routeCoordinates || routeCoordinates.length === 0) return;
+      
+      const startLabel = confirmedStart.label ? confirmedStart.label.split(",")[0] : "Start";
+      const endLabel = confirmedEnd.label ? confirmedEnd.label.split(",")[0] : "Destination";
+      const name = `${startLabel} ⇆ ${endLabel}`;
+      
+      const computedDistance = routeSegments.reduce((sum, seg) => sum + seg.distance, 0);
+      const roundedDistance = Math.round(computedDistance * 10) / 10;
+      
+      const newRoute = {
+        id: Date.now().toString(),
+        name,
+        start: confirmedStart,
+        end: confirmedEnd,
+        bikeType: newBikeType,
+        speed: newSpeed,
+        coordinates: routeCoordinates,
+        segments: routeSegments,
+        distance: roundedDistance
+      };
+
+      setSavedRoutes(prev => {
+        const updated = [...prev, newRoute];
+        localStorage.setItem("hud_saved_routes", JSON.stringify(updated));
+        return updated;
+      });
+    };
+
     return () => {
       delete window.handleOverlayDayChange;
       delete window.handleOverlayHourChange;
@@ -797,8 +822,9 @@ export default function Home() {
       delete window.handleOverlayResetClick;
       delete window.handleOverlayReverseClick;
       delete window.handleOverlayTimeModeChange;
+      delete window.handleOverlaySaveRouteClick;
     };
-  }, [confirmedStart, confirmedEnd, newBikeType, newSpeed, loadRouteDetails]);
+  }, [confirmedStart, confirmedEnd, newBikeType, newSpeed, loadRouteDetails, routeCoordinates, routeSegments, savedRoutes]);
 
   const handleDeleteSavedRoute = (id, e) => {
     e.stopPropagation();
@@ -1276,6 +1302,14 @@ export default function Home() {
       ? `${Math.round(activeForecast.distance * 0.621371 * 10) / 10} mi`
       : `${activeForecast.distance.toFixed(1)} km`;
 
+    const isSaved = savedRoutes.some(r => 
+      r.start && r.end && confirmedStart && confirmedEnd &&
+      Math.abs(r.start.lat - confirmedStart.lat) < 0.0001 && 
+      Math.abs(r.start.lon - confirmedStart.lon) < 0.0001 && 
+      Math.abs(r.end.lat - confirmedEnd.lat) < 0.0001 && 
+      Math.abs(r.end.lon - confirmedEnd.lon) < 0.0001
+    );
+
     return {
       duration,
       distance: displayDist,
@@ -1287,7 +1321,8 @@ export default function Home() {
       selectedHour,
       selectedMinute,
       isDepartureTimeCustom,
-      timeMode
+      timeMode,
+      isSaved
     };
   };
 
@@ -2305,35 +2340,12 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Save Route Persistence Toggle */}
-              <div className={styles.saveToggleRow}>
-                <label className={styles.checkboxLabel}>
-                  <input 
-                    type="checkbox" 
-                    checked={shouldSaveRoute} 
-                    onChange={(e) => setShouldSaveRoute(e.target.checked)}
-                    className={styles.checkboxInput}
-                  />
-                  <span>🔖 Save Route to local library</span>
-                </label>
-
-                {shouldSaveRoute && (
-                  <input 
-                    type="text" 
-                    className="hud-input" 
-                    placeholder="Route Name (e.g. Work Commute)..."
-                    value={saveRouteName}
-                    onChange={(e) => setSaveRouteName(e.target.value)}
-                  />
-                )}
-              </div>
-
               {/* Confirm Route build pipeline */}
               <button 
                 className={`${styles.confirmBtn} hud-btn ${draftStart && draftEnd ? "active" : ""}`}
                 disabled={!draftStart || !draftEnd || isLoading}
                 onClick={() => {
-                  loadRouteDetails(draftStart, draftEnd, newBikeType, newSpeed, null, shouldSaveRoute, saveRouteName);
+                  loadRouteDetails(draftStart, draftEnd, newBikeType, newSpeed);
                 }}
               >
                 {isLoading ? "Analyzing..." : "Confirm & Map HUD"}
