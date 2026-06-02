@@ -480,10 +480,26 @@ export default function RouteMap({
         layersRef.current.markers.push(endMarker);
       }
 
+      // Draw user's current GPS location marker (pulsing blue circle)
+      if (userLocation && userLocation.lat && userLocation.lon) {
+        const gpsIcon = L.divIcon({
+          className: "",
+          html: `
+            <div style="position: relative; width: 14px; height: 14px;">
+              <div class="marker-ripple" style="width: 14px; height: 14px; background: rgba(59, 130, 246, 0.45); box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);"></div>
+              <div style="position: absolute; width: 14px; height: 14px; background: #3b82f6; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 10px rgba(59, 130, 246, 0.8); top: 0; left: 0;"></div>
+            </div>
+          `,
+          iconSize: [14, 14],
+          iconAnchor: [7, 7]
+        });
+        const gpsMarker = L.marker([userLocation.lat, userLocation.lon], { icon: gpsIcon }).addTo(map);
+        layersRef.current.markers.push(gpsMarker);
+      }
 
     });
 
-  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState, customSpeed, ambientWeatherForecast]);
+  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState, customSpeed, ambientWeatherForecast, userLocation]);
 
   // Synchronously compute derived environmental metrics in render (avoiding useEffect cascading triggers)
   const getAmbientWeatherMetrics = () => {
