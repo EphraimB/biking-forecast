@@ -29,6 +29,16 @@ export default function RouteMap({
   const mapInstanceRef = useRef(null);
   const layersRef = useRef({ polylines: [], markers: [], telemetries: [], weatherOverlays: [] });
   const lastFittedRouteRef = useRef("");
+  const onMapMoveRef = useRef(onMapMove);
+  const onMapClickRef = useRef(onMapClick);
+
+  useEffect(() => {
+    onMapMoveRef.current = onMapMove;
+  }, [onMapMove]);
+
+  useEffect(() => {
+    onMapClickRef.current = onMapClick;
+  }, [onMapClick]);
 
   const handleJumpToGPS = () => {
     if (mapInstanceRef.current) {
@@ -143,15 +153,15 @@ export default function RouteMap({
         }
 
         map.on("click", (e) => {
-          if (onMapClick) {
-            onMapClick({ lat: e.latlng.lat, lon: e.latlng.lng });
+          if (onMapClickRef.current) {
+            onMapClickRef.current({ lat: e.latlng.lat, lon: e.latlng.lng });
           }
         });
 
         map.on("moveend", () => {
           const center = map.getCenter();
-          if (onMapMove) {
-            onMapMove({ lat: center.lat, lon: center.lng });
+          if (onMapMoveRef.current) {
+            onMapMoveRef.current({ lat: center.lat, lon: center.lng });
           }
         });
       }
