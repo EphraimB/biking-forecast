@@ -29,6 +29,7 @@ export default function RouteMap({
   const mapInstanceRef = useRef(null);
   const layersRef = useRef({ polylines: [], markers: [], telemetries: [], weatherOverlays: [] });
   const lastFittedRouteRef = useRef("");
+  const lastCenteredStartRef = useRef(null);
   const onMapMoveRef = useRef(onMapMove);
   const onMapClickRef = useRef(onMapClick);
 
@@ -490,8 +491,14 @@ export default function RouteMap({
         layersRef.current.markers.push(startMarker);
         
         if (!coordinates || coordinates.length === 0) {
-          map.setView([startLocation.lat, startLocation.lon], 13);
+          const startLocStr = `${startLocation.lat},${startLocation.lon}`;
+          if (lastCenteredStartRef.current !== startLocStr) {
+            lastCenteredStartRef.current = startLocStr;
+            map.setView([startLocation.lat, startLocation.lon], 13);
+          }
         }
+      } else {
+        lastCenteredStartRef.current = null;
       }
 
       // Draw destination location pin (Pulsing ruby ring)
