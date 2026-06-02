@@ -28,6 +28,7 @@ export default function RouteMap({
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const layersRef = useRef({ polylines: [], markers: [], telemetries: [], weatherOverlays: [] });
+  const lastFittedRouteRef = useRef("");
 
   const handleJumpToGPS = () => {
     if (mapInstanceRef.current) {
@@ -163,6 +164,10 @@ export default function RouteMap({
   useEffect(() => {
     if (!mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
+    
+    if (!coordinates || coordinates.length === 0) {
+      lastFittedRouteRef.current = "";
+    }
     
     // Clear old layers
     layersRef.current.polylines.forEach(p => p.remove());
@@ -447,8 +452,12 @@ export default function RouteMap({
           }
         });
 
-        const bounds = L.latLngBounds(coordinates);
-        map.fitBounds(bounds, { padding: [80, 80] });
+        const coordsSerialized = JSON.stringify(coordinates);
+        if (lastFittedRouteRef.current !== coordsSerialized) {
+          lastFittedRouteRef.current = coordsSerialized;
+          const bounds = L.latLngBounds(coordinates);
+          map.fitBounds(bounds, { padding: [80, 80] });
+        }
       }
 
       // Draw start location pin (Pulsing emerald ring)
@@ -508,7 +517,7 @@ export default function RouteMap({
 
     });
 
-  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState, customSpeed, ambientWeatherForecast, userLocation]);
+  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState, customSpeed, userLocation]);
 
   // Synchronously compute derived environmental metrics in render (avoiding useEffect cascading triggers)
   const getAmbientWeatherMetrics = () => {
