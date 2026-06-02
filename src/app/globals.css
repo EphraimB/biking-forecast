@@ -357,6 +357,22 @@ html, body {
   font-family: var(--font-body) !important;
 }
 
+.leaflet-popup-content {
+  margin: 12px 14px !important;
+}
+
+.leaflet-popup-close-button {
+  color: var(--hud-text-secondary) !important;
+  font-size: 16px !important;
+  padding: 8px 12px 0 0 !important;
+  transition: color var(--duration-snap) ease;
+}
+
+.leaflet-popup-close-button:hover {
+  color: var(--hud-text-primary) !important;
+  background: transparent !important;
+}
+
 .leaflet-popup-tip {
   background: hsla(var(--hud-bg-raw), 0.75) !important;
   border: 1px solid var(--hud-border);
@@ -483,11 +499,26 @@ html, body {
   animation: route-flow 4s linear infinite !important;
 }
 
+/* Responsive visibility overrides */
+.mobile-only {
+  display: none !important;
+}
+.desktop-only {
+  display: flex !important;
+}
+
 /* ------------------------------------------------------------- */
 /* PREMIUM RESPONSIVE DESIGN ADJUSTMENTS                         */
 /* ------------------------------------------------------------- */
 
 @media (max-width: 768px) {
+  .mobile-only {
+    display: flex !important;
+  }
+  .desktop-only {
+    display: none !important;
+  }
+
   .hud-bubble {
     padding: 8px 14px !important;
     font-size: 0.78rem !important;
@@ -499,15 +530,20 @@ html, body {
     border-radius: 16px !important;
   }
 
-  /* Responsive Collapsing Text Labels - disabled to show full info on mobile */
+  /* Responsive Collapsing Text Labels - enabled to hide text labels on mobile */
   .mobile-hide {
-    display: inline !important;
+    display: none !important;
+  }
+
+  /* Prevent iOS zoom on form focus by ensuring font-size is at least 16px */
+  input, select, textarea, .hud-input, [class*="timeFieldInput"], [class*="dateTimeField"], [class*="selectOverride"], [class*="addressInput"] {
+    font-size: 16px !important;
   }
 
   /* Centered Viewport Overlay Panels (Saved Routes, Gear Check, Planner) */
   .hud-card-responsive {
     position: fixed !important;
-    top: 105px !important; /* Clears the stacked double-row controls */
+    top: 60px !important; /* Clears the thin single-row controls */
     left: 10px !important;
     right: 10px !important;
     width: calc(100% - 20px) !important;
@@ -581,22 +617,23 @@ html, body {
     top: 10px !important;
     left: 10px !important;
     right: 10px !important;
-    flex-direction: column !important;
-    align-items: stretch !important;
-    gap: 8px !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 6px !important;
   }
 
   .hud-top-left {
-    justify-content: center !important;
-    flex-wrap: wrap !important;
-    width: 100% !important;
+    justify-content: flex-start !important;
+    flex-wrap: nowrap !important;
+    width: auto !important;
     gap: 6px !important;
   }
 
   .hud-top-right {
-    justify-content: center !important;
-    flex-wrap: wrap !important;
-    width: 100% !important;
+    justify-content: flex-end !important;
+    flex-wrap: nowrap !important;
+    width: auto !important;
     gap: 6px !important;
   }
 }

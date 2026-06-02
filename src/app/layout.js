@@ -16,6 +16,14 @@ export const metadata = {
   description: "Plan your commutes with a smart wind-aware cycling forecast. Predicts travel time, headwind impact, temperature penalties, and suggests optimal departure times dynamically.",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>

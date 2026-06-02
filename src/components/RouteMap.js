@@ -109,9 +109,11 @@ export default function RouteMap({
           maxZoom: 20
         }).addTo(map);
 
-        L.control.zoom({
-          position: "bottomright"
-        }).addTo(map);
+        if (!L.Browser.touch) {
+          L.control.zoom({
+            position: "bottomright"
+          }).addTo(map);
+        }
 
         mapInstanceRef.current = map;
 
@@ -311,9 +313,15 @@ export default function RouteMap({
             />
           );
 
-          hoverPoly.bindTooltip(tooltipHtml, { 
-            sticky: true,
-            className: "leaflet-tooltip" 
+          if (!L.Browser.touch) {
+            hoverPoly.bindTooltip(tooltipHtml, { 
+              sticky: true,
+              className: "leaflet-tooltip" 
+            });
+          }
+
+          hoverPoly.bindPopup(tooltipHtml, {
+            className: "leaflet-popup-segment"
           });
 
           // Style animations synced to broad hover triggers
@@ -324,6 +332,7 @@ export default function RouteMap({
           hoverPoly.on("mouseout", function() {
             poly.setStyle({ weight: 4 });
           });
+
 
           layersRef.current.polylines.push(bgLine);
           layersRef.current.polylines.push(poly);
