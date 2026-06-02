@@ -233,6 +233,12 @@ function CustomTimeInput({ value, onChange, unitSystem, isBulk = false }) {
   }
 }
 
+const getCleanLabel = (label) => {
+  if (!label) return "";
+  if (label.startsWith("(") && label.endsWith(")")) return label;
+  return label.split(",")[0];
+};
+
 export default function Home() {
   // Hydration & localStorage restoration guard
   const [isRestored, setIsRestored] = useState(false);
@@ -308,6 +314,37 @@ export default function Home() {
 
   // Adaptive Unit Toggle (📐 Metric / Imperial)
   const [unitSystem, setUnitSystem] = useState("metric");
+
+  // Custom Departure overlay time input states
+  const [prevSelectedHour, setPrevSelectedHour] = useState(selectedHour);
+  const [prevSelectedMinute, setPrevSelectedMinute] = useState(selectedMinute);
+  const [prevUnitSystem, setPrevUnitSystem] = useState("metric");
+
+  const getOverlayHourDisplay = (h, currentUnitSystem) => {
+    if (currentUnitSystem === "metric") {
+      return h.toString().padStart(2, "0");
+    } else {
+      const displayHour = h % 12 === 0 ? 12 : h % 12;
+      return displayHour.toString().padStart(2, "0");
+    }
+  };
+
+  const getOverlayMinuteDisplay = (m) => {
+    return m.toString().padStart(2, "0");
+  };
+
+  const [overlayHourVal, setOverlayHourVal] = useState(getOverlayHourDisplay(selectedHour, "metric"));
+  const [overlayMinVal, setOverlayMinVal] = useState(getOverlayMinuteDisplay(selectedMinute));
+
+  // Sync local inputs when global states change
+  if (selectedHour !== prevSelectedHour || selectedMinute !== prevSelectedMinute || unitSystem !== prevUnitSystem) {
+    setPrevSelectedHour(selectedHour);
+    setPrevSelectedMinute(selectedMinute);
+    setPrevUnitSystem(unitSystem);
+    setOverlayHourVal(getOverlayHourDisplay(selectedHour, unitSystem));
+    setOverlayMinVal(getOverlayMinuteDisplay(selectedMinute));
+  }
+
 
   // Helper unit formatting functions
   const formatTemp = (celsius) => {
@@ -911,136 +948,157 @@ export default function Home() {
     }
   }, [hudState]);
 
-  // 4. Bind Map Destination Overlay Callback handlers to window (for Leaflet HTML interaction)
-  useEffect(() => {
-    window.handleOverlayDayChange = (val) => {
-      setSelectedDayOffset(parseInt(val, 10));
-      setIsDepartureTimeCustom(true);
+  // 4. Custom Departure Overlay Event Handlers (Native React)
+  const handleOverlayDayChange = (val) => {
+    setSelectedDayOffset(parseInt(val, 10));
+    setIsDepartureTimeCustom(true);
+  };
+
+  const handleOverlayHourChange = (val) => {
+    setSelectedHour(parseInt(val, 10));
+    setIsDepartureTimeCustom(true);
+  };
+
+  const handleOverlayHour12Change = (val) => {
+    setSelectedHour(prev => {
+      const isPM = prev >= 12;
+      let newHour = parseInt(val, 10) % 12;
+      if (isPM) newHour += 12;
+      return newHour;
+    });
+    setIsDepartureTimeCustom(true);
+  };
+
+  const handleOverlayMinuteChange = (val) => {
+    setSelectedMinute(parseInt(val, 10));
+    setIsDepartureTimeCustom(true);
+  };
+
+  const handleOverlayPeriodChange = (val) => {
+    setSelectedHour(prev => {
+      let new24Hour = prev;
+      const isPM = val === "PM";
+      const currentIsPM = prev >= 12;
+      if (isPM && !currentIsPM) {
+        new24Hour = (prev % 12) + 12;
+      } else if (!isPM && currentIsPM) {
+        new24Hour = prev % 12;
+      }
+      return new24Hour;
+    });
+    setIsDepartureTimeCustom(true);
+  };
+
+  const handleOverlayTimeModeChange = (val) => {
+    setTimeMode(val);
+    setIsDepartureTimeCustom(true);
+  };
+
+  const handleOverlayResetClick = () => {
+    const now = new Date();
+    setSelectedDayOffset(0);
+    setSelectedHour(now.getHours());
+    
+    const currentMin = now.getMinutes();
+    const roundedMin = Math.round(currentMin / 15) * 15 % 60;
+    setSelectedMinute(roundedMin);
+
+    setTimeMode("leave");
+    setIsDepartureTimeCustom(false);
+  };
+
+  const handleOverlayReverseClick = () => {
+    if (!confirmedStart || !confirmedEnd) return;
+    const oldStart = confirmedStart;
+    const oldEnd = confirmedEnd;
+
+    // Physically swap search query values and draft locations
+    setDraftStart(oldEnd);
+    setDraftEnd(oldStart);
+    setStartQuery(oldEnd.label || "");
+    setEndQuery(oldStart.label || "");
+
+    // Physically swap confirmed endpoints
+    setConfirmedStart(oldEnd);
+    setConfirmedEnd(oldStart);
+
+    // Reset return trip modes and weather results to avoid visual lag
+    setIsReturnTripMode(false);
+    setWeatherResults([]);
+
+    // Trigger recalculation and fresh Valhalla routing
+    loadRouteDetails(oldEnd, oldStart, newBikeType, newSpeed);
+  };
+
+  const handleOverlaySaveRouteClick = () => {
+    if (!confirmedStart || !confirmedEnd || !routeCoordinates || routeCoordinates.length === 0) return;
+    
+    const getCleanLabel = (label) => {
+      if (!label) return "";
+      if (label.startsWith("(") && label.endsWith(")")) return label;
+      return label.split(",")[0];
+    };
+    
+    const startLabel = getCleanLabel(confirmedStart.label) || "Start";
+    const endLabel = getCleanLabel(confirmedEnd.label) || "Destination";
+    const name = `${startLabel} ⇆ ${endLabel}`;
+    
+    const computedDistance = routeSegments.reduce((sum, seg) => sum + seg.distance, 0);
+    const roundedDistance = Math.round(computedDistance * 10) / 10;
+    
+    const newRoute = {
+      id: Date.now().toString(),
+      name,
+      start: confirmedStart,
+      end: confirmedEnd,
+      bikeType: newBikeType,
+      speed: newSpeed,
+      coordinates: routeCoordinates,
+      segments: routeSegments,
+      distance: roundedDistance
     };
 
-    window.handleOverlayHourChange = (val) => {
-      setSelectedHour(parseInt(val, 10));
-      setIsDepartureTimeCustom(true);
-    };
+    setSavedRoutes(prev => {
+      const updated = [...prev, newRoute];
+      localStorage.setItem("hud_saved_routes", JSON.stringify(updated));
+      return updated;
+    });
+  };
 
-    window.handleOverlayHour12Change = (val) => {
-      setSelectedHour(prev => {
-        const isPM = prev >= 12;
-        let newHour = parseInt(val, 10) % 12;
-        if (isPM) newHour += 12;
-        return newHour;
-      });
-      setIsDepartureTimeCustom(true);
-    };
+  const commitOverlayHour = (rawVal) => {
+    let val = parseInt(rawVal, 10);
+    if (isNaN(val)) {
+      setOverlayHourVal(getOverlayHourDisplay(selectedHour, unitSystem));
+      return;
+    }
+    let new24Hour = val;
+    if (unitSystem === "metric") {
+      val = Math.max(0, Math.min(23, val));
+      new24Hour = val;
+    } else {
+      val = Math.max(1, Math.min(12, val));
+      const isPM = selectedHour >= 12;
+      if (isPM && val !== 12) new24Hour = val + 12;
+      else if (!isPM && val === 12) new24Hour = 0;
+      else new24Hour = isPM ? val + 12 : val;
+    }
+    setOverlayHourVal(val.toString().padStart(2, "0"));
+    setSelectedHour(new24Hour);
+    setIsDepartureTimeCustom(true);
+  };
 
-    window.handleOverlayMinuteChange = (val) => {
-      setSelectedMinute(parseInt(val, 10));
-      setIsDepartureTimeCustom(true);
-    };
+  const commitOverlayMinute = (rawVal) => {
+    let val = parseInt(rawVal, 10);
+    if (isNaN(val)) {
+      setOverlayMinVal(getOverlayMinuteDisplay(selectedMinute));
+      return;
+    }
+    val = Math.max(0, Math.min(59, val));
+    setOverlayMinVal(val.toString().padStart(2, "0"));
+    setSelectedMinute(val);
+    setIsDepartureTimeCustom(true);
+  };
 
-    window.handleOverlayPeriodChange = (val) => {
-      setSelectedHour(prev => {
-        let new24Hour = prev;
-        const isPM = val === "PM";
-        const currentIsPM = prev >= 12;
-        if (isPM && !currentIsPM) {
-          new24Hour = (prev % 12) + 12;
-        } else if (!isPM && currentIsPM) {
-          new24Hour = prev % 12;
-        }
-        return new24Hour;
-      });
-      setIsDepartureTimeCustom(true);
-    };
-
-    window.handleOverlayTimeModeChange = (val) => {
-      setTimeMode(val);
-      setIsDepartureTimeCustom(true);
-    };
-
-    window.handleOverlayResetClick = () => {
-      const now = new Date();
-      setSelectedDayOffset(0);
-      setSelectedHour(now.getHours());
-      
-      const currentMin = now.getMinutes();
-      const roundedMin = Math.round(currentMin / 15) * 15 % 60;
-      setSelectedMinute(roundedMin);
-
-      setTimeMode("leave");
-      setIsDepartureTimeCustom(false);
-    };
-
-    window.handleOverlayReverseClick = () => {
-      if (!confirmedStart || !confirmedEnd) return;
-      const oldStart = confirmedStart;
-      const oldEnd = confirmedEnd;
-
-      // Physically swap search query values and draft locations
-      setDraftStart(oldEnd);
-      setDraftEnd(oldStart);
-      setStartQuery(oldEnd.label || "");
-      setEndQuery(oldStart.label || "");
-
-      // Physically swap confirmed endpoints
-      setConfirmedStart(oldEnd);
-      setConfirmedEnd(oldStart);
-
-      // Reset return trip modes and weather results to avoid visual lag
-      setIsReturnTripMode(false);
-      setWeatherResults([]);
-
-      // Trigger recalculation and fresh Valhalla routing
-      loadRouteDetails(oldEnd, oldStart, newBikeType, newSpeed);
-    };
-
-    window.handleOverlaySaveRouteClick = () => {
-      if (!confirmedStart || !confirmedEnd || !routeCoordinates || routeCoordinates.length === 0) return;
-      
-      const getCleanLabel = (label) => {
-        if (!label) return "";
-        if (label.startsWith("(") && label.endsWith(")")) return label;
-        return label.split(",")[0];
-      };
-      
-      const startLabel = getCleanLabel(confirmedStart.label) || "Start";
-      const endLabel = getCleanLabel(confirmedEnd.label) || "Destination";
-      const name = `${startLabel} ⇆ ${endLabel}`;
-      
-      const computedDistance = routeSegments.reduce((sum, seg) => sum + seg.distance, 0);
-      const roundedDistance = Math.round(computedDistance * 10) / 10;
-      
-      const newRoute = {
-        id: Date.now().toString(),
-        name,
-        start: confirmedStart,
-        end: confirmedEnd,
-        bikeType: newBikeType,
-        speed: newSpeed,
-        coordinates: routeCoordinates,
-        segments: routeSegments,
-        distance: roundedDistance
-      };
-
-      setSavedRoutes(prev => {
-        const updated = [...prev, newRoute];
-        localStorage.setItem("hud_saved_routes", JSON.stringify(updated));
-        return updated;
-      });
-    };
-
-    return () => {
-      delete window.handleOverlayDayChange;
-      delete window.handleOverlayHourChange;
-      delete window.handleOverlayHour12Change;
-      delete window.handleOverlayMinuteChange;
-      delete window.handleOverlayPeriodChange;
-      delete window.handleOverlayResetClick;
-      delete window.handleOverlayReverseClick;
-      delete window.handleOverlayTimeModeChange;
-      delete window.handleOverlaySaveRouteClick;
-    };
-  }, [confirmedStart, confirmedEnd, newBikeType, newSpeed, loadRouteDetails, routeCoordinates, routeSegments, savedRoutes]);
 
   const handleDeleteSavedRoute = (id, e) => {
     e.stopPropagation();
@@ -1479,6 +1537,14 @@ export default function Home() {
       activeRouteData.speed, 
       activeRouteData.weatherResults
     );
+  };
+
+  const getDayLabel = (offset) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    if (offset === 0) return `Today (${d.toLocaleDateString("en-US", { weekday: "short" })})`;
+    if (offset === 1) return `Tomorrow (${d.toLocaleDateString("en-US", { weekday: "short" })})`;
+    return d.toLocaleDateString("en-US", { weekday: "long" });
   };
 
   const activeForecast = getActiveForecast();
@@ -2108,7 +2174,6 @@ export default function Home() {
           userLocation={userLocation}
           ambientWeatherForecast={ambientWeatherForecast}
           onMapMove={handleMapMove}
-          leaveNowOverlayData={getLeaveNowOverlayData()}
         />
       </div>
 
@@ -2722,6 +2787,251 @@ export default function Home() {
               <p className={styles.setupNote}>
                 💡 Or tap start/end coordinates directly on the map.
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 
+        -------------------------------------------------------------
+        STATE 2 & 3: CUSTOM DEPARTURE/ARRIVALS SIDEBAR OVERLAY
+        ------------------------------------------------------------- 
+      */}
+      {(hudState === 2 || hudState === 3) && getLeaveNowOverlayData() && (
+        <div className={styles.setupCover}>
+          <div className={`${styles.departureContainer} hud-slide-top`}>
+            <div 
+              className={`hud-card ${styles.setupCard}`}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+            >
+              {/* Header: Title and Reset */}
+              <div className={styles.setupHeader}>
+                <span className={styles.setupTitle} style={{ color: "#ef4444", display: "flex", alignItems: "center", gap: "6px" }}>
+                  🏁 {getLeaveNowOverlayData().isDepartureTimeCustom ? (getLeaveNowOverlayData().timeMode === "arrive" ? "Custom Arrival" : "Custom Departure") : "Leave Now"}
+                </span>
+                {getLeaveNowOverlayData().isDepartureTimeCustom && (
+                  <button 
+                    onClick={handleOverlayResetClick} 
+                    className={styles.overlayResetBtn}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "var(--color-amber)",
+                      textDecoration: "underline",
+                      cursor: "pointer",
+                      padding: 0,
+                      fontSize: "11px",
+                    }}
+                  >
+                    Reset to Now
+                  </button>
+                )}
+              </div>
+
+              {/* Leave / Arrive Segmented Control */}
+              <div style={{
+                display: "flex",
+                background: "rgba(0,0,0,0.3)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: "8px",
+                padding: "2px",
+                marginBottom: "2px"
+              }}>
+                <button 
+                  onClick={() => handleOverlayTimeModeChange('leave')} 
+                  style={{
+                    flex: 1,
+                    background: getLeaveNowOverlayData().timeMode === "leave" ? "rgba(255, 255, 255, 0.12)" : "transparent",
+                    border: "none",
+                    borderRadius: "6px",
+                    color: getLeaveNowOverlayData().timeMode === "leave" ? "var(--color-emerald)" : "var(--hud-text-secondary)",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    padding: "6px",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    outline: "none",
+                  }}
+                >
+                  Leave At
+                </button>
+                <button 
+                  onClick={() => handleOverlayTimeModeChange('arrive')} 
+                  style={{
+                    flex: 1,
+                    background: getLeaveNowOverlayData().timeMode === "arrive" ? "rgba(255, 255, 255, 0.12)" : "transparent",
+                    border: "none",
+                    borderRadius: "6px",
+                    color: getLeaveNowOverlayData().timeMode === "arrive" ? "var(--color-emerald)" : "var(--hud-text-secondary)",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    padding: "6px",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    outline: "none",
+                  }}
+                >
+                  Arrive At
+                </button>
+              </div>
+
+              {/* Date & Time Selectors Row */}
+              <div style={{ display: "flex", gap: "6px", alignItems: "center", width: "100%" }}>
+                <select 
+                  value={selectedDayOffset}
+                  onChange={(e) => handleOverlayDayChange(e.target.value)} 
+                  className={styles.timeSelect}
+                  style={{
+                    flex: 1.5,
+                    fontSize: "11px",
+                    padding: "5px 6px",
+                  }}
+                >
+                  {Array.from({ length: 7 }).map((_, offset) => {
+                    const label = getDayLabel(offset);
+                    return (
+                      <option key={offset} value={offset} style={{ background: "#0f172a", color: "#f8fafc" }}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+                
+                <div style={{ display: "flex", gap: "4px", alignItems: "center", flex: 2, justifyContent: "flex-end" }}>
+                  <input 
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={2}
+                    value={overlayHourVal}
+                    onChange={(e) => setOverlayHourVal(e.target.value.replace(/\D/g, ''))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); e.stopPropagation(); }}
+                    onKeyUp={(e) => e.stopPropagation()}
+                    onKeyPress={(e) => e.stopPropagation()}
+                    onBlur={(e) => commitOverlayHour(e.target.value)}
+                    className={styles.timeInput}
+                    style={{
+                      fontSize: "11px",
+                      padding: "5px 3px",
+                      width: "28px",
+                    }}
+                  />
+                  <span style={{ color: "var(--hud-text-secondary)", fontSize: "11px" }}>:</span>
+                  <input 
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={2}
+                    value={overlayMinVal}
+                    onChange={(e) => setOverlayMinVal(e.target.value.replace(/\D/g, ''))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); e.stopPropagation(); }}
+                    onKeyUp={(e) => e.stopPropagation()}
+                    onKeyPress={(e) => e.stopPropagation()}
+                    onBlur={(e) => commitOverlayMinute(e.target.value)}
+                    className={styles.timeInput}
+                    style={{
+                      fontSize: "11px",
+                      padding: "5px 3px",
+                      width: "28px",
+                    }}
+                  />
+                  {unitSystem === "imperial" && (
+                    <select 
+                      value={selectedHour >= 12 ? "PM" : "AM"}
+                      onChange={(e) => handleOverlayPeriodChange(e.target.value)} 
+                      className={styles.timeSelect}
+                      style={{
+                        fontSize: "11px",
+                        padding: "5px 6px",
+                        flex: 1.1,
+                      }}
+                    >
+                      <option value="AM" style={{ background: "#0f172a", color: "#f8fafc" }}>AM</option>
+                      <option value="PM" style={{ background: "#0f172a", color: "#f8fafc" }}>PM</option>
+                    </select>
+                  )}
+                </div>
+              </div>
+
+              {/* Telemetry info */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px", borderTop: "1px solid rgba(255, 255, 255, 0.08)", paddingTop: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span>⏱️</span>
+                  <span><strong>Ride</strong>: {getLeaveNowOverlayData().duration} mins ({getLeaveNowOverlayData().distance})</span>
+                </div>
+                {getLeaveNowOverlayData().timeMode === "arrive" ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>🚀</span>
+                    <span><strong>Depart by</strong>: {getLeaveNowOverlayData().depTimeStr}</span>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>⏰</span>
+                    <span><strong>Arrival</strong>: {getLeaveNowOverlayData().arrivalTimeStr}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions Row */}
+              <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+                {getLeaveNowOverlayData().isSaved ? (
+                  <button 
+                    disabled 
+                    className="hud-btn"
+                    style={{
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      color: "var(--hud-text-secondary)",
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      padding: "4px 8px",
+                      cursor: "not-allowed",
+                      borderRadius: "6px"
+                    }}
+                  >
+                    ✓ Bookmarked
+                  </button>
+                ) : (
+                  <button 
+                    onClick={handleOverlaySaveRouteClick} 
+                    className="hud-btn"
+                    style={{
+                      background: "rgba(255, 255, 255, 0.1)",
+                      border: "1px solid rgba(255, 255, 255, 0.2)",
+                      color: "var(--hud-text-primary)",
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      padding: "4px 8px",
+                      cursor: "pointer",
+                      borderRadius: "6px",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    💾 Save Route
+                  </button>
+                )}
+                <button 
+                  onClick={handleOverlayReverseClick} 
+                  className="hud-btn"
+                  style={{
+                    background: "var(--color-emerald)",
+                    border: "none",
+                    borderRadius: "6px",
+                    color: "white",
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    padding: "4px 8px",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 6px rgba(16, 185, 129, 0.3)",
+                  }}
+                >
+                  ⇅ Reverse Route
+                </button>
+              </div>
             </div>
           </div>
         </div>

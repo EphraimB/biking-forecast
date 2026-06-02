@@ -390,6 +390,19 @@
   z-index: 99999;
 }
 
+.departureContainer {
+  position: absolute;
+  top: 74px;
+  left: 20px;
+  width: 280px;
+  max-width: calc(100% - 40px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 99999;
+}
+
+
 .setupCard {
   padding: 12px;
   display: flex;
@@ -966,6 +979,14 @@
     left: 12px;
     width: calc(100% - 24px);
     max-width: calc(100% - 24px);
+  }
+
+  .departureContainer {
+    top: 60px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
   }
 }
 
