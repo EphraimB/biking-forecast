@@ -145,6 +145,15 @@ html, body {
   box-shadow: 0 0 14px var(--color-emerald-glow);
 }
 
+.hud-btn:disabled {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.03) !important;
+  color: var(--hud-text-secondary) !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  opacity: 0.5;
+}
+
 /* Minimal HUD Input */
 .hud-input {
   width: 100%;
