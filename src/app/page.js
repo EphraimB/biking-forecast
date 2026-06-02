@@ -1384,7 +1384,7 @@ export default function Home() {
         </div>
 
         {/* Right Side: Unit Toggle, Ambient Weather & Gear Check HUD */}
-        <div className={styles.topRightControls}>
+        <div className={`hud-top-right ${styles.topRightControls}`}>
           
           {/* Rider Configuration Bubble */}
           <button 
