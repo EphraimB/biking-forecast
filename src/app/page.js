@@ -582,6 +582,9 @@ export default function Home() {
   const formatTimeToAMPM = (timeStr) => {
     if (!timeStr) return "";
     const [h, m] = timeStr.split(":").map(Number);
+    if (unitSystem === "metric") {
+      return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+    }
     const ampm = h >= 12 ? "PM" : "AM";
     const displayH = h % 12 === 0 ? 12 : h % 12;
     const displayM = m.toString().padStart(2, "0");
@@ -1181,6 +1184,9 @@ export default function Home() {
   const formatTimeAMPM = (dateObj) => {
     const hours = dateObj.getHours();
     const minutes = dateObj.getMinutes();
+    if (unitSystem === "metric") {
+      return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+    }
     const ampm = hours >= 12 ? "PM" : "AM";
     const displayH = hours % 12 || 12;
     const displayM = minutes.toString().padStart(2, "0");
@@ -2086,7 +2092,9 @@ export default function Home() {
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
                   <Clock size={14} style={{ color: "var(--hud-text-secondary)" }} />
                   <span style={{ fontSize: "0.78rem", fontWeight: "700", width: "64px" }}>
-                    {selectedHour.toString().padStart(2, "0")}:00 {selectedHour >= 12 ? "PM" : "AM"}
+                    {unitSystem === "metric" 
+                      ? `${selectedHour.toString().padStart(2, "0")}:00` 
+                      : `${selectedHour % 12 === 0 ? 12 : selectedHour % 12}:00 ${selectedHour >= 12 ? "PM" : "AM"}`}
                   </span>
                 </div>
 
