@@ -1449,6 +1449,55 @@ export default function Home() {
             </button>
           )}
 
+          {(hudState === 2 || hudState === 3) && activeForecast && (
+            <>
+              {/* Gear Check Trigger Button */}
+              <button 
+                className="hud-bubble" 
+                onClick={togglePackingList}
+                style={{ cursor: "pointer", border: isPackingOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)", pointerEvents: "auto" }}
+              >
+                <span>🎒</span>
+                <span className="mobile-hide" style={{ fontSize: "0.78rem", fontWeight: "800" }}>GEAR CHECK</span>
+              </button>
+
+              {/* Expanded Dynamic Packing Glass Card */}
+              {isPackingOpen && (
+                <div 
+                  className={`${styles.packingDropdown} hud-card hud-card-responsive`}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onMouseUp={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchMove={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
+                >
+                  <div className={styles.packingHeader}>
+                    <h4 className={styles.packingTitle}>🎒 Trip Packing List</h4>
+                    <button onClick={() => setIsPackingOpen(false)} className={styles.closeBtn}><X size={14} /></button>
+                  </div>
+                  
+                  {packingList.length === 0 ? (
+                    <p className={styles.emptyChecklist}>☀️ Clear summer skies and perfect winds. Just bring your helmet & dynamic hydration!</p>
+                  ) : (
+                    <div className={styles.packingList}>
+                      {packingList.map((p) => (
+                        <div key={p.id} className={styles.packingItemCard}>
+                          <span className={styles.packingItemTitle}>
+                            {p.emoji} {p.item}
+                          </span>
+                          <span className={styles.packingItemAdvice}>
+                            {p.advice}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+
           {/* Saved Routes Hub Trigger (Permanently Available in States 0, 2, 3) */}
           {(hudState === 0 || hudState === 2 || hudState === 3) && (
             <button 
@@ -1609,53 +1658,7 @@ export default function Home() {
             </div>
           )}
 
-          {(hudState === 2 || hudState === 3) && activeForecast && (
-            <>
-              {/* Gear Check Trigger Button (Desktop-only) */}
-              <button 
-                className="hud-bubble desktop-only" 
-                onClick={togglePackingList}
-                style={{ cursor: "pointer", border: isPackingOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)", pointerEvents: "auto" }}
-              >
-                <span>🎒</span>
-                <span className="mobile-hide" style={{ fontSize: "0.78rem", fontWeight: "800" }}>GEAR CHECK</span>
-              </button>
 
-              {/* Expanded Dynamic Packing Glass Card */}
-              {isPackingOpen && (
-                <div 
-                  className={`${styles.packingDropdown} hud-card hud-card-responsive`}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onMouseUp={(e) => e.stopPropagation()}
-                  onTouchStart={(e) => e.stopPropagation()}
-                  onTouchMove={(e) => e.stopPropagation()}
-                  onTouchEnd={(e) => e.stopPropagation()}
-                >
-                  <div className={styles.packingHeader}>
-                    <h4 className={styles.packingTitle}>🎒 Trip Packing List</h4>
-                    <button onClick={() => setIsPackingOpen(false)} className={styles.closeBtn}><X size={14} /></button>
-                  </div>
-                  
-                  {packingList.length === 0 ? (
-                    <p className={styles.emptyChecklist}>☀️ Clear summer skies and perfect winds. Just bring your helmet & dynamic hydration!</p>
-                  ) : (
-                    <div className={styles.packingList}>
-                      {packingList.map((p) => (
-                        <div key={p.id} className={styles.packingItemCard}>
-                          <span className={styles.packingItemTitle}>
-                            {p.emoji} {p.item}
-                          </span>
-                          <span className={styles.packingItemAdvice}>
-                            {p.advice}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
 
           {/* Unified Settings & Menu Trigger Button (Mobile-only) */}
           <button 
@@ -1725,21 +1728,6 @@ export default function Home() {
                   <span style={{ fontSize: "1.1rem" }}>🚴</span> Rider Configurator
                 </button>
 
-                {(hudState === 2 || hudState === 3) && activeForecast && (
-                  <button 
-                    className={`hud-btn ${styles.mobileMenuItem}`}
-                    onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      setIsWeeklyPlannerOpen(false);
-                      setIsPackingOpen(!isPackingOpen);
-                      setIsRiderConfigOpen(false);
-                      setIsSavedHubOpen(false);
-                    }}
-                    style={{ border: isPackingOpen ? "1px solid var(--color-emerald)" : "1px solid rgba(255, 255, 255, 0.08)", width: "100%", textAlign: "left" }}
-                  >
-                    <span style={{ fontSize: "1.1rem" }}>🎒</span> Trip Packing Checklist
-                  </button>
-                )}
 
                 <button 
                   className={`hud-btn ${styles.mobileMenuItem}`}
