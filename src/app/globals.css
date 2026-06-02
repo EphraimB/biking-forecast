@@ -507,34 +507,6 @@ html, body {
     z-index: 999999 !important;
   }
 
-  /* Bottom Ribbon and Scrubber container alignment */
-  .hud-slide-bottom {
-    left: 10px !important;
-    right: 10px !important;
-    width: calc(100% - 20px) !important;
-    bottom: 15px !important;
-  }
-
-  /* Ribbon Items Squish Guard */
-  .ribbon-container {
-    gap: 4px !important;
-    padding: 8px 6px !important;
-  }
-
-  .ribbon-item {
-    padding: 6px 2px !important;
-    border-radius: 10px !important;
-  }
-
-  .ribbon-item > span {
-    font-size: 0.62rem !important;
-  }
-
-  .ribbon-item div {
-    font-size: 0.58rem !important;
-    gap: 2px !important;
-  }
-
   /* Timeline Scrubber stacked column layout */
   .timeline-scrubber-container {
     flex-direction: column !important;
@@ -554,13 +526,6 @@ html, body {
     padding-top: 10px !important;
     justify-content: space-between !important;
     width: 100% !important;
-  }
-
-  .timeline-scrubber-container .exit-scrub-btn {
-    width: 100% !important;
-    justify-content: center !important;
-    margin-left: 0 !important;
-    margin-top: 4px !important;
   }
 
   /* State 1 Search Container & Config Panel mobile styling */

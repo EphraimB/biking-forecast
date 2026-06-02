@@ -130,6 +130,8 @@ export default function Home() {
   // Time & Timeline Scrub Scopes (State 3)
   const [selectedDayOffset, setSelectedDayOffset] = useState(0); // 0 (Today) to 6 (Day + 6)
   const [selectedHour, setSelectedHour] = useState(8); // 6:00 AM to 8:00 PM (commuter scrubber scale)
+  const [isReturnTripMode, setIsReturnTripMode] = useState(false);
+
 
   // Dynamic Packing Drawer Scope (🎒 checklist toggle)
   const [isPackingOpen, setIsPackingOpen] = useState(false);
@@ -280,11 +282,12 @@ export default function Home() {
       if (cachedState) {
         try {
           const state = JSON.parse(cachedState);
-          if (state.selectedDayOffset !== undefined) setSelectedDayOffset(state.selectedDayOffset);
+           if (state.selectedDayOffset !== undefined) setSelectedDayOffset(state.selectedDayOffset);
           if (state.selectedHour !== undefined) {
             setSelectedHour(state.selectedHour);
             restoredHour = true;
           }
+          if (state.isReturnTripMode !== undefined) setIsReturnTripMode(state.isReturnTripMode);
           if (state.newBikeType !== undefined) setNewBikeType(state.newBikeType);
           if (state.newSpeed !== undefined) setNewSpeed(state.newSpeed);
           if (state.unitSystem !== undefined) setUnitSystem(state.unitSystem);
@@ -349,13 +352,14 @@ export default function Home() {
       draftEnd,
       selectedDayOffset,
       selectedHour,
+      isReturnTripMode,
       newBikeType,
       newSpeed,
       unitSystem,
       hudState
     };
     localStorage.setItem("hud_active_view_state", JSON.stringify(activeState));
-  }, [draftStart, draftEnd, selectedDayOffset, selectedHour, newBikeType, newSpeed, unitSystem, hudState]);
+  }, [draftStart, draftEnd, selectedDayOffset, selectedHour, isReturnTripMode, newBikeType, newSpeed, unitSystem, hudState]);
 
   // Persist Weekly Schedule Changes
   useEffect(() => {
@@ -488,6 +492,10 @@ export default function Home() {
     if (!segments) return [];
     return [...segments].reverse().map(seg => ({
       ...seg,
+      lat1: seg.lat2,
+      lon1: seg.lon2,
+      lat2: seg.lat1,
+      lon2: seg.lon1,
       bearing: (seg.bearing + 180) % 360
     }));
   };
@@ -499,6 +507,15 @@ export default function Home() {
     const displayH = h % 12 === 0 ? 12 : h % 12;
     const displayM = m.toString().padStart(2, "0");
     return `${displayH}:${displayM} ${ampm}`;
+  };
+
+  const getShortLabel = (label) => {
+    if (!label) return "";
+    const parts = label.split(",");
+    if (parts.length > 1 && !isNaN(parts[0].trim())) {
+      return `${parts[0].trim()} ${parts[1].trim()}`;
+    }
+    return parts[0].trim();
   };
 
   const getSuggestedDeparture = (routeId, day, targetArrivalTimeStr, isReturn = false) => {
@@ -526,7 +543,7 @@ export default function Home() {
       targetDate,
       segments,
       newSpeed,
-      boundWeatherEntry.weather
+      isReturn ? [...boundWeatherEntry.weather].reverse() : boundWeatherEntry.weather
     );
     
     // Format departure time
@@ -563,7 +580,7 @@ export default function Home() {
       hourIdx,
       getReturnSegments(boundWeatherEntry.segments),
       newSpeed,
-      boundWeatherEntry.weather
+      [...boundWeatherEntry.weather].reverse()
     );
     
     const durationMinutes = commuteDetails.duration;
@@ -650,6 +667,17 @@ export default function Home() {
     const boundWeatherEntry = scheduledRoutesWeather[boundRouteId];
 
     if (hudState === 3 && boundRoute && boundWeatherEntry) {
+      if (isReturnTripMode) {
+        return {
+          coordinates: [...boundWeatherEntry.coordinates].reverse(),
+          segments: getReturnSegments(boundWeatherEntry.segments),
+          weatherResults: [...boundWeatherEntry.weather].reverse(),
+          startLocation: boundRoute.end,
+          endLocation: boundRoute.start,
+          speed: newSpeed,
+          name: `${boundRoute.name} (Return)`
+        };
+      }
       return {
         coordinates: boundWeatherEntry.coordinates,
         segments: boundWeatherEntry.segments,
@@ -664,6 +692,18 @@ export default function Home() {
     const activeWeatherResults = (routeCoordinates && routeCoordinates.length > 0)
       ? weatherResults
       : (ambientWeatherForecast ? [ambientWeatherForecast] : []);
+
+    if (hudState === 3 && isReturnTripMode && routeCoordinates && routeCoordinates.length > 0) {
+      return {
+        coordinates: [...routeCoordinates].reverse(),
+        segments: getReturnSegments(routeSegments),
+        weatherResults: [...activeWeatherResults].reverse(),
+        startLocation: draftEnd,
+        endLocation: draftStart,
+        speed: newSpeed,
+        name: "Active Route (Return)"
+      };
+    }
 
     return {
       coordinates: routeCoordinates,
@@ -1090,6 +1130,13 @@ export default function Home() {
       const boundRoute = savedRoutes.find(r => r.id === boundRouteId);
       const boundWeatherEntry = scheduledRoutesWeather[boundRouteId];
 
+      let destinationName = "Destination";
+      if (boundRoute) {
+        destinationName = boundRoute.end.label.split(",")[0] || "Destination";
+      } else if (draftEnd) {
+        destinationName = draftEnd.label.split(",")[0] || "Destination";
+      }
+
       if (boundRoute && boundWeatherEntry) {
         activeCoords = boundWeatherEntry.coordinates;
         activeSegs = boundWeatherEntry.segments;
@@ -1131,7 +1178,7 @@ export default function Home() {
           returnHourIdx,
           getReturnSegments(activeSegs),
           activeSpeed,
-          activeWeather
+          [...activeWeather].reverse()
         );
 
         const arrivalTimeMs = returnTargetDate.getTime() + returnResult.duration * 60 * 1000;
@@ -1144,13 +1191,15 @@ export default function Home() {
             score: outboundResult.score,
             duration: outboundResult.duration,
             departure: formatTimeAMPM(outboundResult.departureTime),
-            arrival: formatTimeAMPM(outboundTargetDate)
+            arrival: formatTimeAMPM(outboundTargetDate),
+            toLabel: `Outbound to ${destinationName}`
           },
           return: {
             score: returnResult.score,
             duration: returnResult.duration,
             departure: formatTimeAMPM(returnTargetDate),
-            arrival: formatTimeAMPM(arrivalTimeDate)
+            arrival: formatTimeAMPM(arrivalTimeDate),
+            fromLabel: `Inbound from ${destinationName}`
           },
           routeId: boundRouteId,
           routeName: boundRoute ? boundRoute.name : "Active Route"
@@ -1159,8 +1208,8 @@ export default function Home() {
         ribbonDays.push({
           offset,
           label: getRollingDayLabel(offset),
-          outbound: { score: null, duration: 0, departure: null, arrival: null },
-          return: { score: null, duration: 0, departure: null, arrival: null },
+          outbound: { score: null, duration: 0, departure: null, arrival: null, toLabel: `Outbound to ${destinationName}` },
+          return: { score: null, duration: 0, departure: null, arrival: null, fromLabel: `Inbound from ${destinationName}` },
           routeId: boundRouteId,
           routeName: boundRoute ? boundRoute.name : "Active Route"
         });
@@ -1231,6 +1280,7 @@ export default function Home() {
           selectedHour={selectedHour}
           customSpeed={activeRouteData.speed}
           isDrawingMode={hudState === 1}
+          hudState={hudState}
           onMapClick={(coord) => {
             const label = `Pinned coordinate (${coord.lat.toFixed(4)}, ${coord.lon.toFixed(4)})`;
             if (!draftStart) {
@@ -1672,6 +1722,7 @@ export default function Home() {
                       const daySched = weeklySchedule[dayOfWeek] || { outbound: "08:00", return: "17:30" };
                       const outboundHour = parseInt(daySched.outbound.split(":")[0]);
                       setSelectedHour(outboundHour);
+                      setIsReturnTripMode(false);
                     } else {
                       // Helpfully prompt route setup
                       setHudState(1);
@@ -1702,6 +1753,7 @@ export default function Home() {
                           const daySched = weeklySchedule[dayOfWeek] || { outbound: "08:00", return: "17:30" };
                           const outboundHour = parseInt(daySched.outbound.split(":")[0]);
                           setSelectedHour(outboundHour);
+                          setIsReturnTripMode(false);
                         } else {
                           setHudState(1);
                         }
@@ -1709,7 +1761,7 @@ export default function Home() {
                       className={styles.trackCard}
                     >
                       <div className={styles.trackHeaderRow}>
-                        <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.6rem" }}>🌅 AM</span>
+                        <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.6rem" }}>🌅 Outbound</span>
                         {hasOutbound ? (
                           <span 
                             className={styles.scoreBadge}
@@ -1754,6 +1806,7 @@ export default function Home() {
                           const daySched = weeklySchedule[dayOfWeek] || { outbound: "08:00", return: "17:30" };
                           const returnHour = parseInt(daySched.return.split(":")[0]);
                           setSelectedHour(returnHour);
+                          setIsReturnTripMode(true);
                         } else {
                           setHudState(1);
                         }
@@ -1761,7 +1814,7 @@ export default function Home() {
                       className={styles.trackCard}
                     >
                       <div className={styles.trackHeaderRow}>
-                        <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.6rem" }}>🌇 PM</span>
+                        <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.6rem" }}>🌇 Inbound</span>
                         {hasReturn ? (
                           <span 
                             className={styles.scoreBadge}
@@ -1807,13 +1860,33 @@ export default function Home() {
           {hudState === 3 && (
             <div className={`${styles.scrubberContainer} hud-card timeline-scrubber-container`}>
               {/* Timeline Scrubber */}
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, flexWrap: "wrap" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
                   <Clock size={14} style={{ color: "var(--hud-text-secondary)" }} />
                   <span style={{ fontSize: "0.78rem", fontWeight: "700", width: "64px" }}>
                     {selectedHour.toString().padStart(2, "0")}:00 {selectedHour >= 12 ? "PM" : "AM"}
                   </span>
                 </div>
+
+                {/* Active Direction Badge */}
+                {activeRouteData.endLocation && (
+                  <span style={{ 
+                    fontSize: "0.72rem", 
+                    fontWeight: "600", 
+                    color: isReturnTripMode ? "var(--color-amber)" : "var(--color-emerald)",
+                    background: isReturnTripMode ? "rgba(245,158,11,0.12)" : "rgba(16,185,129,0.12)",
+                    border: isReturnTripMode ? "1px solid rgba(245,158,11,0.2)" : "1px solid rgba(16,185,129,0.2)",
+                    padding: "2px 8px",
+                    borderRadius: "12px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    whiteSpace: "nowrap",
+                    flexShrink: 0
+                  }}>
+                    {isReturnTripMode ? "🌇 Inbound" : "🌅 Outbound"}
+                  </span>
+                )}
 
                 {/* Outbound / Return Quick Snapper Toggle */}
                 <div className={styles.quickSnapperToggle}>
@@ -1822,9 +1895,10 @@ export default function Home() {
                       const daySched = weeklySchedule[currentDayOfWeek] || { outbound: "08:00", return: "17:30" };
                       const outboundHour = parseInt(daySched.outbound.split(":")[0]);
                       setSelectedHour(outboundHour);
+                      setIsReturnTripMode(false);
                     }}
                     style={{ 
-                      background: selectedHour === parseInt((weeklySchedule[currentDayOfWeek]?.outbound || "08:00").split(":")[0]) ? "var(--color-emerald)" : "transparent",
+                      background: !isReturnTripMode ? "var(--color-emerald)" : "transparent",
                       border: "none",
                       borderRadius: "6px",
                       color: "var(--hud-text-primary)",
@@ -1838,16 +1912,17 @@ export default function Home() {
                       transition: "all var(--duration-fluid) var(--ease-premium)"
                     }}
                   >
-                    🌅 AM
+                    🌅 Outbound
                   </button>
                   <button 
                     onClick={() => {
                       const daySched = weeklySchedule[currentDayOfWeek] || { outbound: "08:00", return: "17:30" };
                       const returnHour = parseInt(daySched.return.split(":")[0]);
                       setSelectedHour(returnHour);
+                      setIsReturnTripMode(true);
                     }}
                     style={{ 
-                      background: selectedHour === parseInt((weeklySchedule[currentDayOfWeek]?.return || "17:30").split(":")[0]) ? "var(--color-emerald)" : "transparent",
+                      background: isReturnTripMode ? "var(--color-emerald)" : "transparent",
                       border: "none",
                       borderRadius: "6px",
                       color: "var(--hud-text-primary)",
@@ -1861,7 +1936,7 @@ export default function Home() {
                       transition: "all var(--duration-fluid) var(--ease-premium)"
                     }}
                   >
-                    🌇 PM
+                    🌇 Inbound
                   </button>
                 </div>
 
