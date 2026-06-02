@@ -115,6 +115,7 @@ export function calculateCommuteScore(hourIndex, routeSegments, baseSpeed, weath
   let weightedCrosswindSum = 0;
   
   // 1. Calculate segment-by-segment speed adjustments
+  let cumulativeDurationHours = 0;
   for (let i = 0; i < S; i++) {
     const seg = routeSegments[i];
     
@@ -122,13 +123,17 @@ export function calculateCommuteScore(hourIndex, routeSegments, baseSpeed, weath
     const sampleIdx = Math.min(Math.floor((i / S) * numSamples), numSamples - 1);
     const hourly = weatherResults[sampleIdx]?.hourly;
     
+    // Calculate the active hour index for this segment based on cumulative travel time
+    const activeHourIdx = Math.max(0, Math.min(167, hourIndex + Math.floor(cumulativeDurationHours)));
+
     // Fallback if weather array is missing/incomplete
-    const windSpeed = hourly?.wind_speed_10m?.[hourIndex] ?? 0;
-    const windDir = hourly?.wind_direction_10m?.[hourIndex] ?? 0;
+    const windSpeed = hourly?.wind_speed_10m?.[activeHourIdx] ?? 0;
+    const windDir = hourly?.wind_direction_10m?.[activeHourIdx] ?? 0;
     
     const segmentMetrics = calculateSegmentSpeed(seg, windSpeed, windDir, baseSpeed);
     
     totalDurationHours += segmentMetrics.duration;
+    cumulativeDurationHours += segmentMetrics.duration;
     totalDistance += seg.distance;
     weightedHeadwindSum += segmentMetrics.headwind * seg.distance;
     weightedCrosswindSum += segmentMetrics.crosswind * seg.distance;
@@ -138,15 +143,55 @@ export function calculateCommuteScore(hourIndex, routeSegments, baseSpeed, weath
   const avgHeadwind = weightedHeadwindSum / totalDistance;
   const avgCrosswind = weightedCrosswindSum / totalDistance;
   
-  // 2. Fetch general weather metrics from midpoint (or start if 1 sample)
-  const midSampleIdx = Math.floor(numSamples / 2);
-  const midHourly = weatherResults[midSampleIdx]?.hourly;
-  
-  const temp = midHourly?.temperature_2m?.[hourIndex] ?? 20;
-  const rainProb = midHourly?.precipitation_probability?.[hourIndex] ?? 0;
-  const precip = midHourly?.precipitation?.[hourIndex] ?? 0;
-  const gusts = midHourly?.wind_gusts_10m?.[hourIndex] ?? 0;
-  const weatherCode = midHourly?.weather_code?.[hourIndex] ?? 0;
+  // 2. Fetch general weather metrics aggregated across all sampled weather locations at their estimated arrival hours
+  let tempSum = 0;
+  let maxRainProb = 0;
+  let maxPrecip = 0;
+  let maxGusts = 0;
+  let windSpeedSum = 0;
+  let worstWeatherCode = 0;
+  let worstWmoPenalty = -1;
+  let worstWmoInfo = null;
+
+  for (let idx = 0; idx < numSamples; idx++) {
+    const hourly = weatherResults[idx]?.hourly;
+    if (!hourly) continue;
+
+    // Estimate arrival hour index at this station based on progress along the route
+    const stationTravelDurationHours = totalDurationHours * (idx / Math.max(1, numSamples - 1));
+    const stationHourIdx = Math.max(0, Math.min(167, hourIndex + Math.floor(stationTravelDurationHours)));
+
+    const tVal = hourly.temperature_2m?.[stationHourIdx] ?? 20;
+    tempSum += tVal;
+
+    const rVal = hourly.precipitation_probability?.[stationHourIdx] ?? 0;
+    if (rVal > maxRainProb) maxRainProb = rVal;
+
+    const pVal = hourly.precipitation?.[stationHourIdx] ?? 0;
+    if (pVal > maxPrecip) maxPrecip = pVal;
+
+    const gVal = hourly.wind_gusts_10m?.[stationHourIdx] ?? 0;
+    if (gVal > maxGusts) maxGusts = gVal;
+
+    const wSpeedVal = hourly.wind_speed_10m?.[stationHourIdx] ?? 0;
+    windSpeedSum += wSpeedVal;
+
+    const wmoVal = hourly.weather_code?.[stationHourIdx] ?? 0;
+    const wmoInfo = WMO_MAP[wmoVal] || { desc: "Unknown", emoji: "❓", penalty: 0 };
+    if (wmoInfo.penalty > worstWmoPenalty) {
+      worstWmoPenalty = wmoInfo.penalty;
+      worstWeatherCode = wmoVal;
+      worstWmoInfo = wmoInfo;
+    }
+  }
+
+  const temp = numSamples > 0 ? (tempSum / numSamples) : 20;
+  const rainProb = maxRainProb;
+  const precip = maxPrecip;
+  const gusts = maxGusts;
+  const weatherCode = worstWeatherCode;
+  const wmoInfo = worstWmoInfo || { desc: "Clear", emoji: "☀️", penalty: 0 };
+  const avgWindSpeed = numSamples > 0 ? (windSpeedSum / numSamples) : 10;
   
   // 3. Compute Penalties
   
@@ -191,7 +236,6 @@ export function calculateCommuteScore(hourIndex, routeSegments, baseSpeed, weath
   windPenalty = Math.min(windPenalty, preferences.maxWindPenalty ?? 60);
   
   // Weather Code Penalty
-  const wmoInfo = WMO_MAP[weatherCode] || { desc: "Unknown", emoji: "❓", penalty: 0 };
   const wmoPenalty = wmoInfo.penalty;
   
   // Calculate final score
@@ -215,6 +259,10 @@ export function calculateCommuteScore(hourIndex, routeSegments, baseSpeed, weath
     windImpact = "Gusty Crosswind";
   }
   
+  // Midpoint index for reference values
+  const midIdx = Math.floor(numSamples / 2);
+  const midHourlyHourIndex = Math.max(0, Math.min(167, hourIndex + Math.floor(totalDurationHours / 2)));
+  
   return {
     score: finalScore,
     duration: Math.round(totalDurationHours * 60), // in minutes
@@ -222,8 +270,8 @@ export function calculateCommuteScore(hourIndex, routeSegments, baseSpeed, weath
     distance: Math.round(totalDistance * 10) / 10,
     headwind: Math.round(avgHeadwind * 10) / 10,
     crosswind: Math.round(avgCrosswind * 10) / 10,
-    windSpeed: Math.round((midHourly?.wind_speed_10m?.[hourIndex] ?? 0) * 10) / 10,
-    windDir: midHourly?.wind_direction_10m?.[hourIndex] ?? 0,
+    windSpeed: Math.round(avgWindSpeed * 10) / 10,
+    windDir: weatherResults[midIdx]?.hourly?.wind_direction_10m?.[midHourlyHourIndex] ?? 0,
     gusts: Math.round(gusts * 10) / 10,
     temp: Math.round(temp * 10) / 10,
     rainProb: Math.round(rainProb),

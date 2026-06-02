@@ -137,6 +137,7 @@ export default function Home() {
 
   // Adaptive Unit Toggle (📐 Metric / Imperial)
   const [unitSystem, setUnitSystem] = useState("metric");
+  const [focusedWeatherIndex, setFocusedWeatherIndex] = useState(0);
 
   // Helper unit formatting functions
   const formatTemp = (celsius) => {
@@ -235,6 +236,7 @@ export default function Home() {
 
       const weatherData = await fetchRouteWeather(decodedCoords, routeData.distance);
       setWeatherResults(weatherData);
+      setFocusedWeatherIndex(0);
 
       setHudState(overrideState !== null ? overrideState : 2);
     } catch (err) {
@@ -425,9 +427,9 @@ export default function Home() {
     if (route.coordinates && route.segments) {
       setRouteCoordinates(route.coordinates);
       setRouteSegments(route.segments);
-      // Fetch weather for this loaded route
       fetchRouteWeather(route.coordinates, route.distance || 10).then(weatherData => {
         setWeatherResults(weatherData);
+        setFocusedWeatherIndex(0);
       }).catch(e => console.error("Error fetching weather for loaded route:", e));
       setHudState(2);
     } else {
@@ -662,10 +664,14 @@ export default function Home() {
       };
     }
 
+    const activeWeatherResults = (routeCoordinates && routeCoordinates.length > 0)
+      ? weatherResults
+      : (ambientWeatherForecast ? [ambientWeatherForecast] : []);
+
     return {
       coordinates: routeCoordinates,
       segments: routeSegments,
-      weatherResults: weatherResults,
+      weatherResults: activeWeatherResults,
       startLocation: draftStart,
       endLocation: draftEnd,
       speed: newSpeed,
@@ -674,6 +680,34 @@ export default function Home() {
   };
 
   const activeRouteData = getActiveRouteData();
+
+  // Debounced map viewport move callback for panning updates
+  const handleMapMove = useCallback((coord) => {
+    if (isLoading) return;
+
+    if (geocodeTimeoutRef.current) {
+      clearTimeout(geocodeTimeoutRef.current);
+    }
+
+    geocodeTimeoutRef.current = setTimeout(async () => {
+      setBaseWeatherLocationName("Map Viewport");
+      fetchAmbientWeather(coord.lat, coord.lon);
+    }, 500); // 500ms panning debounce
+  }, [fetchAmbientWeather, isLoading]);
+
+  // Route travel simulation: auto-cycle focused weather index over time when a route is active
+  useEffect(() => {
+    const numStations = activeRouteData?.weatherResults?.length || 0;
+    if (numStations <= 1) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setFocusedWeatherIndex((prevIdx) => (prevIdx + 1) % numStations);
+    }, 4000); // cycle focused station every 4 seconds
+
+    return () => clearInterval(interval);
+  }, [activeRouteData?.weatherResults]);
 
   // Get active forecast details for Top HUD bubbles (declared before accessed by packing logic)
   const getActiveForecast = () => {
@@ -713,13 +747,32 @@ export default function Home() {
     if (!isPackingOpen || activeRouteData.weatherResults.length === 0) return [];
     
     const hourIdx = selectedDayOffset * 24 + selectedHour;
-    const midIdx = Math.floor(activeRouteData.weatherResults.length / 2);
-    const midHourly = activeRouteData.weatherResults[midIdx]?.hourly;
-    if (!midHourly) return [];
+    
+    let tempSum = 0;
+    let maxPrecip = 0;
+    let maxUv = 0;
+    let validCount = 0;
 
-    const temp = midHourly?.temperature_2m?.[hourIdx] ?? 20;
-    const isRaining = (midHourly?.precipitation?.[hourIdx] ?? 0) > 0.1;
-    const uvIndex = midHourly?.uv_index?.[hourIdx] ?? 0;
+    activeRouteData.weatherResults.forEach((station, idx) => {
+      const hourly = station?.hourly;
+      if (hourly) {
+        // Estimate arrival hour index at this station based on progress
+        const totalDurationHours = (activeForecast?.duration || 0) / 60;
+        const stationTravelDurationHours = totalDurationHours * (idx / Math.max(1, activeRouteData.weatherResults.length - 1));
+        const stationHourIdx = Math.max(0, Math.min(167, hourIdx + Math.floor(stationTravelDurationHours)));
+
+        tempSum += hourly.temperature_2m?.[stationHourIdx] ?? 20;
+        const pVal = hourly.precipitation?.[stationHourIdx] ?? 0;
+        if (pVal > maxPrecip) maxPrecip = pVal;
+        const uVal = hourly.uv_index?.[stationHourIdx] ?? 0;
+        if (uVal > maxUv) maxUv = uVal;
+        validCount++;
+      }
+    });
+
+    const temp = validCount > 0 ? (tempSum / validCount) : 20;
+    const isRaining = maxPrecip > 0.1;
+    const uvIndex = maxUv;
     const isSunset = selectedHour > 18 || selectedHour < 7;
     const totalDist = activeRouteData.segments.reduce((sum, seg) => sum + seg.distance, 0);
 
@@ -870,7 +923,7 @@ export default function Home() {
   // Get dynamic ambient weather based on timeline scrub position
   const getDynamicAmbientWeather = () => {
     const activeWeatherSource = (activeRouteData && activeRouteData.weatherResults && activeRouteData.weatherResults.length > 0)
-      ? activeRouteData.weatherResults[0]
+      ? activeRouteData.weatherResults[focusedWeatherIndex]
       : ambientWeatherForecast;
 
     if (!activeWeatherSource) return ambientWeather;
@@ -895,11 +948,26 @@ export default function Home() {
       hourIdx = currentHourIdx;
     }
 
+    // Determine location label for the HUD title
+    let locationLabel = "Origin";
+    const numStations = activeRouteData?.weatherResults?.length || 0;
+    if (numStations > 1) {
+      if (focusedWeatherIndex === 0) {
+        locationLabel = activeRouteData.startLocation?.label?.split(",")[0] || "Origin";
+      } else if (focusedWeatherIndex === numStations - 1) {
+        locationLabel = activeRouteData.endLocation?.label?.split(",")[0] || "Destination";
+      } else {
+        locationLabel = `Midpoint #${focusedWeatherIndex}`;
+      }
+    } else {
+      locationLabel = weatherLocationName;
+    }
+
     return {
       temp: hourly.temperature_2m?.[hourIdx] ?? (ambientWeather?.temp ?? 22),
       windSpeed: hourly.wind_speed_10m?.[hourIdx] ?? (ambientWeather?.windSpeed ?? 12),
       windDir: getWindCompassDirection(hourly.wind_direction_10m?.[hourIdx] ?? 0),
-      desc: "Perfect Local Conditions"
+      desc: locationLabel
     };
   };
 
@@ -1208,6 +1276,8 @@ export default function Home() {
           unitSystem={unitSystem}
           hudState={hudState}
           userLocation={userLocation}
+          focusedWeatherIndex={focusedWeatherIndex}
+          onMapMove={handleMapMove}
         />
       </div>
 
@@ -1255,6 +1325,7 @@ export default function Home() {
                   setRouteCoordinates([]);
                   setRouteSegments([]);
                   setWeatherResults([]);
+                  setFocusedWeatherIndex(0);
                   setDraftStart(null);
                   setDraftEnd(null);
                   setStartQuery("");
@@ -1416,9 +1487,12 @@ export default function Home() {
           </button>
 
           {dynamicAmbientWeather && (
-            <div className={`hud-bubble ${styles.weatherBubble}`} title={`Location: ${weatherLocationName}`}>
+            <div className={`hud-bubble ${styles.weatherBubble}`} title={`Location: ${dynamicAmbientWeather.desc}`}>
               <SunDim size={16} className={styles.sunDimIcon} style={{ animation: "spin 12s linear infinite" }} />
               <span className={styles.weatherText}>
+                <span style={{ color: "var(--color-emerald)", fontWeight: "800", marginRight: "4px" }}>
+                  {dynamicAmbientWeather.desc}:
+                </span>
                 {formatTemp(dynamicAmbientWeather.temp)}
                 <span className="mobile-hide"> • {formatWind(dynamicAmbientWeather.windSpeed)} {dynamicAmbientWeather.windDir}</span>
               </span>

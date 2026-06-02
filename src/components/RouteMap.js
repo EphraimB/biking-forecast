@@ -21,11 +21,13 @@ export default function RouteMap({
   onMapClick = null,
   unitSystem = "metric",
   hudState = 0,
-  userLocation = null
+  userLocation = null,
+  focusedWeatherIndex = 0,
+  onMapMove = null
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const layersRef = useRef({ polylines: [], markers: [], telemetries: [] });
+  const layersRef = useRef({ polylines: [], markers: [], telemetries: [], weatherOverlays: [] });
 
   const handleJumpToGPS = () => {
     if (mapInstanceRef.current) {
@@ -142,11 +144,18 @@ export default function RouteMap({
             onMapClick({ lat: e.latlng.lat, lon: e.latlng.lng });
           }
         });
+
+        map.on("moveend", () => {
+          const center = map.getCenter();
+          if (onMapMove) {
+            onMapMove({ lat: center.lat, lon: center.lng });
+          }
+        });
       }
     };
 
     initMap();
-  }, [onMapClick]);
+  }, [onMapClick, onMapMove]);
 
   // 2. Render Route, Dynamic Markers, and Telemetry Pins (💧, 🍌)
   useEffect(() => {
@@ -160,6 +169,10 @@ export default function RouteMap({
     layersRef.current.markers = [];
     layersRef.current.telemetries.forEach(t => t.remove());
     layersRef.current.telemetries = [];
+    if (layersRef.current.weatherOverlays) {
+      layersRef.current.weatherOverlays.forEach(w => w.remove());
+    }
+    layersRef.current.weatherOverlays = [];
 
     import("leaflet").then((L) => {
       let currentHourIdx;
@@ -466,18 +479,20 @@ export default function RouteMap({
         const endMarker = L.marker([endLocation.lat, endLocation.lon], { icon: endIcon }).addTo(map);
         layersRef.current.markers.push(endMarker);
       }
+
+
     });
 
-  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState, customSpeed]);
+  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState, customSpeed, focusedWeatherIndex]);
 
   // Synchronously compute derived environmental metrics in render (avoiding useEffect cascading triggers)
   const getAmbientWeatherMetrics = () => {
     if (weatherResults.length === 0) {
       return { temp: 20, rain: 0, windSpeed: 10, windDir: 0, gusts: 0 };
     }
-    const midIdx = Math.floor(weatherResults.length / 2);
-    const midHourly = weatherResults[midIdx]?.hourly;
-    if (!midHourly) {
+    const targetIdx = Math.max(0, Math.min(focusedWeatherIndex, weatherResults.length - 1));
+    const targetHourly = weatherResults[targetIdx]?.hourly;
+    if (!targetHourly) {
       return { temp: 20, rain: 0, windSpeed: 10, windDir: 0, gusts: 0 };
     }
 
@@ -492,7 +507,7 @@ export default function RouteMap({
       const hour = now.getHours().toString().padStart(2, "0");
       const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
       
-      let matchedIdx = midHourly.time?.indexOf(currentHourStr);
+      let matchedIdx = targetHourly.time?.indexOf(currentHourStr);
       if (matchedIdx === -1 || matchedIdx === undefined) {
         matchedIdx = now.getHours();
       }
@@ -500,11 +515,11 @@ export default function RouteMap({
     }
 
     return {
-      temp: midHourly.temperature_2m?.[currentHourIdx] ?? 20,
-      rain: midHourly.precipitation_probability?.[currentHourIdx] ?? 0,
-      windSpeed: midHourly.wind_speed_10m?.[currentHourIdx] ?? 10,
-      windDir: midHourly.wind_direction_10m?.[currentHourIdx] ?? 0,
-      gusts: midHourly.wind_gusts_10m?.[currentHourIdx] ?? 0
+      temp: targetHourly.temperature_2m?.[currentHourIdx] ?? 20,
+      rain: targetHourly.precipitation_probability?.[currentHourIdx] ?? 0,
+      windSpeed: targetHourly.wind_speed_10m?.[currentHourIdx] ?? 10,
+      windDir: targetHourly.wind_direction_10m?.[currentHourIdx] ?? 0,
+      gusts: targetHourly.wind_gusts_10m?.[currentHourIdx] ?? 0
     };
   };
 
@@ -514,6 +529,8 @@ export default function RouteMap({
   const ambientWindSpeed = metrics.windSpeed;
   const ambientWindDir = metrics.windDir;
   const ambientGusts = metrics.gusts;
+
+  const showGlobalOverlays = true;
 
   // Compute temperature tint color based on ambientTemp
   let tempWashColor = "transparent";
@@ -531,6 +548,8 @@ export default function RouteMap({
     tempWashColor = "rgba(16, 185, 129, 0.03)";
     tempOpacity = 0.25;
   }
+
+  const finalTempOpacity = showGlobalOverlays ? tempOpacity : 0;
 
   // Adjust wind flow animation rate based on wind speed
   const windAnimDuration = Math.max(1.5, 10 - (ambientWindSpeed / 4)) + "s";
@@ -552,7 +571,7 @@ export default function RouteMap({
           className={styles.tempWashLayer} 
           style={{ 
             backgroundColor: tempWashColor,
-            opacity: tempOpacity
+            opacity: finalTempOpacity
           }} 
         />
 
@@ -560,7 +579,7 @@ export default function RouteMap({
         <WindStreams 
           ambientWindDir={ambientWindDir}
           ambientWindSpeed={ambientWindSpeed}
-          weatherResultsLength={weatherResults.length}
+          weatherResultsLength={showGlobalOverlays ? weatherResults.length : 0}
           isHighGust={isHighGust}
           windAnimDuration={windAnimDuration}
           svgClassName="wind-stream-svg"
@@ -575,7 +594,7 @@ export default function RouteMap({
             width: "120%",
             height: "100%",
             pointerEvents: "none",
-            opacity: weatherResults.length > 0 ? ambientRain / 100 : 0 
+            opacity: (showGlobalOverlays && weatherResults.length > 0) ? ambientRain / 100 : 0 
           }}
         >
           {Array.from({ length: 25 }).map((_, i) => {
