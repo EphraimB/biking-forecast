@@ -974,14 +974,15 @@
   position: fixed;
   top: 74px;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -80px);
+  opacity: 0;
   z-index: 10110;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-width: 320px;
-  max-width: 500px;
+  width: calc(100% - 24px);
+  max-width: 460px;
   padding: 10px 14px;
   border-radius: 10px;
   background: rgba(15, 23, 42, 0.85);
@@ -990,7 +991,22 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
   pointer-events: auto;
-  transition: all 0.3s ease;
+  transition: opacity 0.3s ease, border-left 0.3s ease;
+  animation: slideInToast 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideInToast {
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInToastMobile {
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .toastNotification.error {
@@ -1082,7 +1098,28 @@
 @media (max-width: 768px) {
   .toastNotification {
     top: 60px;
-    width: calc(100% - 24px);
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
     min-width: unset;
+    transform: translateY(-80px);
+    animation: slideInToastMobile 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
+}
+
+.cooldownBadge {
+  margin-left: 8px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--color-amber);
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }

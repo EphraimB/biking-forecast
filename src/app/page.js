@@ -340,6 +340,24 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
   const [isRefreshingWeather, setIsRefreshingWeather] = useState(false);
+  const [cooldownTime, setCooldownTime] = useState(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("weather_429_cooldown_until");
+      if (cached && Number(cached) > Date.now()) {
+        return Number(cached);
+      }
+    }
+    return 0;
+  });
+  const [cooldownRemaining, setCooldownRemaining] = useState(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("weather_429_cooldown_until");
+      if (cached && Number(cached) > Date.now()) {
+        return Math.ceil((Number(cached) - Date.now()) / 1000);
+      }
+    }
+    return 0;
+  });
   const startGeocodeTimeoutRef = useRef(null);
   const endGeocodeTimeoutRef = useRef(null);
   const mapMoveTimeoutRef = useRef(null);
@@ -353,21 +371,44 @@ export default function Home() {
     ? (activeStartLoc.label.split(",")[0] || "Route Start")
     : baseWeatherLocationName;
 
+  const formatCooldown = (seconds) => {
+    if (seconds <= 0) return "0s";
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    if (m > 0) {
+      return `${m}m ${s}s`;
+    }
+    return `${s}s`;
+  };
+
   const handleWeatherResponse = useCallback((weatherData) => {
     if (weatherData && weatherData.isOfflineForecast) {
-      const isRateLimit = weatherData.errorType === "429";
-      const message = isRateLimit
-        ? "Weather API rate limit exceeded (429). Using dynamic offline mathematical forecast."
-        : `Weather API offline (${weatherData.errorMessage || "Network error"}). Using dynamic offline mathematical forecast.`;
+      const isRateLimit = weatherData.errorType === "429" || (weatherData.errorMessage && String(weatherData.errorMessage).includes("429"));
+      
+      let cdTime = 0;
+      if (isRateLimit) {
+        cdTime = weatherData.cooldownUntil || (Date.now() + 120 * 1000);
+        setCooldownTime(cdTime);
+        localStorage.setItem("weather_429_cooldown_until", cdTime.toString());
+      }
       
       setToast(prev => {
+        const remaining = cdTime ? Math.max(0, Math.ceil((cdTime - Date.now()) / 1000)) : 0;
+        const message = isRateLimit
+          ? `Weather rate limit active. Using offline forecast. Retry in ${formatCooldown(remaining || 120)}.`
+          : `Weather API offline. Using simulated forecast.`;
+          
+        const newId = isRateLimit ? "toast-429" : Math.random().toString();
+        
         if (prev && prev.message === message) {
-          return prev; // Bypass state update and do not trigger a fresh toast popup
+          return prev;
         }
+        
         return {
-          id: Math.random(),
+          id: newId,
           type: isRateLimit ? "warning" : "info",
-          message
+          message,
+          isPersistent: isRateLimit
         };
       });
     }
@@ -620,15 +661,55 @@ export default function Home() {
     };
   }, []);
 
-  // Auto-hide toast notification after 6 seconds
+  // Auto-hide toast notification after 6 seconds (if not persistent)
   useEffect(() => {
-    if (toast) {
+    if (toast && !toast.isPersistent) {
       const timer = setTimeout(() => {
         setToast(null);
       }, 6000);
       return () => clearTimeout(timer);
     }
   }, [toast]);
+
+  // Cooldown countdown interval
+  useEffect(() => {
+    if (cooldownTime > Date.now()) {
+      const interval = setInterval(() => {
+        const left = Math.ceil((cooldownTime - Date.now()) / 1000);
+        if (left <= 0) {
+          setCooldownRemaining(0);
+          setCooldownTime(0);
+          localStorage.removeItem("weather_429_cooldown_until");
+          clearInterval(interval);
+          setToast({
+            id: Math.random().toString(),
+            type: "success",
+            message: "Rate limit cooldown expired. You can now refresh weather data."
+          });
+        } else {
+          setCooldownRemaining(left);
+          
+          setToast(prev => {
+            if (prev && prev.id === "toast-429") {
+              const message = `Weather rate limit active. Using offline forecast. Retry in ${formatCooldown(left)}.`;
+              if (prev.message === message) return prev;
+              return {
+                ...prev,
+                message
+              };
+            }
+            return prev;
+          });
+        }
+      }, 1000);
+      
+      return () => clearInterval(interval);
+    } else {
+      setTimeout(() => {
+        setCooldownRemaining(prev => prev === 0 ? 0 : 0);
+      }, 0);
+    }
+  }, [cooldownTime]);
 
   // 1. Initial Mount: Restore Active View State
   useEffect(() => {
@@ -2022,7 +2103,7 @@ export default function Home() {
       {/* Premium Glassmorphic Toast Notification */}
       {toast && (
         <div 
-          className={`${styles.toastNotification} ${styles[toast.type]} hud-slide-top`}
+          className={`${styles.toastNotification} ${styles[toast.type]}`}
           key={toast.id}
           onClick={(e) => e.stopPropagation()}
         >
@@ -2394,6 +2475,11 @@ export default function Home() {
                 </span>
                 {formatTemp(dynamicAmbientWeather.temp)}
                 <span> • {formatWind(dynamicAmbientWeather.windSpeed)} {dynamicAmbientWeather.windDir}</span>
+                {cooldownRemaining > 0 && (
+                  <span className={styles.cooldownBadge} title="Simulated weather is active due to API rate limits.">
+                    ⚠️ SIMULATED <span className="mobile-hide">(Retry {formatCooldown(cooldownRemaining)})</span>
+                  </span>
+                )}
               </span>
               <button 
                 onClick={(e) => {
@@ -2401,8 +2487,9 @@ export default function Home() {
                   handleRefreshWeather();
                 }} 
                 className={`${styles.weatherRefreshBtn} ${isRefreshingWeather ? styles.spinning : ""}`}
-                title="Refresh Weather"
-                disabled={isRefreshingWeather}
+                title={cooldownRemaining > 0 ? `API rate-limit cooldown: retry available in ${formatCooldown(cooldownRemaining)}` : "Refresh Weather"}
+                disabled={isRefreshingWeather || cooldownRemaining > 0}
+                style={{ opacity: cooldownRemaining > 0 ? 0.35 : 1, cursor: cooldownRemaining > 0 ? "not-allowed" : "pointer" }}
               >
                 <RefreshCw size={12} />
               </button>

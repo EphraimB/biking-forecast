@@ -330,6 +330,20 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance, forceRe
       return cached;
     }
   }
+
+  // Check if a 429 rate limit cooldown is active in localStorage
+  if (typeof window !== "undefined") {
+    const cooldownUntil = localStorage.getItem("weather_429_cooldown_until");
+    if (cooldownUntil && Number(cooldownUntil) > Date.now()) {
+      console.log("🛑 [Weather API] Cooldown active. Skipping network fetch and serving offline forecast.");
+      const mockData = sampledPoints.map(p => generateMockWeather(p[0], p[1]));
+      mockData.isOfflineForecast = true;
+      mockData.errorType = "429";
+      mockData.cooldownUntil = Number(cooldownUntil);
+      mockData.errorMessage = "API Rate Limit Cooldown Active";
+      return mockData;
+    }
+  }
   
   try {
     // Throttling actual network calls to limit requests to Open-Meteo
@@ -389,6 +403,10 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance, forceRe
     mockData.isOfflineForecast = true;
     mockData.errorType = error.message?.includes("429") ? "429" : "general";
     mockData.errorMessage = error.message || "Network request failed";
+
+    if (mockData.errorType === "429") {
+      mockData.cooldownUntil = Date.now() + 120 * 1000; // 2 minutes cooldown
+    }
 
     const now = new Date();
     const year = now.getFullYear();
