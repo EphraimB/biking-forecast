@@ -330,7 +330,7 @@ export default function Home() {
     }
   }, []);
 
-  const loadRouteDetails = useCallback(async (start, end, bikeType, speed, overrideState = null) => {
+  const loadRouteDetails = useCallback(async (start, end, bikeType, speed, overrideState = null, shouldSave = false, saveName = "") => {
     setIsLoading(true);
     setError(null);
     try {
@@ -347,6 +347,28 @@ export default function Home() {
       setConfirmedStart(start);
       setConfirmedEnd(end);
       setHudState(overrideState !== null ? overrideState : 2);
+
+      if (shouldSave) {
+        const name = saveName.trim() || `Route: ${start.label.split(",")[0]} ⇆ ${end.label.split(",")[0]}`;
+        const newRoute = {
+          id: Date.now().toString(),
+          name,
+          start,
+          end,
+          bikeType,
+          speed,
+          coordinates: decodedCoords,
+          segments: segments,
+          distance: routeData.distance
+        };
+        setSavedRoutes(prev => {
+          const updated = [...prev, newRoute];
+          localStorage.setItem("hud_saved_routes", JSON.stringify(updated));
+          return updated;
+        });
+        setShouldSaveRoute(false);
+        setSaveRouteName("");
+      }
     } catch (err) {
       console.error(err);
       setError(err.message || "Route validation pipeline failed.");
@@ -607,30 +629,7 @@ export default function Home() {
   }, [hudState]);
 
 
-  // Save Route Action Persistence
-  const handleSaveRoute = () => {
-    if (!draftStart || !draftEnd) return;
-    const name = saveRouteName.trim() || `Route: ${draftStart.label.split(",")[0]} ⇆ ${draftEnd.label.split(",")[0]}`;
-    const totalDist = routeSegments.reduce((sum, seg) => sum + seg.distance, 0);
-    
-    const newRoute = {
-      id: Date.now().toString(),
-      name,
-      start: draftStart,
-      end: draftEnd,
-      bikeType: newBikeType,
-      speed: newSpeed,
-      coordinates: routeCoordinates,
-      segments: routeSegments,
-      distance: totalDist
-    };
 
-    const updated = [...savedRoutes, newRoute];
-    setSavedRoutes(updated);
-    localStorage.setItem("hud_saved_routes", JSON.stringify(updated));
-    setShouldSaveRoute(false);
-    setSaveRouteName("");
-  };
 
   const handleDeleteSavedRoute = (id, e) => {
     e.stopPropagation();
@@ -677,8 +676,11 @@ export default function Home() {
     setConfirmedEnd(route.end);
     setStartQuery(route.start.label || "");
     setEndQuery(route.end.label || "");
+    if (route.bikeType) setNewBikeType(route.bikeType);
+    if (route.speed) setNewSpeed(route.speed);
     
-    if (route.coordinates && route.segments) {
+    if (route.coordinates && route.coordinates.length > 0 && route.segments && route.segments.length > 0) {
+      setWeatherResults([]); // Clear previous weather to prevent stale/incorrect overlay calculations
       setRouteCoordinates(route.coordinates);
       setRouteSegments(route.segments);
       fetchRouteWeather(route.coordinates, route.distance || 10).then(weatherData => {
@@ -686,7 +688,7 @@ export default function Home() {
       }).catch(e => console.error("Error fetching weather for loaded route:", e));
       setHudState(2);
     } else {
-      loadRouteDetails(route.start, route.end, newBikeType, newSpeed);
+      loadRouteDetails(route.start, route.end, route.bikeType || newBikeType, route.speed || newSpeed);
     }
     
     setIsSavedHubOpen(false);
@@ -2112,10 +2114,7 @@ export default function Home() {
                 className={`${styles.confirmBtn} hud-btn ${draftStart && draftEnd ? "active" : ""}`}
                 disabled={!draftStart || !draftEnd || isLoading}
                 onClick={() => {
-                  if (shouldSaveRoute) {
-                    handleSaveRoute();
-                  }
-                  loadRouteDetails(draftStart, draftEnd, newBikeType, newSpeed);
+                  loadRouteDetails(draftStart, draftEnd, newBikeType, newSpeed, null, shouldSaveRoute, saveRouteName);
                 }}
               >
                 {isLoading ? "Analyzing..." : "Confirm & Map HUD"}

@@ -466,7 +466,9 @@ export default function RouteMap({
             layersRef.current.telemetries.push(nutMarker);
           }
         });
+      }
 
+      if (coordinates && coordinates.length > 0) {
         const coordsSerialized = JSON.stringify(coordinates);
         if (lastFittedRouteRef.current !== coordsSerialized) {
           lastFittedRouteRef.current = coordsSerialized;
