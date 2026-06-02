@@ -172,7 +172,9 @@ export default function Home() {
   const [ambientWeatherForecast, setAmbientWeatherForecast] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const geocodeTimeoutRef = useRef(null);
+  const startGeocodeTimeoutRef = useRef(null);
+  const endGeocodeTimeoutRef = useRef(null);
+  const mapMoveTimeoutRef = useRef(null);
 
   // Derived state: weatherLocationName represents active route's starting city or fallback base location
   const weatherLocationName = (draftStart && draftStart.label && baseWeatherLocationName !== "Map Viewport")
@@ -252,28 +254,55 @@ export default function Home() {
 
   const triggerGeocode = useCallback((query, isStart) => {
     if (!query || query.trim().length < 3) {
-      if (isStart) setStartResults([]);
-      else setEndResults([]);
+      if (isStart) {
+        setStartResults([]);
+        if (startGeocodeTimeoutRef.current) {
+          clearTimeout(startGeocodeTimeoutRef.current);
+          startGeocodeTimeoutRef.current = null;
+        }
+      } else {
+        setEndResults([]);
+        if (endGeocodeTimeoutRef.current) {
+          clearTimeout(endGeocodeTimeoutRef.current);
+          endGeocodeTimeoutRef.current = null;
+        }
+      }
       return;
     }
 
-    if (geocodeTimeoutRef.current) {
-      clearTimeout(geocodeTimeoutRef.current);
-    }
-
-    geocodeTimeoutRef.current = setTimeout(async () => {
-      if (isStart) {
-        setIsSearchingStart(true);
-        const res = await geocodeAddress(query);
-        setStartResults(res || []);
-        setIsSearchingStart(false);
-      } else {
-        setIsSearchingEnd(true);
-        const res = await geocodeAddress(query);
-        setEndResults(res || []);
-        setIsSearchingEnd(false);
+    if (isStart) {
+      if (startGeocodeTimeoutRef.current) {
+        clearTimeout(startGeocodeTimeoutRef.current);
       }
-    }, 600);
+      startGeocodeTimeoutRef.current = setTimeout(async () => {
+        setIsSearchingStart(true);
+        try {
+          const res = await geocodeAddress(query);
+          setStartResults(res || []);
+        } catch (err) {
+          console.error("Geocoding start address failed:", err);
+        } finally {
+          setIsSearchingStart(false);
+          startGeocodeTimeoutRef.current = null;
+        }
+      }, 600);
+    } else {
+      if (endGeocodeTimeoutRef.current) {
+        clearTimeout(endGeocodeTimeoutRef.current);
+      }
+      endGeocodeTimeoutRef.current = setTimeout(async () => {
+        setIsSearchingEnd(true);
+        try {
+          const res = await geocodeAddress(query);
+          setEndResults(res || []);
+        } catch (err) {
+          console.error("Geocoding end address failed:", err);
+        } finally {
+          setIsSearchingEnd(false);
+          endGeocodeTimeoutRef.current = null;
+        }
+      }, 600);
+    }
   }, []);
 
   // 1. Initial Mount: Restore Active View State
@@ -405,6 +434,25 @@ export default function Home() {
       return () => clearTimeout(handle);
     }
   }, [draftStart, fetchAmbientWeather]);
+
+  // Clear search results and geocode timeouts if the route setup panel is closed
+  useEffect(() => {
+    if (hudState !== 1) {
+      const handle = setTimeout(() => {
+        setStartResults([]);
+        setEndResults([]);
+      }, 0);
+      if (startGeocodeTimeoutRef.current) {
+        clearTimeout(startGeocodeTimeoutRef.current);
+        startGeocodeTimeoutRef.current = null;
+      }
+      if (endGeocodeTimeoutRef.current) {
+        clearTimeout(endGeocodeTimeoutRef.current);
+        endGeocodeTimeoutRef.current = null;
+      }
+      return () => clearTimeout(handle);
+    }
+  }, [hudState]);
 
 
   // Save Route Action Persistence
@@ -752,13 +800,14 @@ export default function Home() {
   const handleMapMove = useCallback((coord) => {
     if (isLoading) return;
 
-    if (geocodeTimeoutRef.current) {
-      clearTimeout(geocodeTimeoutRef.current);
+    if (mapMoveTimeoutRef.current) {
+      clearTimeout(mapMoveTimeoutRef.current);
     }
 
-    geocodeTimeoutRef.current = setTimeout(async () => {
+    mapMoveTimeoutRef.current = setTimeout(async () => {
       setBaseWeatherLocationName("Map Viewport");
       fetchAmbientWeather(coord.lat, coord.lon);
+      mapMoveTimeoutRef.current = null;
     }, 500); // 500ms panning debounce
   }, [fetchAmbientWeather, isLoading]);
 
@@ -1613,8 +1662,12 @@ export default function Home() {
                   placeholder="🏡 Enter Start Address..." 
                   value={startQuery}
                   onChange={(e) => {
-                    setStartQuery(e.target.value);
-                    triggerGeocode(e.target.value, true);
+                    const val = e.target.value;
+                    setStartQuery(val);
+                    if (draftStart && val !== draftStart.label) {
+                      setDraftStart(null);
+                    }
+                    triggerGeocode(val, true);
                   }}
                 />
                 {startResults.length > 0 && (
@@ -1627,6 +1680,10 @@ export default function Home() {
                           setDraftStart(loc);
                           setStartQuery(loc.label);
                           setStartResults([]);
+                          if (startGeocodeTimeoutRef.current) {
+                            clearTimeout(startGeocodeTimeoutRef.current);
+                            startGeocodeTimeoutRef.current = null;
+                          }
                         }}
                       >
                         {loc.label}
@@ -1644,8 +1701,12 @@ export default function Home() {
                   placeholder="🏢 Enter Destination..." 
                   value={endQuery}
                   onChange={(e) => {
-                    setEndQuery(e.target.value);
-                    triggerGeocode(e.target.value, false);
+                    const val = e.target.value;
+                    setEndQuery(val);
+                    if (draftEnd && val !== draftEnd.label) {
+                      setDraftEnd(null);
+                    }
+                    triggerGeocode(val, false);
                   }}
                 />
                 {endResults.length > 0 && (
@@ -1658,6 +1719,10 @@ export default function Home() {
                           setDraftEnd(loc);
                           setEndQuery(loc.label);
                           setEndResults([]);
+                          if (endGeocodeTimeoutRef.current) {
+                            clearTimeout(endGeocodeTimeoutRef.current);
+                            endGeocodeTimeoutRef.current = null;
+                          }
                         }}
                       >
                         {loc.label}
