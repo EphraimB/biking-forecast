@@ -9,7 +9,7 @@ import {
   Bookmark, Sliders, SunDim, Award, Info, Menu
 } from "lucide-react";
 
-import { fetchBicycleRoute, fetchRouteWeather, geocodeAddress } from "@/utils/api";
+import { fetchBicycleRoute, fetchRouteWeather, geocodeAddress, reverseGeocode } from "@/utils/api";
 import { decodePolyline6, calculateRouteSegments, sampleCoordinates } from "@/utils/routeUtils";
 import { calculateCommuteScore, calculateDepartureTimeForArrival, WMO_MAP } from "@/utils/weatherScoring";
 import styles from "./page.module.css";
@@ -416,7 +416,14 @@ export default function Home() {
       setHudState(overrideState !== null ? overrideState : 2);
 
       if (shouldSave) {
-        const name = saveName.trim() || `Route: ${start.label.split(",")[0]} ⇆ ${end.label.split(",")[0]}`;
+        const getCleanLabel = (label) => {
+          if (!label) return "";
+          if (label.startsWith("(") && label.endsWith(")")) return label;
+          return label.split(",")[0];
+        };
+        const cleanStart = getCleanLabel(start.label) || "Start";
+        const cleanEnd = getCleanLabel(end.label) || "Destination";
+        const name = saveName.trim() || `${cleanStart} ⇆ ${cleanEnd}`;
         const newRoute = {
           id: Date.now().toString(),
           name,
@@ -787,8 +794,14 @@ export default function Home() {
     window.handleOverlaySaveRouteClick = () => {
       if (!confirmedStart || !confirmedEnd || !routeCoordinates || routeCoordinates.length === 0) return;
       
-      const startLabel = confirmedStart.label ? confirmedStart.label.split(",")[0] : "Start";
-      const endLabel = confirmedEnd.label ? confirmedEnd.label.split(",")[0] : "Destination";
+      const getCleanLabel = (label) => {
+        if (!label) return "";
+        if (label.startsWith("(") && label.endsWith(")")) return label;
+        return label.split(",")[0];
+      };
+      
+      const startLabel = getCleanLabel(confirmedStart.label) || "Start";
+      const endLabel = getCleanLabel(confirmedEnd.label) || "Destination";
       const name = `${startLabel} ⇆ ${endLabel}`;
       
       const computedDistance = routeSegments.reduce((sum, seg) => sum + seg.distance, 0);
@@ -1843,17 +1856,35 @@ export default function Home() {
           customSpeed={activeRouteData.speed}
           isDrawingMode={hudState === 1}
           hudState={hudState}
-          onMapClick={(coord) => {
-            const label = `Pinned coordinate (${coord.lat.toFixed(4)}, ${coord.lon.toFixed(4)})`;
+          onMapClick={async (coord) => {
+            const tempLabel = `(${coord.lat.toFixed(4)}, ${coord.lon.toFixed(4)})`;
+            const isStart = !draftStart;
+            
             if (hudState !== 1) {
               setHudState(1);
             }
-            if (!draftStart) {
-              setDraftStart({ ...coord, label });
-              setStartQuery(label);
+            
+            if (isStart) {
+              setDraftStart({ ...coord, label: tempLabel });
+              setStartQuery(tempLabel);
             } else if (!draftEnd) {
-              setDraftEnd({ ...coord, label });
-              setEndQuery(label);
+              setDraftEnd({ ...coord, label: tempLabel });
+              setEndQuery(tempLabel);
+            }
+
+            try {
+              const resolved = await reverseGeocode(coord.lat, coord.lon);
+              if (resolved) {
+                if (isStart) {
+                  setDraftStart(prev => prev ? { ...prev, label: resolved } : null);
+                  setStartQuery(resolved);
+                } else {
+                  setDraftEnd(prev => prev ? { ...prev, label: resolved } : null);
+                  setEndQuery(resolved);
+                }
+              }
+            } catch (err) {
+              console.error("Reverse geocoding failed:", err);
             }
           }}
           unitSystem={unitSystem}

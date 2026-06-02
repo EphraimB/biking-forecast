@@ -335,3 +335,49 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance) {
     return mockData;
   }
 }
+
+export async function reverseGeocode(lat, lon) {
+  // 1. Try Nominatim reverse (Primary)
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`;
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "BikingForecastApp"
+      }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      const addr = data.address || {};
+      
+      // Select the most specific location label
+      const placeName = addr.neighbourhood || addr.suburb || addr.quarter || addr.city_district || addr.village || addr.town || addr.city || addr.road;
+      if (placeName) {
+        return placeName;
+      }
+      return data.display_name?.split(",")[0] || null;
+    }
+  } catch (error) {
+    console.warn("Nominatim reverse geocode failed: ", error.message);
+  }
+
+  // 2. Try Photon Komoot reverse (Fallback)
+  try {
+    const url = `https://photon.komoot.io/reverse?lon=${lon}&lat=${lat}`;
+    const response = await fetch(url);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.features && data.features.length > 0) {
+        const feat = data.features[0];
+        const prop = feat.properties || {};
+        const placeName = prop.district || prop.locality || prop.name || prop.street;
+        if (placeName) {
+          return placeName;
+        }
+      }
+    }
+  } catch (error) {
+    console.warn("Photon reverse geocode failed: ", error.message);
+  }
+
+  return null;
+}
