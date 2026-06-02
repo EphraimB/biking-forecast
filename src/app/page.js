@@ -2281,7 +2281,7 @@ export default function Home() {
           )}
 
           {(hudState === 2 || hudState === 3) && activeForecast && (
-            <>
+            <div style={{ position: "relative" }}>
               {/* Gear Check Trigger Button */}
               <button 
                 className="hud-bubble" 
@@ -2325,25 +2325,132 @@ export default function Home() {
                   )}
                 </div>
               )}
-            </>
+            </div>
           )}
 
 
-          {/* Saved Routes Hub Trigger (Permanently Available in States 0, 2, 3) */}
+          {/* Saved Routes Hub Trigger & Dropdown (Permanently Available in States 0, 2, 3) */}
           {(hudState === 0 || hudState === 2 || hudState === 3) && (
-            <button 
-              className={`hud-bubble desktop-only ${styles.hubBtn}`}
-              onClick={toggleSavedHub}
-              style={{ 
-                border: isSavedHubOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)"
-              }}
-              title="Saved Routes Library"
-            >
-              <Bookmark size={16} style={{ color: isSavedHubOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
-              <span className="mobile-hide" style={{ fontSize: "0.78rem", fontWeight: "800", color: isSavedHubOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }}>
-                SAVED
-              </span>
-            </button>
+            <div className={isSavedHubOpen ? "" : "desktop-only"} style={{ position: "relative" }}>
+              <button 
+                className={`hud-bubble desktop-only ${styles.hubBtn}`}
+                onClick={toggleSavedHub}
+                style={{ 
+                  border: isSavedHubOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)"
+                }}
+                title="Saved Routes Library"
+              >
+                <Bookmark size={16} style={{ color: isSavedHubOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
+                <span className="mobile-hide" style={{ fontSize: "0.78rem", fontWeight: "800", color: isSavedHubOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }}>
+                  SAVED
+                </span>
+              </button>
+
+              {/* Saved Routes Dropdown overlay */}
+              {isSavedHubOpen && (
+                <div 
+                  className={`${styles.savedRoutesHubDropdown} hud-card hud-card-responsive`}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onMouseUp={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchMove={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
+                >
+                  <div className={styles.hubDropdownHeader}>
+                    <h4 className={styles.hubDropdownTitle}>🔖 Saved Routes</h4>
+                    <button onClick={() => setIsSavedHubOpen(false)} className={styles.closeBtn}><X size={14} /></button>
+                  </div>
+                  {savedRoutes.length === 0 ? (
+                    <p className={styles.emptyMsg}>No saved routes yet. Plan a route and save it to display here.</p>
+                  ) : (
+                    savedRoutes.map((route) => {
+                      const isEditing = editingRouteId === route.id;
+                      
+                      if (isEditing) {
+                        return (
+                          <div 
+                            key={route.id} 
+                            className={styles.savedRouteItemEditing}
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onMouseUp={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="text"
+                              className={styles.renameInput}
+                              value={editingRouteName}
+                              onChange={(e) => setEditingRouteName(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => {
+                                e.stopPropagation();
+                                if (e.key === "Enter") {
+                                  handleRenameSavedRoute(route.id, editingRouteName);
+                                } else if (e.key === "Escape") {
+                                  setEditingRouteId(null);
+                                }
+                              }}
+                              autoFocus
+                            />
+                            <div className={styles.editActions}>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRenameSavedRoute(route.id, editingRouteName);
+                                }}
+                                className={styles.saveRouteBtn}
+                                title="Save Name"
+                              >
+                                <Check size={13} />
+                              </button>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingRouteId(null);
+                                }}
+                                className={styles.cancelRouteBtn}
+                                title="Cancel Editing"
+                              >
+                                <X size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div 
+                          key={route.id} 
+                          className={`hud-btn ${styles.savedRouteItem}`} 
+                          onClick={() => handleLoadSavedRoute(route)}
+                        >
+                          <span className={styles.savedRouteText}>{route.name}</span>
+                          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingRouteId(route.id);
+                                setEditingRouteName(route.name);
+                              }} 
+                              className={styles.editRouteBtn}
+                              title="Rename Route"
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                            <button 
+                              onClick={(e) => handleDeleteSavedRoute(route.id, e)} 
+                              className={styles.deleteRouteBtn}
+                              title="Delete Route"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Weekly Schedule Planner Trigger (Permanently Available in States 0, 2, 3) */}
@@ -2361,111 +2468,6 @@ export default function Home() {
                 WEEKLY<span className="mobile-hide"> PLANNER</span>
               </span>
             </button>
-          )}
-
-          {/* Saved Routes Dropdown overlay */}
-          {isSavedHubOpen && (hudState === 0 || hudState === 2 || hudState === 3) && (
-            <div 
-              className={`${styles.savedRoutesHubDropdown} hud-card hud-card-responsive`}
-              onMouseDown={(e) => e.stopPropagation()}
-              onMouseUp={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
-              onTouchMove={(e) => e.stopPropagation()}
-              onTouchEnd={(e) => e.stopPropagation()}
-            >
-              <div className={styles.hubDropdownHeader}>
-                <h4 className={styles.hubDropdownTitle}>🔖 Saved Routes</h4>
-                <button onClick={() => setIsSavedHubOpen(false)} className={styles.closeBtn}><X size={14} /></button>
-              </div>
-              {savedRoutes.length === 0 ? (
-                <p className={styles.emptyMsg}>No saved routes yet. Plan a route and save it to display here.</p>
-              ) : (
-                savedRoutes.map((route) => {
-                  const isEditing = editingRouteId === route.id;
-                  
-                  if (isEditing) {
-                    return (
-                      <div 
-                        key={route.id} 
-                        className={styles.savedRouteItemEditing}
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onMouseUp={(e) => e.stopPropagation()}
-                      >
-                        <input
-                          type="text"
-                          className={styles.renameInput}
-                          value={editingRouteName}
-                          onChange={(e) => setEditingRouteName(e.target.value)}
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => {
-                            e.stopPropagation();
-                            if (e.key === "Enter") {
-                              handleRenameSavedRoute(route.id, editingRouteName);
-                            } else if (e.key === "Escape") {
-                              setEditingRouteId(null);
-                            }
-                          }}
-                          autoFocus
-                        />
-                        <div className={styles.editActions}>
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRenameSavedRoute(route.id, editingRouteName);
-                            }}
-                            className={styles.saveRouteBtn}
-                            title="Save Name"
-                          >
-                            <Check size={13} />
-                          </button>
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingRouteId(null);
-                            }}
-                            className={styles.cancelRouteBtn}
-                            title="Cancel Editing"
-                          >
-                            <X size={13} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div 
-                      key={route.id} 
-                      className={`hud-btn ${styles.savedRouteItem}`} 
-                      onClick={() => handleLoadSavedRoute(route)}
-                    >
-                      <span className={styles.savedRouteText}>{route.name}</span>
-                      <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingRouteId(route.id);
-                            setEditingRouteName(route.name);
-                          }} 
-                          className={styles.editRouteBtn}
-                          title="Rename Route"
-                        >
-                          <Edit2 size={13} />
-                        </button>
-                        <button 
-                          onClick={(e) => handleDeleteSavedRoute(route.id, e)} 
-                          className={styles.deleteRouteBtn}
-                          title="Delete Route"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
           )}
         </div>
 
