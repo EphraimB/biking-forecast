@@ -1484,7 +1484,14 @@ export default function Home() {
 
           {/* Saved Routes Dropdown overlay */}
           {isSavedHubOpen && (hudState === 0 || hudState === 2 || hudState === 3) && (
-            <div className={`${styles.savedRoutesHubDropdown} hud-card hud-card-responsive`}>
+            <div 
+              className={`${styles.savedRoutesHubDropdown} hud-card hud-card-responsive`}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+            >
               <div className={styles.hubDropdownHeader}>
                 <h4 className={styles.hubDropdownTitle}>🔖 Saved Routes</h4>
                 <button onClick={() => setIsSavedHubOpen(false)} className={styles.closeBtn}><X size={14} /></button>
@@ -1527,7 +1534,14 @@ export default function Home() {
 
           {/* Expanded Rider Configurations Glass Card */}
           {isRiderConfigOpen && (
-            <div className={`${styles.riderConfigDropdown} hud-card hud-card-responsive`}>
+            <div 
+              className={`${styles.riderConfigDropdown} hud-card hud-card-responsive`}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+            >
               <div className={styles.riderHeader}>
                 <h4 className={styles.riderTitle}>
                   🚴 Rider Configurator
@@ -1607,7 +1621,14 @@ export default function Home() {
 
               {/* Expanded Dynamic Packing Glass Card */}
               {isPackingOpen && (
-                <div className={`${styles.packingDropdown} hud-card hud-card-responsive`}>
+                <div 
+                  className={`${styles.packingDropdown} hud-card hud-card-responsive`}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onMouseUp={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchMove={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
+                >
                   <div className={styles.packingHeader}>
                     <h4 className={styles.packingTitle}>🎒 Trip Packing List</h4>
                     <button onClick={() => setIsPackingOpen(false)} className={styles.closeBtn}><X size={14} /></button>
@@ -1647,7 +1668,14 @@ export default function Home() {
           
           {/* Centered: Search inputs Bar */}
           <div className={`${styles.setupSearchContainer} hud-zoom-center`}>
-            <div className={`hud-card ${styles.setupCard}`}>
+            <div 
+              className={`hud-card ${styles.setupCard}`}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+            >
               
               <div className={styles.setupHeader}>
                 <span className={styles.setupTitle}>Plan Custom Route</span>
@@ -1792,7 +1820,14 @@ export default function Home() {
             </span>
           </div>
 
-          <div className={`${styles.ribbonBox} hud-card`}>
+          <div 
+            className={`${styles.ribbonBox} hud-card`}
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseUp={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+          >
             {ribbonDaysData.map((day) => {
               const isSelected = hudState === 3 && selectedDayOffset === day.offset;
               const hasOutbound = day.outbound && day.outbound.departure !== null && day.outbound.score !== null;
@@ -1950,7 +1985,14 @@ export default function Home() {
             ------------------------------------------------------------- 
           */}
           {hudState === 3 && (
-            <div className={`${styles.scrubberContainer} hud-card timeline-scrubber-container`}>
+            <div 
+              className={`${styles.scrubberContainer} hud-card timeline-scrubber-container`}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+            >
               {/* Timeline Scrubber */}
               <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, flexWrap: "wrap" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
@@ -2061,7 +2103,14 @@ export default function Home() {
 
       {/* Weekly Commute Planner HUD Sliding/Overlay Card */}
       {isWeeklyPlannerOpen && (
-        <div className={`${styles.weeklyPlannerPanel} hud-card hud-card-responsive`}>
+        <div 
+          className={`${styles.weeklyPlannerPanel} hud-card hud-card-responsive`}
+          onMouseDown={(e) => e.stopPropagation()}
+          onMouseUp={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+        >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hud-border)", paddingBottom: "10px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <Calendar size={18} style={{ color: "var(--color-emerald)" }} />
