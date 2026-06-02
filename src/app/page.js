@@ -479,7 +479,7 @@ export default function Home() {
           if (state.newSpeed !== undefined && !savedSpeed) setNewSpeed(state.newSpeed);
           if (state.unitSystem !== undefined && !savedUnitSystem) setUnitSystem(state.unitSystem);
           
-          if (state.draftStart && state.draftEnd) {
+          if (state.draftStart && state.draftEnd && (state.hudState === 2 || state.hudState === 3)) {
             setDraftStart(state.draftStart);
             setDraftEnd(state.draftEnd);
             setStartQuery(state.draftStart.label);
@@ -491,9 +491,13 @@ export default function Home() {
               state.draftEnd, 
               state.newBikeType || savedBikeType || "Hybrid", 
               state.newSpeed || (savedSpeed ? parseInt(savedSpeed, 10) : 18), 
-              (state.hudState !== undefined && state.hudState !== 1) ? state.hudState : 2
+              state.hudState
             );
           } else {
+            setDraftStart(null);
+            setDraftEnd(null);
+            setStartQuery("");
+            setEndQuery("");
             if (state.hudState !== undefined) {
               // Restore only safe base states if no route coordinates exist
               setHudState(state.hudState === 1 ? 0 : state.hudState);
