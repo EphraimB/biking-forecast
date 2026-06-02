@@ -109,9 +109,11 @@ export default function RouteMap({
           maxZoom: 20
         }).addTo(map);
 
-        L.control.zoom({
-          position: "bottomright"
-        }).addTo(map);
+        if (!L.Browser.touch) {
+          L.control.zoom({
+            position: "bottomright"
+          }).addTo(map);
+        }
 
         mapInstanceRef.current = map;
 
