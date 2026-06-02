@@ -190,6 +190,8 @@ export default function Home() {
   // Coordinates & Planned segments
   const [draftStart, setDraftStart] = useState(null);
   const [draftEnd, setDraftEnd] = useState(null);
+  const [confirmedStart, setConfirmedStart] = useState(null);
+  const [confirmedEnd, setConfirmedEnd] = useState(null);
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [routeSegments, setRouteSegments] = useState([]);
   const [weatherResults, setWeatherResults] = useState([]);
@@ -299,8 +301,9 @@ export default function Home() {
 
 
   // Derived state: weatherLocationName represents active route's starting city or fallback base location
-  const weatherLocationName = (draftStart && draftStart.label && baseWeatherLocationName !== "Map Viewport")
-    ? (draftStart.label.split(",")[0] || "Route Start")
+  const activeStartLoc = (hudState === 2 || hudState === 3) ? confirmedStart : draftStart;
+  const weatherLocationName = (activeStartLoc && activeStartLoc.label && baseWeatherLocationName !== "Map Viewport")
+    ? (activeStartLoc.label.split(",")[0] || "Route Start")
     : baseWeatherLocationName;
 
   // Memoized callback triggers to satisfy strict react-hooks rules and avoid hoisting issues
@@ -365,6 +368,8 @@ export default function Home() {
       const weatherData = await fetchRouteWeather(decodedCoords, routeData.distance);
       setWeatherResults(weatherData);
 
+      setConfirmedStart(start);
+      setConfirmedEnd(end);
       setHudState(overrideState !== null ? overrideState : 2);
     } catch (err) {
       console.error(err);
@@ -479,21 +484,27 @@ export default function Home() {
           if (state.newSpeed !== undefined && !savedSpeed) setNewSpeed(state.newSpeed);
           if (state.unitSystem !== undefined && !savedUnitSystem) setUnitSystem(state.unitSystem);
           
-          if (state.draftStart && state.draftEnd && (state.hudState === 2 || state.hudState === 3)) {
-            setDraftStart(state.draftStart);
-            setDraftEnd(state.draftEnd);
-            setStartQuery(state.draftStart.label);
-            setEndQuery(state.draftEnd.label);
+          const startLoc = state.confirmedStart || state.draftStart;
+          const endLoc = state.confirmedEnd || state.draftEnd;
+          if (startLoc && endLoc && (state.hudState === 2 || state.hudState === 3)) {
+            setConfirmedStart(startLoc);
+            setConfirmedEnd(endLoc);
+            setDraftStart(startLoc);
+            setDraftEnd(endLoc);
+            setStartQuery(startLoc.label);
+            setEndQuery(endLoc.label);
             
             // Re-trigger background fetches, maintaining correct visual state
             loadRouteDetails(
-              state.draftStart, 
-              state.draftEnd, 
+              startLoc, 
+              endLoc, 
               state.newBikeType || savedBikeType || "Hybrid", 
               state.newSpeed || (savedSpeed ? parseInt(savedSpeed, 10) : 18), 
               state.hudState
             );
           } else {
+            setConfirmedStart(null);
+            setConfirmedEnd(null);
             setDraftStart(null);
             setDraftEnd(null);
             setStartQuery("");
@@ -543,6 +554,8 @@ export default function Home() {
   useEffect(() => {
     if (!isRestored) return;
     const activeState = {
+      confirmedStart,
+      confirmedEnd,
       draftStart,
       draftEnd,
       selectedDayOffset,
@@ -554,7 +567,7 @@ export default function Home() {
       hudState
     };
     localStorage.setItem("hud_active_view_state", JSON.stringify(activeState));
-  }, [draftStart, draftEnd, selectedDayOffset, selectedHour, isReturnTripMode, newBikeType, newSpeed, unitSystem, hudState, isRestored]);
+  }, [confirmedStart, confirmedEnd, draftStart, draftEnd, selectedDayOffset, selectedHour, isReturnTripMode, newBikeType, newSpeed, unitSystem, hudState, isRestored]);
 
   // 3. Persist Rider Profile and Unit System preferences separately
   useEffect(() => {
@@ -645,10 +658,16 @@ export default function Home() {
   };
 
   const handleCloseRouteSetup = () => {
-    if (routeCoordinates.length > 0) {
+    if (routeCoordinates.length > 0 && confirmedStart && confirmedEnd) {
       setHudState(2);
+      setDraftStart(confirmedStart);
+      setDraftEnd(confirmedEnd);
+      setStartQuery(confirmedStart.label || "");
+      setEndQuery(confirmedEnd.label || "");
     } else {
       setHudState(0);
+      setConfirmedStart(null);
+      setConfirmedEnd(null);
       setDraftStart(null);
       setDraftEnd(null);
       setStartQuery("");
@@ -659,6 +678,10 @@ export default function Home() {
   const handleLoadSavedRoute = (route) => {
     setDraftStart(route.start);
     setDraftEnd(route.end);
+    setConfirmedStart(route.start);
+    setConfirmedEnd(route.end);
+    setStartQuery(route.start.label || "");
+    setEndQuery(route.end.label || "");
     
     if (route.coordinates && route.segments) {
       setRouteCoordinates(route.coordinates);
@@ -935,8 +958,8 @@ export default function Home() {
         coordinates: [...routeCoordinates].reverse(),
         segments: getReturnSegments(routeSegments),
         weatherResults: [...activeWeatherResults].reverse(),
-        startLocation: draftEnd,
-        endLocation: draftStart,
+        startLocation: confirmedEnd || draftEnd,
+        endLocation: confirmedStart || draftStart,
         speed: newSpeed,
         name: "Active Route (Return)"
       };
@@ -946,8 +969,8 @@ export default function Home() {
       coordinates: routeCoordinates,
       segments: routeSegments,
       weatherResults: activeWeatherResults,
-      startLocation: draftStart,
-      endLocation: draftEnd,
+      startLocation: confirmedStart || draftStart,
+      endLocation: confirmedEnd || draftEnd,
       speed: newSpeed,
       name: "Active Route"
     };
@@ -1374,8 +1397,9 @@ export default function Home() {
       let destinationName = "Destination";
       if (boundRoute) {
         destinationName = boundRoute.end.label.split(",")[0] || "Destination";
-      } else if (draftEnd) {
-        destinationName = draftEnd.label.split(",")[0] || "Destination";
+      } else if (confirmedEnd || draftEnd) {
+        const destLoc = confirmedEnd || draftEnd;
+        destinationName = destLoc.label.split(",")[0] || "Destination";
       }
 
       if (boundRoute && boundWeatherEntry) {
@@ -1586,6 +1610,8 @@ export default function Home() {
                   setRouteCoordinates([]);
                   setRouteSegments([]);
                   setWeatherResults([]);
+                  setConfirmedStart(null);
+                  setConfirmedEnd(null);
                   setDraftStart(null);
                   setDraftEnd(null);
                   setStartQuery("");
