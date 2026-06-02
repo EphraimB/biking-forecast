@@ -515,15 +515,31 @@ html, body {
     bottom: 15px !important;
   }
 
-  /* Ribbon Items Squish Guard */
+  /* Ribbon Items Scroll Container on Mobile */
   .ribbon-container {
-    gap: 4px !important;
-    padding: 8px 6px !important;
+    gap: 8px !important;
+    padding: 8px 10px !important;
+    overflow-x: auto !important;
+    justify-content: flex-start !important;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+  .ribbon-container::-webkit-scrollbar {
+    height: 4px;
+  }
+  .ribbon-container::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .ribbon-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
   }
 
   .ribbon-item {
-    padding: 6px 2px !important;
-    border-radius: 10px !important;
+    padding: 6px 6px !important;
+    border-radius: 12px !important;
+    flex-shrink: 0 !important;
+    width: 100px !important;
   }
 
   .ribbon-item > span {
