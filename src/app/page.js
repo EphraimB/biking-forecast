@@ -351,12 +351,12 @@ export default function Home() {
               state.draftEnd, 
               state.newBikeType || savedBikeType || "Hybrid", 
               state.newSpeed || (savedSpeed ? parseInt(savedSpeed, 10) : 18), 
-              state.hudState !== undefined ? state.hudState : 2
+              (state.hudState !== undefined && state.hudState !== 1) ? state.hudState : 2
             );
           } else {
             if (state.hudState !== undefined) {
               // Restore only safe base states if no route coordinates exist
-              setHudState(state.hudState === 1 ? 1 : 0);
+              setHudState(state.hudState === 1 ? 0 : state.hudState);
             }
           }
         } catch (err) {
@@ -1757,12 +1757,9 @@ export default function Home() {
 
               {/* Confirm Route build pipeline */}
               <button 
-                className={`${styles.confirmBtn} hud-btn active`}
+                className={`${styles.confirmBtn} hud-btn ${draftStart && draftEnd ? "active" : ""}`}
+                disabled={!draftStart || !draftEnd || isLoading}
                 onClick={() => {
-                  if (!draftStart || !draftEnd) {
-                    alert("Please select starting and destination points.");
-                    return;
-                  }
                   if (shouldSaveRoute) {
                     handleSaveRoute();
                   }
