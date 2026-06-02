@@ -35,9 +35,9 @@ export default function WindDial({ bearing, windDir, color, displayWind, windCom
         {/* Wind Vector (Solid arrow pointing in wind direction) */}
         <g transform={`rotate(${windDir}, 22, 22)`}>
           {/* Line showing wind source direction */}
-          <line x1="22" y1="38" x2="22" y2="22" stroke={color} strokeWidth="2" />
+          <line x1="22" y1="6" x2="22" y2="22" stroke={color} strokeWidth="2" />
           {/* arrowhead pointing towards center to show direction it is blowing */}
-          <polygon points="22,20 18,25 26,25" fill={color} style={{ filter: `drop-shadow(0 0 2px ${color})` }} />
+          <polygon points="22,24 18,19 26,19" fill={color} style={{ filter: `drop-shadow(0 0 2px ${color})` }} />
         </g>
       </svg>
       <span className={valueClassName} style={{ fontSize: "8px", fontWeight: "700", color: "var(--hud-text-primary)", marginTop: "4px", textAlign: "center" }}>
