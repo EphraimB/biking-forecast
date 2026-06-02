@@ -6,10 +6,10 @@ import {
   Bike, Plus, Trash2, Calendar, Clock, MapPin, Navigation, 
   Search, ShieldAlert, Sparkles, Sun, Compass, Play, 
   Check, ChevronRight, X, ArrowLeftRight, HelpCircle, 
-  Bookmark, Sliders, SunDim, Award, Info, Menu
+  Bookmark, Sliders, SunDim, Award, Info, Menu, Edit2, RefreshCw
 } from "lucide-react";
 
-import { fetchBicycleRoute, fetchRouteWeather, geocodeAddress } from "@/utils/api";
+import { fetchBicycleRoute, fetchRouteWeather, geocodeAddress, reverseGeocode } from "@/utils/api";
 import { decodePolyline6, calculateRouteSegments, sampleCoordinates } from "@/utils/routeUtils";
 import { calculateCommuteScore, calculateDepartureTimeForArrival, WMO_MAP } from "@/utils/weatherScoring";
 import styles from "./page.module.css";
@@ -51,121 +51,193 @@ function getWindCompassDirection(degrees) {
 
 function CustomTimeInput({ value, onChange, unitSystem, isBulk = false }) {
   const [hStr, mStr] = (value || "08:00").split(":");
-  let hour = parseInt(hStr, 10);
-  if (isNaN(hour)) hour = 8;
-  let minute = parseInt(mStr, 10);
-  if (isNaN(minute)) minute = 0;
+  let propHour = parseInt(hStr, 10);
+  if (isNaN(propHour)) propHour = 8;
+  let propMinute = parseInt(mStr, 10);
+  if (isNaN(propMinute)) propMinute = 0;
 
-  const handleHourChange = (newHour) => {
-    const formattedHour = newHour.toString().padStart(2, "0");
-    const formattedMinute = minute.toString().padStart(2, "0");
+  const getHourDisplayValue = (h) => {
+    if (unitSystem === "metric") {
+      return h.toString().padStart(2, "0");
+    } else {
+      const displayHour = h % 12 === 0 ? 12 : h % 12;
+      return displayHour.toString().padStart(2, "0");
+    }
+  };
+
+  const getMinuteDisplayValue = (m) => {
+    return m.toString().padStart(2, "0");
+  };
+
+  const [prevValue, setPrevValue] = useState(value);
+  const [prevUnitSystem, setPrevUnitSystem] = useState(unitSystem);
+  const [localHour, setLocalHour] = useState(getHourDisplayValue(propHour));
+  const [localMinute, setLocalMinute] = useState(getMinuteDisplayValue(propMinute));
+
+  if (value !== prevValue || unitSystem !== prevUnitSystem) {
+    setPrevValue(value);
+    setPrevUnitSystem(unitSystem);
+    setLocalHour(getHourDisplayValue(propHour));
+    setLocalMinute(getMinuteDisplayValue(propMinute));
+  }
+
+  const handleLocalHourInputChange = (e) => {
+    const val = e.target.value.replace(/\D/g, "");
+    setLocalHour(val);
+  };
+
+  const handleLocalMinuteInputChange = (e) => {
+    const val = e.target.value.replace(/\D/g, "");
+    setLocalMinute(val);
+  };
+
+  const commitHour = (rawVal) => {
+    let newHourNum = parseInt(rawVal, 10);
+    if (isNaN(newHourNum)) {
+      setLocalHour(getHourDisplayValue(propHour));
+      return;
+    }
+
+    let finalHour24 = newHourNum;
+    if (unitSystem === "metric") {
+      newHourNum = Math.max(0, Math.min(23, newHourNum));
+      finalHour24 = newHourNum;
+    } else {
+      newHourNum = Math.max(1, Math.min(12, newHourNum));
+      const period = propHour >= 12 ? "PM" : "AM";
+      const isPM = period === "PM";
+      if (isPM && newHourNum !== 12) finalHour24 = newHourNum + 12;
+      else if (!isPM && newHourNum === 12) finalHour24 = 0;
+      else finalHour24 = isPM ? newHourNum + 12 : newHourNum;
+    }
+
+    const formattedHour = finalHour24.toString().padStart(2, "0");
+    const formattedMinute = propMinute.toString().padStart(2, "0");
+    setLocalHour(newHourNum.toString().padStart(2, "0"));
     onChange(`${formattedHour}:${formattedMinute}`);
   };
 
-  const handleMinuteChange = (newMinute) => {
-    const formattedHour = hour.toString().padStart(2, "0");
-    const formattedMinute = newMinute.toString().padStart(2, "0");
+  const commitMinute = (rawVal) => {
+    let newMinNum = parseInt(rawVal, 10);
+    if (isNaN(newMinNum)) {
+      setLocalMinute(getMinuteDisplayValue(propMinute));
+      return;
+    }
+
+    newMinNum = Math.max(0, Math.min(59, newMinNum));
+    const formattedHour = propHour.toString().padStart(2, "0");
+    const formattedMinute = newMinNum.toString().padStart(2, "0");
+    setLocalMinute(newMinNum.toString().padStart(2, "0"));
     onChange(`${formattedHour}:${formattedMinute}`);
   };
 
   const handlePeriodChange = (newPeriod) => {
-    let new24Hour = hour;
+    let new24Hour = propHour;
     const isPM = newPeriod === "PM";
-    const currentIsPM = hour >= 12;
+    const currentIsPM = propHour >= 12;
     if (isPM && !currentIsPM) {
-      new24Hour = (hour % 12) + 12;
+      new24Hour = (propHour % 12) + 12;
     } else if (!isPM && currentIsPM) {
-      new24Hour = hour % 12;
+      new24Hour = propHour % 12;
     }
     const formattedHour = new24Hour.toString().padStart(2, "0");
-    const formattedMinute = minute.toString().padStart(2, "0");
+    const formattedMinute = propMinute.toString().padStart(2, "0");
     onChange(`${formattedHour}:${formattedMinute}`);
   };
 
+  const inputClass = isBulk ? styles.bulkTimeInput : styles.timeInput;
   const selectClass = isBulk ? styles.bulkTimeSelect : styles.timeSelect;
 
   if (unitSystem === "metric") {
-    const hours = Array.from({ length: 24 }, (_, i) => i);
-    const minutes = Array.from({ length: 60 }, (_, i) => i);
-
     return (
       <div style={{ display: "inline-flex", alignItems: "center", gap: "2px" }}>
-        <select
-          value={hour}
-          onChange={(e) => handleHourChange(parseInt(e.target.value, 10))}
-          className={selectClass}
-        >
-          {hours.map((h) => (
-            <option key={h} value={h}>
-              {h.toString().padStart(2, "0")}
-            </option>
-          ))}
-        </select>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={2}
+          value={localHour}
+          onChange={handleLocalHourInputChange}
+          onBlur={(e) => commitHour(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.target.blur();
+            }
+          }}
+          className={inputClass}
+        />
         <span style={{ fontSize: "0.72rem", color: "var(--hud-text-secondary)" }}>:</span>
-        <select
-          value={minute}
-          onChange={(e) => handleMinuteChange(parseInt(e.target.value, 10))}
-          className={selectClass}
-        >
-          {minutes.map((m) => (
-            <option key={m} value={m}>
-              {m.toString().padStart(2, "0")}
-            </option>
-          ))}
-        </select>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={2}
+          value={localMinute}
+          onChange={handleLocalMinuteInputChange}
+          onBlur={(e) => commitMinute(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.target.blur();
+            }
+          }}
+          className={inputClass}
+        />
       </div>
     );
   } else {
-    const displayHour = hour % 12 === 0 ? 12 : hour % 12;
-    const period = hour >= 12 ? "PM" : "AM";
-    const hours = Array.from({ length: 12 }, (_, i) => i + 1);
-    const minutes = Array.from({ length: 60 }, (_, i) => i);
-
+    const period = propHour >= 12 ? "PM" : "AM";
     return (
       <div style={{ display: "inline-flex", alignItems: "center", gap: "2px" }}>
-        <select
-          value={displayHour}
-          onChange={(e) => {
-            const val = parseInt(e.target.value, 10);
-            const isPM = period === "PM";
-            let new24Hour = val;
-            if (isPM && val !== 12) new24Hour = val + 12;
-            if (!isPM && val === 12) new24Hour = 0;
-            handleHourChange(new24Hour);
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={2}
+          value={localHour}
+          onChange={handleLocalHourInputChange}
+          onBlur={(e) => commitHour(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.target.blur();
+            }
           }}
-          className={selectClass}
-        >
-          {hours.map((h) => (
-            <option key={h} value={h}>
-              {h.toString().padStart(2, "0")}
-            </option>
-          ))}
-        </select>
+          className={inputClass}
+        />
         <span style={{ fontSize: "0.72rem", color: "var(--hud-text-secondary)" }}>:</span>
-        <select
-          value={minute}
-          onChange={(e) => handleMinuteChange(parseInt(e.target.value, 10))}
-          className={selectClass}
-        >
-          {minutes.map((m) => (
-            <option key={m} value={m}>
-              {m.toString().padStart(2, "0")}
-            </option>
-          ))}
-        </select>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={2}
+          value={localMinute}
+          onChange={handleLocalMinuteInputChange}
+          onBlur={(e) => commitMinute(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.target.blur();
+            }
+          }}
+          className={inputClass}
+        />
         <select
           value={period}
           onChange={(e) => handlePeriodChange(e.target.value)}
           className={selectClass}
           style={{ marginLeft: "2px" }}
         >
-          <option value="AM">AM</option>
-          <option value="PM">PM</option>
+          <option value="AM" style={{ background: "#0f172a", color: "#f8fafc" }}>AM</option>
+          <option value="PM" style={{ background: "#0f172a", color: "#f8fafc" }}>PM</option>
         </select>
       </div>
     );
   }
 }
+
+const getCleanLabel = (label) => {
+  if (!label) return "";
+  if (label.startsWith("(") && label.endsWith(")")) return label;
+  return label.split(",")[0];
+};
 
 export default function Home() {
   // Hydration & localStorage restoration guard
@@ -199,8 +271,6 @@ export default function Home() {
   // HUD Config Settings (State 1)
   const [newBikeType, setNewBikeType] = useState("Hybrid");
   const [newSpeed, setNewSpeed] = useState(18);
-  const [saveRouteName, setSaveRouteName] = useState("");
-  const [shouldSaveRoute, setShouldSaveRoute] = useState(false);
 
   // Recurring Weekly Commute Schedules (Assign different routes & outbound/return times per day)
   const [weeklySchedule, setWeeklySchedule] = useState({
@@ -226,11 +296,16 @@ export default function Home() {
   const [savedRoutes, setSavedRoutes] = useState([]);
   const [isSavedHubOpen, setIsSavedHubOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [editingRouteId, setEditingRouteId] = useState(null);
+  const [editingRouteName, setEditingRouteName] = useState("");
 
   // Time & Timeline Scrub Scopes (State 3)
   const [selectedDayOffset, setSelectedDayOffset] = useState(0); // 0 (Today) to 6 (Day + 6)
   const [selectedHour, setSelectedHour] = useState(8); // 6:00 AM to 8:00 PM (commuter scrubber scale)
+  const [selectedMinute, setSelectedMinute] = useState(0);
   const [isReturnTripMode, setIsReturnTripMode] = useState(false);
+  const [isDepartureTimeCustom, setIsDepartureTimeCustom] = useState(false);
+  const [timeMode, setTimeMode] = useState("leave");
 
 
   // Dynamic Packing Drawer Scope (🎒 checklist toggle)
@@ -239,6 +314,37 @@ export default function Home() {
 
   // Adaptive Unit Toggle (📐 Metric / Imperial)
   const [unitSystem, setUnitSystem] = useState("metric");
+
+  // Custom Departure overlay time input states
+  const [prevSelectedHour, setPrevSelectedHour] = useState(selectedHour);
+  const [prevSelectedMinute, setPrevSelectedMinute] = useState(selectedMinute);
+  const [prevUnitSystem, setPrevUnitSystem] = useState("metric");
+
+  const getOverlayHourDisplay = (h, currentUnitSystem) => {
+    if (currentUnitSystem === "metric") {
+      return h.toString().padStart(2, "0");
+    } else {
+      const displayHour = h % 12 === 0 ? 12 : h % 12;
+      return displayHour.toString().padStart(2, "0");
+    }
+  };
+
+  const getOverlayMinuteDisplay = (m) => {
+    return m.toString().padStart(2, "0");
+  };
+
+  const [overlayHourVal, setOverlayHourVal] = useState(getOverlayHourDisplay(selectedHour, "metric"));
+  const [overlayMinVal, setOverlayMinVal] = useState(getOverlayMinuteDisplay(selectedMinute));
+
+  // Sync local inputs when global states change
+  if (selectedHour !== prevSelectedHour || selectedMinute !== prevSelectedMinute || unitSystem !== prevUnitSystem) {
+    setPrevSelectedHour(selectedHour);
+    setPrevSelectedMinute(selectedMinute);
+    setPrevUnitSystem(unitSystem);
+    setOverlayHourVal(getOverlayHourDisplay(selectedHour, unitSystem));
+    setOverlayMinVal(getOverlayMinuteDisplay(selectedMinute));
+  }
+
 
   // Helper unit formatting functions
   const formatTemp = (celsius) => {
@@ -269,6 +375,26 @@ export default function Home() {
   const [ambientWeatherForecast, setAmbientWeatherForecast] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [isRefreshingWeather, setIsRefreshingWeather] = useState(false);
+  const [cooldownTime, setCooldownTime] = useState(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("weather_429_cooldown_until");
+      if (cached && Number(cached) > Date.now()) {
+        return Number(cached);
+      }
+    }
+    return 0;
+  });
+  const [cooldownRemaining, setCooldownRemaining] = useState(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("weather_429_cooldown_until");
+      if (cached && Number(cached) > Date.now()) {
+        return Math.ceil((Number(cached) - Date.now()) / 1000);
+      }
+    }
+    return 0;
+  });
   const startGeocodeTimeoutRef = useRef(null);
   const endGeocodeTimeoutRef = useRef(null);
   const mapMoveTimeoutRef = useRef(null);
@@ -282,11 +408,140 @@ export default function Home() {
     ? (activeStartLoc.label.split(",")[0] || "Route Start")
     : baseWeatherLocationName;
 
+  const formatCooldown = (seconds) => {
+    if (seconds <= 0) return "0s";
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    if (m > 0) {
+      return `${m}m ${s}s`;
+    }
+    return `${s}s`;
+  };
+
+  const handleWeatherResponse = useCallback((weatherData) => {
+    if (weatherData && weatherData.isOfflineForecast) {
+      const isRateLimit = weatherData.errorType === "429" || (weatherData.errorMessage && String(weatherData.errorMessage).includes("429"));
+      
+      let cdTime = 0;
+      if (isRateLimit) {
+        cdTime = weatherData.cooldownUntil || (Date.now() + 120 * 1000);
+        setCooldownTime(cdTime);
+        localStorage.setItem("weather_429_cooldown_until", cdTime.toString());
+        // Do not display a toast notification for rate limit errors as requested by the user
+        return weatherData;
+      }
+      
+      setToast(prev => {
+        const remaining = cdTime ? Math.max(0, Math.ceil((cdTime - Date.now()) / 1000)) : 0;
+        const message = `Weather API offline. Using simulated forecast.`;
+          
+        const newId = Math.random().toString();
+        
+        if (prev && prev.message === message) {
+          return prev;
+        }
+        
+        return {
+          id: newId,
+          type: "info",
+          message,
+          isPersistent: false
+        };
+      });
+    }
+    return weatherData;
+  }, []);
+
+  const handleShowSimulatedInfo = useCallback((e) => {
+    e.stopPropagation();
+    setToast({
+      id: "toast-429-info",
+      type: "warning",
+      message: "Daily weather limit reached. Simulated forecast active for the rest of today.",
+      isPersistent: false
+    });
+  }, []);
+
+  const handleRefreshWeather = useCallback(async () => {
+    if (isRefreshingWeather) return;
+    setIsRefreshingWeather(true);
+    
+    try {
+      if (routeCoordinates && routeCoordinates.length > 0) {
+        const distance = routeSegments.reduce((sum, s) => sum + s.distance, 0) || 10;
+        const weatherData = await fetchRouteWeather(routeCoordinates, distance, true);
+        handleWeatherResponse(weatherData);
+        setWeatherResults(weatherData);
+        
+        const activeRouteId = savedRoutes.find(r => 
+          JSON.stringify(r.coordinates) === JSON.stringify(routeCoordinates)
+        )?.id;
+        if (activeRouteId) {
+          setScheduledRoutesWeather(prev => ({
+            ...prev,
+            [activeRouteId]: {
+              coordinates: routeCoordinates,
+              segments: routeSegments,
+              weather: weatherData
+            }
+          }));
+        }
+      } else {
+        const lat = activeStartLoc?.lat || userLocation?.lat || 40.7128;
+        const lon = activeStartLoc?.lon || userLocation?.lon || -74.0060;
+        const dummyCoords = [[lat, lon]];
+        const weather = await fetchRouteWeather(dummyCoords, 1, true);
+        handleWeatherResponse(weather);
+        if (weather && weather.length > 0) {
+          const hourly = weather[0]?.hourly;
+          const now = new Date();
+          const year = now.getFullYear();
+          const month = (now.getMonth() + 1).toString().padStart(2, "0");
+          const date = now.getDate().toString().padStart(2, "0");
+          const hour = now.getHours().toString().padStart(2, "0");
+          const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
+          
+          let currentHourIdx = hourly?.time?.indexOf(currentHourStr);
+          if (currentHourIdx === -1 || currentHourIdx === undefined) {
+            currentHourIdx = now.getHours();
+          }
+          
+          const resolvedTemp = hourly?.temperature_2m?.[currentHourIdx] ?? 22;
+          const resolvedWindSpeed = hourly?.wind_speed_10m?.[currentHourIdx] ?? 12;
+          const resolvedWindCompass = getWindCompassDirection(hourly?.wind_direction_10m?.[currentHourIdx] ?? 0);
+          
+          setAmbientWeather({
+            temp: resolvedTemp,
+            windSpeed: resolvedWindSpeed,
+            windDir: resolvedWindCompass,
+            desc: weatherLocationName || "Perfect Local Conditions"
+          });
+          setAmbientWeatherForecast(weather[0]);
+        }
+      }
+      
+      setToast({
+        id: Math.random(),
+        type: "success",
+        message: "Weather forecast refreshed successfully."
+      });
+    } catch (e) {
+      console.error("Refresh weather error:", e);
+      setToast({
+        id: Math.random(),
+        type: "error",
+        message: `Failed to refresh weather: ${e.message || "Network error"}`
+      });
+    } finally {
+      setIsRefreshingWeather(false);
+    }
+  }, [isRefreshingWeather, routeCoordinates, routeSegments, activeStartLoc, userLocation, weatherLocationName, savedRoutes, handleWeatherResponse]);
+
   // Memoized callback triggers to satisfy strict react-hooks rules and avoid hoisting issues
   const fetchAmbientWeather = useCallback(async (lat, lon) => {
     try {
       const dummyCoords = [[lat, lon]];
-      const weather = await fetchRouteWeather(dummyCoords, 1);
+      const weather = handleWeatherResponse(await fetchRouteWeather(dummyCoords, 1));
       if (weather && weather.length > 0) {
         const hourly = weather[0]?.hourly;
         
@@ -328,7 +583,7 @@ export default function Home() {
     } catch (e) {
       console.error("Ambient weather fetch error:", e);
     }
-  }, []);
+  }, [handleWeatherResponse]);
 
   const loadRouteDetails = useCallback(async (start, end, bikeType, speed, overrideState = null, shouldSave = false, saveName = "") => {
     setIsLoading(true);
@@ -341,7 +596,7 @@ export default function Home() {
       const segments = calculateRouteSegments(decodedCoords);
       setRouteSegments(segments);
 
-      const weatherData = await fetchRouteWeather(decodedCoords, routeData.distance);
+      const weatherData = handleWeatherResponse(await fetchRouteWeather(decodedCoords, routeData.distance));
       setWeatherResults(weatherData);
 
       setConfirmedStart(start);
@@ -349,7 +604,14 @@ export default function Home() {
       setHudState(overrideState !== null ? overrideState : 2);
 
       if (shouldSave) {
-        const name = saveName.trim() || `Route: ${start.label.split(",")[0]} ⇆ ${end.label.split(",")[0]}`;
+        const getCleanLabel = (label) => {
+          if (!label) return "";
+          if (label.startsWith("(") && label.endsWith(")")) return label;
+          return label.split(",")[0];
+        };
+        const cleanStart = getCleanLabel(start.label) || "Start";
+        const cleanEnd = getCleanLabel(end.label) || "Destination";
+        const name = saveName.trim() || `${cleanStart} ⇆ ${cleanEnd}`;
         const newRoute = {
           id: Date.now().toString(),
           name,
@@ -366,8 +628,6 @@ export default function Home() {
           localStorage.setItem("hud_saved_routes", JSON.stringify(updated));
           return updated;
         });
-        setShouldSaveRoute(false);
-        setSaveRouteName("");
       }
     } catch (err) {
       console.error(err);
@@ -375,7 +635,7 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [handleWeatherResponse]);
 
   const triggerGeocode = useCallback((query, isStart) => {
     if (!query || query.trim().length < 3) {
@@ -448,6 +708,58 @@ export default function Home() {
     };
   }, []);
 
+  // Auto-hide toast notification after 6 seconds (if not persistent)
+  useEffect(() => {
+    if (toast && !toast.isPersistent) {
+      const timer = setTimeout(() => {
+        setToast(null);
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+
+
+  // Cooldown countdown interval
+  useEffect(() => {
+    if (cooldownTime > Date.now()) {
+      const interval = setInterval(() => {
+        const left = Math.ceil((cooldownTime - Date.now()) / 1000);
+        if (left <= 0) {
+          setCooldownRemaining(0);
+          setCooldownTime(0);
+          localStorage.removeItem("weather_429_cooldown_until");
+          clearInterval(interval);
+          setToast({
+            id: Math.random().toString(),
+            type: "success",
+            message: "Rate limit cooldown expired. You can now refresh weather data."
+          });
+        } else {
+          setCooldownRemaining(left);
+          
+          setToast(prev => {
+            if (prev && prev.id === "toast-429") {
+              const message = `Weather rate limit active. Using offline forecast. Retry in ${formatCooldown(left)}.`;
+              if (prev.message === message) return prev;
+              return {
+                ...prev,
+                message
+              };
+            }
+            return prev;
+          });
+        }
+      }, 1000);
+      
+      return () => clearInterval(interval);
+    } else {
+      setTimeout(() => {
+        setCooldownRemaining(prev => prev === 0 ? 0 : 0);
+      }, 0);
+    }
+  }, [cooldownTime]);
+
   // 1. Initial Mount: Restore Active View State
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -494,7 +806,9 @@ export default function Home() {
             setSelectedHour(state.selectedHour);
             restoredHour = true;
           }
+          if (state.selectedMinute !== undefined) setSelectedMinute(state.selectedMinute);
           if (state.isReturnTripMode !== undefined) setIsReturnTripMode(state.isReturnTripMode);
+          if (state.timeMode !== undefined) setTimeMode(state.timeMode);
           
           // Only overwrite if present in view state and not already set by independent keys
           if (state.newBikeType !== undefined && !savedBikeType) setNewBikeType(state.newBikeType);
@@ -537,8 +851,12 @@ export default function Home() {
       }
 
       if (!restoredHour) {
-        const currentHour = new Date().getHours();
+        const now = new Date();
+        const currentHour = now.getHours();
         setSelectedHour(Math.max(6, Math.min(20, currentHour)));
+        const currentMin = now.getMinutes();
+        const roundedMin = Math.round(currentMin / 15) * 15 % 60;
+        setSelectedMinute(roundedMin);
       }
 
       // Centered location default ambient lookup
@@ -577,14 +895,16 @@ export default function Home() {
       draftEnd,
       selectedDayOffset,
       selectedHour,
+      selectedMinute,
       isReturnTripMode,
+      timeMode,
       newBikeType,
       newSpeed,
       unitSystem,
       hudState
     };
     localStorage.setItem("hud_active_view_state", JSON.stringify(activeState));
-  }, [confirmedStart, confirmedEnd, draftStart, draftEnd, selectedDayOffset, selectedHour, isReturnTripMode, newBikeType, newSpeed, unitSystem, hudState, isRestored]);
+  }, [confirmedStart, confirmedEnd, draftStart, draftEnd, selectedDayOffset, selectedHour, selectedMinute, isReturnTripMode, timeMode, newBikeType, newSpeed, unitSystem, hudState, isRestored]);
 
   // 3. Persist Rider Profile and Unit System preferences separately
   useEffect(() => {
@@ -628,7 +948,156 @@ export default function Home() {
     }
   }, [hudState]);
 
+  // 4. Custom Departure Overlay Event Handlers (Native React)
+  const handleOverlayDayChange = (val) => {
+    setSelectedDayOffset(parseInt(val, 10));
+    setIsDepartureTimeCustom(true);
+  };
 
+  const handleOverlayHourChange = (val) => {
+    setSelectedHour(parseInt(val, 10));
+    setIsDepartureTimeCustom(true);
+  };
+
+  const handleOverlayHour12Change = (val) => {
+    setSelectedHour(prev => {
+      const isPM = prev >= 12;
+      let newHour = parseInt(val, 10) % 12;
+      if (isPM) newHour += 12;
+      return newHour;
+    });
+    setIsDepartureTimeCustom(true);
+  };
+
+  const handleOverlayMinuteChange = (val) => {
+    setSelectedMinute(parseInt(val, 10));
+    setIsDepartureTimeCustom(true);
+  };
+
+  const handleOverlayPeriodChange = (val) => {
+    setSelectedHour(prev => {
+      let new24Hour = prev;
+      const isPM = val === "PM";
+      const currentIsPM = prev >= 12;
+      if (isPM && !currentIsPM) {
+        new24Hour = (prev % 12) + 12;
+      } else if (!isPM && currentIsPM) {
+        new24Hour = prev % 12;
+      }
+      return new24Hour;
+    });
+    setIsDepartureTimeCustom(true);
+  };
+
+  const handleOverlayTimeModeChange = (val) => {
+    setTimeMode(val);
+    setIsDepartureTimeCustom(true);
+  };
+
+  const handleOverlayResetClick = () => {
+    const now = new Date();
+    setSelectedDayOffset(0);
+    setSelectedHour(now.getHours());
+    
+    const currentMin = now.getMinutes();
+    const roundedMin = Math.round(currentMin / 15) * 15 % 60;
+    setSelectedMinute(roundedMin);
+
+    setTimeMode("leave");
+    setIsDepartureTimeCustom(false);
+  };
+
+  const handleOverlayReverseClick = () => {
+    if (!confirmedStart || !confirmedEnd) return;
+    const oldStart = confirmedStart;
+    const oldEnd = confirmedEnd;
+
+    // Physically swap search query values and draft locations
+    setDraftStart(oldEnd);
+    setDraftEnd(oldStart);
+    setStartQuery(oldEnd.label || "");
+    setEndQuery(oldStart.label || "");
+
+    // Physically swap confirmed endpoints
+    setConfirmedStart(oldEnd);
+    setConfirmedEnd(oldStart);
+
+    // Reset return trip modes and weather results to avoid visual lag
+    setIsReturnTripMode(false);
+    setWeatherResults([]);
+
+    // Trigger recalculation and fresh Valhalla routing
+    loadRouteDetails(oldEnd, oldStart, newBikeType, newSpeed);
+  };
+
+  const handleOverlaySaveRouteClick = () => {
+    if (!confirmedStart || !confirmedEnd || !routeCoordinates || routeCoordinates.length === 0) return;
+    
+    const getCleanLabel = (label) => {
+      if (!label) return "";
+      if (label.startsWith("(") && label.endsWith(")")) return label;
+      return label.split(",")[0];
+    };
+    
+    const startLabel = getCleanLabel(confirmedStart.label) || "Start";
+    const endLabel = getCleanLabel(confirmedEnd.label) || "Destination";
+    const name = `${startLabel} ⇆ ${endLabel}`;
+    
+    const computedDistance = routeSegments.reduce((sum, seg) => sum + seg.distance, 0);
+    const roundedDistance = Math.round(computedDistance * 10) / 10;
+    
+    const newRoute = {
+      id: Date.now().toString(),
+      name,
+      start: confirmedStart,
+      end: confirmedEnd,
+      bikeType: newBikeType,
+      speed: newSpeed,
+      coordinates: routeCoordinates,
+      segments: routeSegments,
+      distance: roundedDistance
+    };
+
+    setSavedRoutes(prev => {
+      const updated = [...prev, newRoute];
+      localStorage.setItem("hud_saved_routes", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const commitOverlayHour = (rawVal) => {
+    let val = parseInt(rawVal, 10);
+    if (isNaN(val)) {
+      setOverlayHourVal(getOverlayHourDisplay(selectedHour, unitSystem));
+      return;
+    }
+    let new24Hour = val;
+    if (unitSystem === "metric") {
+      val = Math.max(0, Math.min(23, val));
+      new24Hour = val;
+    } else {
+      val = Math.max(1, Math.min(12, val));
+      const isPM = selectedHour >= 12;
+      if (isPM && val !== 12) new24Hour = val + 12;
+      else if (!isPM && val === 12) new24Hour = 0;
+      else new24Hour = isPM ? val + 12 : val;
+    }
+    setOverlayHourVal(val.toString().padStart(2, "0"));
+    setSelectedHour(new24Hour);
+    setIsDepartureTimeCustom(true);
+  };
+
+  const commitOverlayMinute = (rawVal) => {
+    let val = parseInt(rawVal, 10);
+    if (isNaN(val)) {
+      setOverlayMinVal(getOverlayMinuteDisplay(selectedMinute));
+      return;
+    }
+    val = Math.max(0, Math.min(59, val));
+    setOverlayMinVal(val.toString().padStart(2, "0"));
+    setSelectedMinute(val);
+    setIsDepartureTimeCustom(true);
+  };
 
 
   const handleDeleteSavedRoute = (id, e) => {
@@ -651,6 +1120,19 @@ export default function Home() {
     }
   };
 
+  const handleRenameSavedRoute = (id, newName) => {
+    if (!newName || !newName.trim()) return;
+    const updated = savedRoutes.map(r => {
+      if (r.id === id) {
+        return { ...r, name: newName.trim() };
+      }
+      return r;
+    });
+    setSavedRoutes(updated);
+    localStorage.setItem("hud_saved_routes", JSON.stringify(updated));
+    setEditingRouteId(null);
+  };
+
   const handleCloseRouteSetup = () => {
     if (routeCoordinates.length > 0 && confirmedStart && confirmedEnd) {
       setHudState(2);
@@ -666,6 +1148,8 @@ export default function Home() {
       setDraftEnd(null);
       setStartQuery("");
       setEndQuery("");
+      setIsDepartureTimeCustom(false);
+      setIsReturnTripMode(false);
     }
   };
 
@@ -684,6 +1168,7 @@ export default function Home() {
       setRouteCoordinates(route.coordinates);
       setRouteSegments(route.segments);
       fetchRouteWeather(route.coordinates, route.distance || 10).then(weatherData => {
+        handleWeatherResponse(weatherData);
         setWeatherResults(weatherData);
       }).catch(e => console.error("Error fetching weather for loaded route:", e));
       setHudState(2);
@@ -890,7 +1375,7 @@ export default function Home() {
               segments = calculateRouteSegments(coords);
             }
             
-            const wData = await fetchRouteWeather(coords, dist);
+            const wData = handleWeatherResponse(await fetchRouteWeather(coords, dist));
             newWeather[rid] = {
               weather: wData,
               coordinates: coords,
@@ -910,7 +1395,7 @@ export default function Home() {
     };
 
     fetchScheduledWeather();
-  }, [weeklySchedule, savedRoutes, scheduledRoutesWeather, newBikeType, newSpeed]);
+  }, [weeklySchedule, savedRoutes, scheduledRoutesWeather, newBikeType, newSpeed, handleWeatherResponse]);
 
   // Compute currently displayed route based on selected day offset schedule
   const getActiveRouteData = () => {
@@ -997,8 +1482,39 @@ export default function Home() {
     if (!activeRouteData || !activeRouteData.segments || activeRouteData.segments.length === 0 || !activeRouteData.weatherResults || activeRouteData.weatherResults.length === 0) return null;
     
     let hourIdx;
-    if (hudState === 3) {
-      hourIdx = selectedDayOffset * 24 + selectedHour;
+    if (hudState === 3 || isDepartureTimeCustom) {
+      if (timeMode === "arrive") {
+        const totalDist = activeRouteData.segments.reduce((sum, seg) => sum + seg.distance, 0);
+        const baseSpeed = activeRouteData.speed || 18;
+        const durationMins = (totalDist / baseSpeed) * 60;
+
+        const arrDate = new Date();
+        arrDate.setDate(arrDate.getDate() + selectedDayOffset);
+        arrDate.setHours(selectedHour, selectedMinute, 0, 0);
+
+        const depDate = new Date(arrDate.getTime() - durationMins * 60 * 1000);
+        
+        const now = new Date();
+        now.setSeconds(0, 0);
+        depDate.setSeconds(0, 0);
+        
+        const diffTime = depDate.getTime() - now.getTime();
+        const diffDays = Math.floor(diffTime / (24 * 60 * 60 * 1000));
+        const depDayOffset = Math.max(0, diffDays);
+        const depHour = depDate.getHours();
+        const depMin = depDate.getMinutes();
+
+        hourIdx = depDayOffset * 24 + depHour;
+        if (depMin >= 30) {
+          hourIdx += 1;
+        }
+      } else {
+        hourIdx = selectedDayOffset * 24 + selectedHour;
+        if (selectedMinute >= 30) {
+          hourIdx += 1;
+        }
+      }
+      hourIdx = Math.max(0, Math.min(167, hourIdx));
     } else {
       const now = new Date();
       const year = now.getFullYear();
@@ -1023,6 +1539,14 @@ export default function Home() {
     );
   };
 
+  const getDayLabel = (offset) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    if (offset === 0) return `Today (${d.toLocaleDateString("en-US", { weekday: "short" })})`;
+    if (offset === 1) return `Tomorrow (${d.toLocaleDateString("en-US", { weekday: "short" })})`;
+    return d.toLocaleDateString("en-US", { weekday: "long" });
+  };
+
   const activeForecast = getActiveForecast();
 
   const getLeaveNowOverlayData = () => {
@@ -1032,11 +1556,21 @@ export default function Home() {
     
     let depDate;
     let label;
-    if (hudState === 3) {
-      depDate = new Date();
-      depDate.setDate(depDate.getDate() + selectedDayOffset);
-      depDate.setHours(selectedHour, 0, 0, 0);
-      label = `Trip at ${formatTimeToAMPM(`${selectedHour.toString().padStart(2, "0")}:00`)}`;
+    if (hudState === 3 || isDepartureTimeCustom) {
+      if (timeMode === "arrive") {
+        const arrDate = new Date();
+        arrDate.setDate(arrDate.getDate() + selectedDayOffset);
+        arrDate.setHours(selectedHour, selectedMinute, 0, 0);
+        depDate = new Date(arrDate.getTime() - duration * 60 * 1000);
+        label = "Custom Arrival";
+      } else {
+        depDate = new Date();
+        depDate.setDate(depDate.getDate() + selectedDayOffset);
+        depDate.setHours(selectedHour, selectedMinute, 0, 0);
+        label = hudState === 3
+          ? `Trip at ${formatTimeAMPM(depDate)}`
+          : "Custom Departure";
+      }
     } else {
       depDate = new Date();
       label = "Leave Now";
@@ -1064,13 +1598,27 @@ export default function Home() {
       ? `${Math.round(activeForecast.distance * 0.621371 * 10) / 10} mi`
       : `${activeForecast.distance.toFixed(1)} km`;
 
+    const isSaved = savedRoutes.some(r => 
+      r.start && r.end && confirmedStart && confirmedEnd &&
+      Math.abs(r.start.lat - confirmedStart.lat) < 0.0001 && 
+      Math.abs(r.start.lon - confirmedStart.lon) < 0.0001 && 
+      Math.abs(r.end.lat - confirmedEnd.lat) < 0.0001 && 
+      Math.abs(r.end.lon - confirmedEnd.lon) < 0.0001
+    );
+
     return {
       duration,
       distance: displayDist,
       depTimeStr,
       arrivalTimeStr,
       label,
-      packingList: items.join(", ")
+      packingList: items.join(", "),
+      selectedDayOffset,
+      selectedHour,
+      selectedMinute,
+      isDepartureTimeCustom,
+      timeMode,
+      isSaved
     };
   };
 
@@ -1591,26 +2139,71 @@ export default function Home() {
           customSpeed={activeRouteData.speed}
           isDrawingMode={hudState === 1}
           hudState={hudState}
-          onMapClick={(coord) => {
-            const label = `Pinned coordinate (${coord.lat.toFixed(4)}, ${coord.lon.toFixed(4)})`;
+          onMapClick={async (coord) => {
+            const tempLabel = `(${coord.lat.toFixed(4)}, ${coord.lon.toFixed(4)})`;
+            const isStart = !draftStart;
+            
             if (hudState !== 1) {
               setHudState(1);
             }
-            if (!draftStart) {
-              setDraftStart({ ...coord, label });
-              setStartQuery(label);
+            
+            if (isStart) {
+              setDraftStart({ ...coord, label: tempLabel });
+              setStartQuery(tempLabel);
             } else if (!draftEnd) {
-              setDraftEnd({ ...coord, label });
-              setEndQuery(label);
+              setDraftEnd({ ...coord, label: tempLabel });
+              setEndQuery(tempLabel);
+            }
+
+            try {
+              const resolved = await reverseGeocode(coord.lat, coord.lon);
+              if (resolved) {
+                if (isStart) {
+                  setDraftStart(prev => prev ? { ...prev, label: resolved } : null);
+                  setStartQuery(resolved);
+                } else {
+                  setDraftEnd(prev => prev ? { ...prev, label: resolved } : null);
+                  setEndQuery(resolved);
+                }
+              }
+            } catch (err) {
+              console.error("Reverse geocoding failed:", err);
             }
           }}
           unitSystem={unitSystem}
           userLocation={userLocation}
           ambientWeatherForecast={ambientWeatherForecast}
           onMapMove={handleMapMove}
-          leaveNowOverlayData={getLeaveNowOverlayData()}
         />
       </div>
+
+      {/* Premium Glassmorphic Toast Notification */}
+      {toast && (
+        <div 
+          className={`${styles.toastNotification} ${styles[toast.type]}`}
+          key={toast.id}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className={styles.toastContainer}>
+            <div className={styles.toastContent}>
+              <span className={styles.toastIcon}>
+                {toast.type === "error" && "🚨"}
+                {toast.type === "warning" && "⚠️"}
+                {toast.type === "success" && "✅"}
+                {toast.type === "info" && "ℹ️"}
+              </span>
+              <span className={styles.toastMessage}>{toast.message}</span>
+            </div>
+            <button 
+              onClick={() => setToast(null)} 
+              className={styles.toastCloseBtn}
+              title="Dismiss Alert"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 
         -------------------------------------------------------------
@@ -1637,40 +2230,7 @@ export default function Home() {
             </button>
           )}
 
-          {/* State 2 & 3: Active Route Score bubble */}
-          {(hudState === 2 || hudState === 3) && activeForecast && (
-            <div className={`hud-bubble ${styles.weatherBubble}`}>
-              <div 
-                className={`${styles.pulseDot} ${activeForecast.score >= 85 ? "hud-pulse-emerald" : activeForecast.score >= 50 ? "hud-pulse-amber" : "hud-pulse-ruby"}`}
-                style={{
-                  background: activeForecast.score >= 85 ? "var(--color-emerald)" : activeForecast.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)",
-                  boxShadow: `0 0 10px ${activeForecast.score >= 85 ? "var(--color-emerald-glow)" : activeForecast.score >= 50 ? "var(--color-amber-glow)" : "var(--color-ruby-glow)"}`
-                }} 
-              />
-              <span style={{ fontSize: "0.88rem", fontWeight: "700" }}>
-                <span className="mobile-hide">Score: </span>{activeForecast.score}% • {activeForecast.wmoEmoji} <span className="mobile-hide">{activeForecast.wmoDesc}</span>
-              </span>
-              <button 
-                onClick={() => {
-                  setHudState(0);
-                  setRouteCoordinates([]);
-                  setRouteSegments([]);
-                  setWeatherResults([]);
-                  setConfirmedStart(null);
-                  setConfirmedEnd(null);
-                  setDraftStart(null);
-                  setDraftEnd(null);
-                  setStartQuery("");
-                  setEndQuery("");
-                  localStorage.removeItem("hud_active_view_state"); // Clear cached route state on manual reset
-                }} 
-                className={styles.clearRouteBtn}
-                title="Clear Route"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          )}
+          {/* Combined active route weather score bubble inside the departure container header */}
 
           {/* State 2 & 3: Change Route button */}
           {(hudState === 2 || hudState === 3) && (
@@ -1686,7 +2246,7 @@ export default function Home() {
           )}
 
           {(hudState === 2 || hudState === 3) && activeForecast && (
-            <>
+            <div style={{ position: "relative" }}>
               {/* Gear Check Trigger Button */}
               <button 
                 className="hud-bubble" 
@@ -1730,25 +2290,132 @@ export default function Home() {
                   )}
                 </div>
               )}
-            </>
+            </div>
           )}
 
 
-          {/* Saved Routes Hub Trigger (Permanently Available in States 0, 2, 3) */}
+          {/* Saved Routes Hub Trigger & Dropdown (Permanently Available in States 0, 2, 3) */}
           {(hudState === 0 || hudState === 2 || hudState === 3) && (
-            <button 
-              className={`hud-bubble desktop-only ${styles.hubBtn}`}
-              onClick={toggleSavedHub}
-              style={{ 
-                border: isSavedHubOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)"
-              }}
-              title="Saved Routes Library"
-            >
-              <Bookmark size={16} style={{ color: isSavedHubOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
-              <span className="mobile-hide" style={{ fontSize: "0.78rem", fontWeight: "800", color: isSavedHubOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }}>
-                SAVED
-              </span>
-            </button>
+            <div className={isSavedHubOpen ? "" : "desktop-only"} style={{ position: "relative" }}>
+              <button 
+                className={`hud-bubble desktop-only ${styles.hubBtn}`}
+                onClick={toggleSavedHub}
+                style={{ 
+                  border: isSavedHubOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)"
+                }}
+                title="Saved Routes Library"
+              >
+                <Bookmark size={16} style={{ color: isSavedHubOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
+                <span className="mobile-hide" style={{ fontSize: "0.78rem", fontWeight: "800", color: isSavedHubOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }}>
+                  SAVED
+                </span>
+              </button>
+
+              {/* Saved Routes Dropdown overlay */}
+              {isSavedHubOpen && (
+                <div 
+                  className={`${styles.savedRoutesHubDropdown} hud-card hud-card-responsive`}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onMouseUp={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchMove={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
+                >
+                  <div className={styles.hubDropdownHeader}>
+                    <h4 className={styles.hubDropdownTitle}>🔖 Saved Routes</h4>
+                    <button onClick={() => setIsSavedHubOpen(false)} className={styles.closeBtn}><X size={14} /></button>
+                  </div>
+                  {savedRoutes.length === 0 ? (
+                    <p className={styles.emptyMsg}>No saved routes yet. Plan a route and save it to display here.</p>
+                  ) : (
+                    savedRoutes.map((route) => {
+                      const isEditing = editingRouteId === route.id;
+                      
+                      if (isEditing) {
+                        return (
+                          <div 
+                            key={route.id} 
+                            className={styles.savedRouteItemEditing}
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onMouseUp={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="text"
+                              className={styles.renameInput}
+                              value={editingRouteName}
+                              onChange={(e) => setEditingRouteName(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => {
+                                e.stopPropagation();
+                                if (e.key === "Enter") {
+                                  handleRenameSavedRoute(route.id, editingRouteName);
+                                } else if (e.key === "Escape") {
+                                  setEditingRouteId(null);
+                                }
+                              }}
+                              autoFocus
+                            />
+                            <div className={styles.editActions}>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRenameSavedRoute(route.id, editingRouteName);
+                                }}
+                                className={styles.saveRouteBtn}
+                                title="Save Name"
+                              >
+                                <Check size={13} />
+                              </button>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingRouteId(null);
+                                }}
+                                className={styles.cancelRouteBtn}
+                                title="Cancel Editing"
+                              >
+                                <X size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div 
+                          key={route.id} 
+                          className={`hud-btn ${styles.savedRouteItem}`} 
+                          onClick={() => handleLoadSavedRoute(route)}
+                        >
+                          <span className={styles.savedRouteText}>{route.name}</span>
+                          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingRouteId(route.id);
+                                setEditingRouteName(route.name);
+                              }} 
+                              className={styles.editRouteBtn}
+                              title="Rename Route"
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                            <button 
+                              onClick={(e) => handleDeleteSavedRoute(route.id, e)} 
+                              className={styles.deleteRouteBtn}
+                              title="Delete Route"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Weekly Schedule Planner Trigger (Permanently Available in States 0, 2, 3) */}
@@ -1766,42 +2433,6 @@ export default function Home() {
                 WEEKLY<span className="mobile-hide"> PLANNER</span>
               </span>
             </button>
-          )}
-
-          {/* Saved Routes Dropdown overlay */}
-          {isSavedHubOpen && (hudState === 0 || hudState === 2 || hudState === 3) && (
-            <div 
-              className={`${styles.savedRoutesHubDropdown} hud-card hud-card-responsive`}
-              onMouseDown={(e) => e.stopPropagation()}
-              onMouseUp={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
-              onTouchMove={(e) => e.stopPropagation()}
-              onTouchEnd={(e) => e.stopPropagation()}
-            >
-              <div className={styles.hubDropdownHeader}>
-                <h4 className={styles.hubDropdownTitle}>🔖 Saved Routes</h4>
-                <button onClick={() => setIsSavedHubOpen(false)} className={styles.closeBtn}><X size={14} /></button>
-              </div>
-              {savedRoutes.length === 0 ? (
-                <p className={styles.emptyMsg}>No saved routes yet. Plan a route and save it to display here.</p>
-              ) : (
-                savedRoutes.map((route) => (
-                  <div 
-                    key={route.id} 
-                    className={`hud-btn ${styles.savedRouteItem}`} 
-                    onClick={() => handleLoadSavedRoute(route)}
-                  >
-                    <span className={styles.savedRouteText}>{route.name}</span>
-                    <button 
-                      onClick={(e) => handleDeleteSavedRoute(route.id, e)} 
-                      className={styles.deleteRouteBtn}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
           )}
         </div>
 
@@ -1890,7 +2521,29 @@ export default function Home() {
                 </span>
                 {formatTemp(dynamicAmbientWeather.temp)}
                 <span> • {formatWind(dynamicAmbientWeather.windSpeed)} {dynamicAmbientWeather.windDir}</span>
+                {cooldownRemaining > 0 && (
+                  <span 
+                    className={styles.cooldownBadge} 
+                    onClick={handleShowSimulatedInfo}
+                    style={{ cursor: "pointer" }}
+                    title="Daily weather limit reached. Simulated forecast active for the rest of today. Tap for more info."
+                  >
+                    ⚠️ SIMULATED <span className="mobile-hide">(Daily Limit)</span>
+                  </span>
+                )}
               </span>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRefreshWeather();
+                }} 
+                className={`${styles.weatherRefreshBtn} ${isRefreshingWeather ? styles.spinning : ""}`}
+                title={cooldownRemaining > 0 ? "Daily weather limit reached. Simulated forecast active for the rest of today." : "Refresh Weather"}
+                disabled={isRefreshingWeather || cooldownRemaining > 0}
+                style={{ opacity: cooldownRemaining > 0 ? 0.35 : 1, cursor: cooldownRemaining > 0 ? "not-allowed" : "pointer" }}
+              >
+                <RefreshCw size={12} />
+              </button>
             </div>
           )}
 
@@ -2086,35 +2739,12 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Save Route Persistence Toggle */}
-              <div className={styles.saveToggleRow}>
-                <label className={styles.checkboxLabel}>
-                  <input 
-                    type="checkbox" 
-                    checked={shouldSaveRoute} 
-                    onChange={(e) => setShouldSaveRoute(e.target.checked)}
-                    className={styles.checkboxInput}
-                  />
-                  <span>🔖 Save Route to local library</span>
-                </label>
-
-                {shouldSaveRoute && (
-                  <input 
-                    type="text" 
-                    className="hud-input" 
-                    placeholder="Route Name (e.g. Work Commute)..."
-                    value={saveRouteName}
-                    onChange={(e) => setSaveRouteName(e.target.value)}
-                  />
-                )}
-              </div>
-
               {/* Confirm Route build pipeline */}
               <button 
                 className={`${styles.confirmBtn} hud-btn ${draftStart && draftEnd ? "active" : ""}`}
                 disabled={!draftStart || !draftEnd || isLoading}
                 onClick={() => {
-                  loadRouteDetails(draftStart, draftEnd, newBikeType, newSpeed, null, shouldSaveRoute, saveRouteName);
+                  loadRouteDetails(draftStart, draftEnd, newBikeType, newSpeed);
                 }}
               >
                 {isLoading ? "Analyzing..." : "Confirm & Map HUD"}
@@ -2124,6 +2754,305 @@ export default function Home() {
               <p className={styles.setupNote}>
                 💡 Or tap start/end coordinates directly on the map.
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 
+        -------------------------------------------------------------
+        STATE 2 & 3: CUSTOM DEPARTURE/ARRIVALS SIDEBAR OVERLAY
+        ------------------------------------------------------------- 
+      */}
+      {(hudState === 2 || hudState === 3) && getLeaveNowOverlayData() && (
+        <div className={styles.setupCover}>
+          <div className={`${styles.departureContainer} hud-slide-top`}>
+            <div 
+              className={`hud-card ${styles.setupCard}`}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+            >
+              {/* Header: Route Score & Clear Route (Combined) */}
+              <div className={styles.setupHeader} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "8px", marginBottom: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div 
+                    className={`${styles.pulseDot} ${activeForecast.score >= 85 ? "hud-pulse-emerald" : activeForecast.score >= 50 ? "hud-pulse-amber" : "hud-pulse-ruby"}`}
+                    style={{
+                      background: activeForecast.score >= 85 ? "var(--color-emerald)" : activeForecast.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)",
+                      boxShadow: `0 0 10px ${activeForecast.score >= 85 ? "var(--color-emerald-glow)" : activeForecast.score >= 50 ? "var(--color-amber-glow)" : "var(--color-ruby-glow)"}`,
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      flexShrink: 0
+                    }} 
+                  />
+                  <span style={{ fontSize: "0.85rem", fontWeight: "700", display: "flex", alignItems: "center", gap: "4px" }}>
+                    Score: {activeForecast.score}% • {activeForecast.wmoEmoji} {activeForecast.wmoDesc}
+                  </span>
+                </div>
+                <button 
+                  onClick={() => {
+                    setHudState(0);
+                    setRouteCoordinates([]);
+                    setRouteSegments([]);
+                    setWeatherResults([]);
+                    setConfirmedStart(null);
+                    setConfirmedEnd(null);
+                    setDraftStart(null);
+                    setDraftEnd(null);
+                    setStartQuery("");
+                    setEndQuery("");
+                    setIsDepartureTimeCustom(false);
+                    setIsReturnTripMode(false);
+                    localStorage.removeItem("hud_active_view_state"); // Clear cached route state on manual reset
+                  }} 
+                  className={styles.clearRouteBtn}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--hud-text-secondary)",
+                    cursor: "pointer",
+                    padding: "4px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "color 0.2s ease"
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.color = "var(--color-ruby)"}
+                  onMouseOut={(e) => e.currentTarget.style.color = "var(--hud-text-secondary)"}
+                  title="Clear Route"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              {/* Departure Mode Title & Reset */}
+              <div className={styles.setupHeader} style={{ marginBottom: "6px" }}>
+                <span className={styles.setupTitle} style={{ color: "#ef4444", display: "flex", alignItems: "center", gap: "6px", fontSize: "0.82rem" }}>
+                  🏁 {getLeaveNowOverlayData().isDepartureTimeCustom ? (getLeaveNowOverlayData().timeMode === "arrive" ? "Custom Arrival" : "Custom Departure") : "Leave Now"}
+                </span>
+                {getLeaveNowOverlayData().isDepartureTimeCustom && (
+                  <button 
+                    onClick={handleOverlayResetClick} 
+                    className={styles.overlayResetBtn}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "var(--color-amber)",
+                      textDecoration: "underline",
+                      cursor: "pointer",
+                      padding: 0,
+                      fontSize: "10px",
+                    }}
+                  >
+                    Reset to Now
+                  </button>
+                )}
+              </div>
+
+              {/* Leave / Arrive Segmented Control */}
+              <div style={{
+                display: "flex",
+                background: "rgba(0,0,0,0.3)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: "8px",
+                padding: "2px",
+                marginBottom: "2px"
+              }}>
+                <button 
+                  onClick={() => handleOverlayTimeModeChange('leave')} 
+                  style={{
+                    flex: 1,
+                    background: getLeaveNowOverlayData().timeMode === "leave" ? "rgba(255, 255, 255, 0.12)" : "transparent",
+                    border: "none",
+                    borderRadius: "6px",
+                    color: getLeaveNowOverlayData().timeMode === "leave" ? "var(--color-emerald)" : "var(--hud-text-secondary)",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    padding: "6px",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    outline: "none",
+                  }}
+                >
+                  Leave At
+                </button>
+                <button 
+                  onClick={() => handleOverlayTimeModeChange('arrive')} 
+                  style={{
+                    flex: 1,
+                    background: getLeaveNowOverlayData().timeMode === "arrive" ? "rgba(255, 255, 255, 0.12)" : "transparent",
+                    border: "none",
+                    borderRadius: "6px",
+                    color: getLeaveNowOverlayData().timeMode === "arrive" ? "var(--color-emerald)" : "var(--hud-text-secondary)",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    padding: "6px",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    outline: "none",
+                  }}
+                >
+                  Arrive At
+                </button>
+              </div>
+
+              {/* Date & Time Selectors Row */}
+              <div style={{ display: "flex", gap: "6px", alignItems: "center", width: "100%" }}>
+                <select 
+                  value={selectedDayOffset}
+                  onChange={(e) => handleOverlayDayChange(e.target.value)} 
+                  className={styles.timeSelect}
+                  style={{
+                    flex: 1.5,
+                    fontSize: "11px",
+                    padding: "5px 6px",
+                  }}
+                >
+                  {Array.from({ length: 7 }).map((_, offset) => {
+                    const label = getDayLabel(offset);
+                    return (
+                      <option key={offset} value={offset} style={{ background: "#0f172a", color: "#f8fafc" }}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+                
+                <div style={{ display: "flex", gap: "4px", alignItems: "center", flex: 2, justifyContent: "flex-end" }}>
+                  <input 
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={2}
+                    value={overlayHourVal}
+                    onChange={(e) => setOverlayHourVal(e.target.value.replace(/\D/g, ''))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); e.stopPropagation(); }}
+                    onKeyUp={(e) => e.stopPropagation()}
+                    onKeyPress={(e) => e.stopPropagation()}
+                    onBlur={(e) => commitOverlayHour(e.target.value)}
+                    className={styles.timeInput}
+                    style={{
+                      fontSize: "11px",
+                      padding: "5px 3px",
+                      width: "28px",
+                    }}
+                  />
+                  <span style={{ color: "var(--hud-text-secondary)", fontSize: "11px" }}>:</span>
+                  <input 
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={2}
+                    value={overlayMinVal}
+                    onChange={(e) => setOverlayMinVal(e.target.value.replace(/\D/g, ''))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); e.stopPropagation(); }}
+                    onKeyUp={(e) => e.stopPropagation()}
+                    onKeyPress={(e) => e.stopPropagation()}
+                    onBlur={(e) => commitOverlayMinute(e.target.value)}
+                    className={styles.timeInput}
+                    style={{
+                      fontSize: "11px",
+                      padding: "5px 3px",
+                      width: "28px",
+                    }}
+                  />
+                  {unitSystem === "imperial" && (
+                    <select 
+                      value={selectedHour >= 12 ? "PM" : "AM"}
+                      onChange={(e) => handleOverlayPeriodChange(e.target.value)} 
+                      className={styles.timeSelect}
+                      style={{
+                        fontSize: "11px",
+                        padding: "5px 6px",
+                        flex: 1.1,
+                      }}
+                    >
+                      <option value="AM" style={{ background: "#0f172a", color: "#f8fafc" }}>AM</option>
+                      <option value="PM" style={{ background: "#0f172a", color: "#f8fafc" }}>PM</option>
+                    </select>
+                  )}
+                </div>
+              </div>
+
+              {/* Telemetry info */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px", borderTop: "1px solid rgba(255, 255, 255, 0.08)", paddingTop: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span>⏱️</span>
+                  <span><strong>Ride</strong>: {getLeaveNowOverlayData().duration} mins ({getLeaveNowOverlayData().distance})</span>
+                </div>
+                {getLeaveNowOverlayData().timeMode === "arrive" ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>🚀</span>
+                    <span><strong>Depart by</strong>: {getLeaveNowOverlayData().depTimeStr}</span>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>⏰</span>
+                    <span><strong>Arrival</strong>: {getLeaveNowOverlayData().arrivalTimeStr}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions Row */}
+              <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+                {getLeaveNowOverlayData().isSaved ? (
+                  <button 
+                    disabled 
+                    className="hud-btn"
+                    style={{
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      color: "var(--hud-text-secondary)",
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      padding: "4px 8px",
+                      cursor: "not-allowed",
+                      borderRadius: "6px"
+                    }}
+                  >
+                    ✓ Bookmarked
+                  </button>
+                ) : (
+                  <button 
+                    onClick={handleOverlaySaveRouteClick} 
+                    className="hud-btn"
+                    style={{
+                      background: "rgba(255, 255, 255, 0.1)",
+                      border: "1px solid rgba(255, 255, 255, 0.2)",
+                      color: "var(--hud-text-primary)",
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      padding: "4px 8px",
+                      cursor: "pointer",
+                      borderRadius: "6px",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    💾 Save Route
+                  </button>
+                )}
+                <button 
+                  onClick={handleOverlayReverseClick} 
+                  className="hud-btn"
+                  style={{
+                    background: "var(--color-emerald)",
+                    border: "none",
+                    borderRadius: "6px",
+                    color: "white",
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    padding: "4px 8px",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 6px rgba(16, 185, 129, 0.3)",
+                  }}
+                >
+                  ⇅ Reverse Route
+                </button>
+              </div>
             </div>
           </div>
         </div>

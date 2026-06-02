@@ -27,10 +27,50 @@ const FALLBACK_LOCATIONS = [
   { label: "Ferry Building, San Francisco, CA", lat: 37.7954, lon: -122.3937 }
 ];
 
+const ROUTE_CACHE_PREFIX = "biking_route_cache_";
+const GEOCODE_CACHE_PREFIX = "biking_geocode_cache_";
+const REV_GEOCODE_CACHE_PREFIX = "biking_revgeocode_cache_";
+
+function getCachedData(prefix, key, maxAgeMs = 60 * 60 * 1000) {
+  if (typeof window === "undefined") return null;
+  try {
+    const cached = localStorage.getItem(prefix + key);
+    if (!cached) return null;
+    const { timestamp, data } = JSON.parse(cached);
+    if (Date.now() - timestamp < maxAgeMs) {
+      return data;
+    }
+    localStorage.removeItem(prefix + key);
+  } catch (e) {
+    console.warn(`Failed to read cache for ${prefix}`, e);
+  }
+  return null;
+}
+
+function setCachedData(prefix, key, data) {
+  if (typeof window === "undefined") return;
+  try {
+    const payload = {
+      timestamp: Date.now(),
+      data
+    };
+    localStorage.setItem(prefix + key, JSON.stringify(payload));
+  } catch (e) {
+    console.warn(`Failed to write cache for ${prefix}`, e);
+  }
+}
+
 export async function geocodeAddress(query) {
   if (!query || query.trim().length < 3) return [];
   
   const normQuery = query.toLowerCase().trim();
+  
+  // Check cache
+  const cached = getCachedData(GEOCODE_CACHE_PREFIX, normQuery);
+  if (cached) {
+    console.log(`📦 [Geocoding Cache] Cache hit for query: "${normQuery}"`);
+    return cached;
+  }
   
   // Gather matching local fallbacks
   const localMatches = FALLBACK_LOCATIONS.filter(item => 
@@ -54,6 +94,9 @@ export async function geocodeAddress(query) {
       query
     )}&format=json&limit=5&addressdetails=1`;
     
+    // Throttling live geocode calls to Nominatim
+    await throttleFetch();
+    
     const response = await fetch(url);
     if (response.ok) {
       const data = await response.json();
@@ -62,7 +105,9 @@ export async function geocodeAddress(query) {
         lon: parseFloat(item.lon),
         label: item.display_name
       }));
-      return mergeResults(nominatimResults, localMatches);
+      const merged = mergeResults(nominatimResults, localMatches);
+      setCachedData(GEOCODE_CACHE_PREFIX, normQuery, merged);
+      return merged;
     }
     console.warn(`Nominatim throttled: ${response.status}. Failover to Photon Komoot...`);
   } catch (error) {
@@ -94,13 +139,16 @@ export async function geocodeAddress(query) {
           label: uniqueParts.join(", ")
         };
       });
-      return mergeResults(photonResults, localMatches);
+      const merged = mergeResults(photonResults, localMatches);
+      setCachedData(GEOCODE_CACHE_PREFIX, normQuery, merged);
+      return merged;
     }
   } catch (error) {
     console.warn("Photon geocoder failed, falling back to offline landmark POIs: ", error.message);
   }
 
   // 3. Fallback to Local Offline POIs
+  setCachedData(GEOCODE_CACHE_PREFIX, normQuery, localMatches);
   return localMatches;
 }
 
@@ -115,6 +163,15 @@ export async function geocodeAddress(query) {
  * @returns {Promise<{shape: string, distance: number, time: number, legs: Array<object>}>} Valhalla trip data
  */
 export async function fetchBicycleRoute(startLat, startLon, endLat, endLon, bikeType = "Hybrid", cyclingSpeed = 20) {
+  const cacheKey = `${Number(startLat).toFixed(3)},${Number(startLon).toFixed(3)}_${Number(endLat).toFixed(3)},${Number(endLon).toFixed(3)}_${bikeType}_${cyclingSpeed}`;
+  
+  // Check cache first
+  const cached = getCachedData(ROUTE_CACHE_PREFIX, cacheKey);
+  if (cached) {
+    console.log(`📦 [Routing Cache] Cache hit for route: ${cacheKey}`);
+    return cached;
+  }
+
   try {
     const valhallaRequest = {
       locations: [
@@ -137,6 +194,9 @@ export async function fetchBicycleRoute(startLat, startLon, endLat, endLon, bike
       JSON.stringify(valhallaRequest)
     )}`;
 
+    // Throttling route network calls to Valhalla
+    await throttleFetch();
+
     const response = await fetch(url, {
       headers: {
         // Proactively set a customer identifier for fair-use tracking
@@ -155,12 +215,15 @@ export async function fetchBicycleRoute(startLat, startLon, endLat, endLon, bike
       throw new Error("No route found between selected points.");
     }
 
-    return {
+    const result = {
       shape: data.trip.legs[0].shape, // Encoded polyline6
       distance: data.trip.summary.length, // in km
       time: data.trip.summary.time, // in seconds
       legs: data.trip.legs
     };
+
+    setCachedData(ROUTE_CACHE_PREFIX, cacheKey, result);
+    return result;
   } catch (error) {
     console.error("Valhalla route fetch failed:", error);
     throw error;
@@ -241,15 +304,71 @@ function generateMockWeather(lat, lon) {
     hourly
   };
 }
+const CACHE_PREFIX = "biking_weather_cache_";
+let lastFetchTime = 0;
+const MIN_FETCH_INTERVAL_MS = 1000;
+
+function getCacheKey(coords) {
+  return coords.map(c => `${Number(c[0]).toFixed(3)},${Number(c[1]).toFixed(3)}`).join("|");
+}
+
+function getCachedWeatherData(key) {
+  if (typeof window === "undefined") return null;
+  try {
+    const cached = localStorage.getItem(CACHE_PREFIX + key);
+    if (!cached) return null;
+    const { timestamp, data } = JSON.parse(cached);
+    
+    // Check if cache is older than 60 minutes
+    const ageMs = Date.now() - timestamp;
+    if (ageMs < 60 * 60 * 1000) {
+      console.log(`📦 [Weather Cache] Cache hit for key: ${key.substring(0, 45)}...`);
+      return data;
+    } else {
+      localStorage.removeItem(CACHE_PREFIX + key);
+    }
+  } catch (e) {
+    console.warn("Failed to read from weather localStorage cache", e);
+  }
+  return null;
+}
+
+function setCachedWeatherData(key, data) {
+  if (typeof window === "undefined") return;
+  try {
+    if (data.isOfflineForecast) return; // Skip caching offline fallbacks
+
+    const payload = {
+      timestamp: Date.now(),
+      data
+    };
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(payload));
+    console.log(`📦 [Weather Cache] Cached weather for key: ${key.substring(0, 45)}...`);
+  } catch (e) {
+    console.warn("Failed to write to weather localStorage cache", e);
+  }
+}
+
+async function throttleFetch() {
+  const now = Date.now();
+  const timeSinceLastFetch = now - lastFetchTime;
+  if (timeSinceLastFetch < MIN_FETCH_INTERVAL_MS) {
+    const delay = MIN_FETCH_INTERVAL_MS - timeSinceLastFetch;
+    console.log(`⏳ [Weather Rate Limiting] Throttling request by ${delay}ms...`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+  lastFetchTime = Date.now();
+}
 
 /**
  * Fetches hourly weather forecasts from Open-Meteo for coordinates along a route.
  * Selects 2 to 5 points depending on the route's total distance.
  * @param {Array<[number, number]>} routeCoordinates - Array of [lat, lon] route coordinates
  * @param {number} totalDistance - Total distance in km
+ * @param {boolean} forceRefresh - If true, bypasses the cache
  * @returns {Promise<Array<object>>} Array of Open-Meteo weather response objects
  */
-export async function fetchRouteWeather(routeCoordinates, totalDistance) {
+export async function fetchRouteWeather(routeCoordinates, totalDistance, forceRefresh = false) {
   if (!routeCoordinates || routeCoordinates.length === 0) return [];
   
   // Step 1: Decide sample density based on distance
@@ -265,8 +384,34 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance) {
   }
   
   const sampledPoints = sampleCoordinates(routeCoordinates, numSamples);
+  const cacheKey = getCacheKey(sampledPoints);
+
+  // Check cache first (if not forcing refresh)
+  if (!forceRefresh) {
+    const cached = getCachedWeatherData(cacheKey);
+    if (cached) {
+      return cached;
+    }
+  }
+
+  // Check if a 429 rate limit cooldown is active in localStorage
+  if (typeof window !== "undefined") {
+    const cooldownUntil = localStorage.getItem("weather_429_cooldown_until");
+    if (cooldownUntil && Number(cooldownUntil) > Date.now()) {
+      console.log("🛑 [Weather API] Cooldown active. Skipping network fetch and serving offline forecast.");
+      const mockData = sampledPoints.map(p => generateMockWeather(p[0], p[1]));
+      mockData.isOfflineForecast = true;
+      mockData.errorType = "429";
+      mockData.cooldownUntil = Number(cooldownUntil);
+      mockData.errorMessage = "API Rate Limit Cooldown Active";
+      return mockData;
+    }
+  }
   
   try {
+    // Throttling actual network calls to limit requests to Open-Meteo
+    await throttleFetch();
+
     const lats = sampledPoints.map(p => p[0]).join(",");
     const lons = sampledPoints.map(p => p[1]).join(",");
     
@@ -288,7 +433,10 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance) {
     // but an array of objects if multiple points are requested.
     const weatherArray = Array.isArray(data) ? data : [data];
     
-    // Dynamically match the current hour to print relevant console log metrics rather than hardcoded midnight (hour 0)
+    // Cache the response
+    setCachedWeatherData(cacheKey, weatherArray);
+
+    // Dynamically match the current hour to print relevant console log metrics
     const now = new Date();
     const year = now.getFullYear();
     const month = (now.getMonth() + 1).toString().padStart(2, "0");
@@ -314,6 +462,17 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance) {
     // Return high-fidelity mock forecast fallback
     const mockData = sampledPoints.map(p => generateMockWeather(p[0], p[1]));
     
+    // Attach error states to array object
+    mockData.isOfflineForecast = true;
+    mockData.errorType = error.message?.includes("429") ? "429" : "general";
+    mockData.errorMessage = error.message || "Network request failed";
+
+    if (mockData.errorType === "429") {
+      const now = new Date();
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+      mockData.cooldownUntil = midnight.getTime(); // Lock until local midnight
+    }
+
     const now = new Date();
     const year = now.getFullYear();
     const month = (now.getMonth() + 1).toString().padStart(2, "0");
@@ -334,4 +493,102 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance) {
 
     return mockData;
   }
+}
+
+export async function reverseGeocode(lat, lon) {
+  const BOROUGHS = ["Manhattan", "Brooklyn", "Queens", "Bronx", "Staten Island"];
+  const cacheKey = `${Number(lat).toFixed(4)},${Number(lon).toFixed(4)}`;
+
+  // Check cache first
+  const cached = getCachedData(REV_GEOCODE_CACHE_PREFIX, cacheKey);
+  if (cached) {
+    console.log(`📦 [Reverse Geocoding Cache] Cache hit for coordinates: ${cacheKey}`);
+    return cached;
+  }
+
+  // 1. Try Nominatim reverse (Primary)
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`;
+    
+    // Throttle requests to Nominatim
+    await throttleFetch();
+    
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "BikingForecastApp"
+      }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      const addr = data.address || {};
+      
+      // Select the most specific location label
+      const specificFields = [
+        addr.neighbourhood,
+        addr.quarter,
+        addr.park,
+        addr.leisure,
+        addr.tourism,
+        addr.village,
+        addr.town
+      ];
+      
+      let placeName = specificFields.find(val => val && !BOROUGHS.includes(val));
+      
+      if (!placeName && addr.suburb && !BOROUGHS.includes(addr.suburb)) {
+        placeName = addr.suburb;
+      }
+      if (!placeName && addr.city_district && !BOROUGHS.includes(addr.city_district)) {
+        placeName = addr.city_district;
+      }
+      if (!placeName) {
+        placeName = addr.road || addr.suburb || addr.city_district || addr.city;
+      }
+      
+      if (placeName) {
+        setCachedData(REV_GEOCODE_CACHE_PREFIX, cacheKey, placeName);
+        return placeName;
+      }
+      const fallbackName = data.display_name?.split(",")[0] || null;
+      if (fallbackName) {
+        setCachedData(REV_GEOCODE_CACHE_PREFIX, cacheKey, fallbackName);
+      }
+      return fallbackName;
+    }
+  } catch (error) {
+    console.warn("Nominatim reverse geocode failed: ", error.message);
+  }
+
+  // 2. Try Photon Komoot reverse (Fallback)
+  try {
+    const url = `https://photon.komoot.io/reverse?lon=${lon}&lat=${lat}`;
+    const response = await fetch(url);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.features && data.features.length > 0) {
+        const feat = data.features[0];
+        const prop = feat.properties || {};
+        
+        let placeName = null;
+        if (prop.locality && !BOROUGHS.includes(prop.locality)) {
+          placeName = prop.locality;
+        }
+        if (!placeName && prop.district && !BOROUGHS.includes(prop.district)) {
+          placeName = prop.district;
+        }
+        if (!placeName) {
+          placeName = prop.name || prop.street || prop.locality || prop.district;
+        }
+        
+        if (placeName) {
+          setCachedData(REV_GEOCODE_CACHE_PREFIX, cacheKey, placeName);
+          return placeName;
+        }
+      }
+    }
+  } catch (error) {
+    console.warn("Photon reverse geocode failed: ", error.message);
+  }
+
+  return null;
 }
