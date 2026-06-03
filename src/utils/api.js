@@ -1,5 +1,17 @@
 import { sampleCoordinates, getDistance } from "./routeUtils";
 
+async function sendServerApiLog(apiName, action, params, durationMs = null, extra = null) {
+  try {
+    await fetch("/api/log-api-activity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiName, action, params, durationMs, extra })
+    });
+  } catch (e) {
+    // Ignore logging errors silently in the UI
+  }
+}
+
 /**
  * Searches for coordinates matching an address query using OpenStreetMap's Nominatim geocoder.
  * @param {string} query - The location query (e.g. "Brooklyn Bridge, NY")
@@ -69,9 +81,12 @@ export async function geocodeAddress(query) {
   const cached = getCachedData(GEOCODE_CACHE_PREFIX, normQuery);
   if (cached) {
     console.log(`📦 [Geocoding Cache] Cache hit for query: "${normQuery}"`);
+    sendServerApiLog("Geocoding", "cache_hit", { query: normQuery }, null, { key: `query "${normQuery}"` });
     return cached;
   }
   
+  sendServerApiLog("Geocoding", "cache_miss", { query: normQuery }, null, { key: `query "${normQuery}"` });
+
   // Gather matching local fallbacks
   const localMatches = FALLBACK_LOCATIONS.filter(item => 
     item.label.toLowerCase().includes(normQuery)
@@ -79,6 +94,7 @@ export async function geocodeAddress(query) {
 
   if (process.env.MOCK === "true") {
     console.log("Mock data mode enabled via env var. Serving offline geocoding results.");
+    sendServerApiLog("Geocoding", "simulated_mode", { query: normQuery }, null, { reason: "MOCK=true" });
     return localMatches.length > 0 ? localMatches : [
       { lat: 40.7064, lon: -73.6187, label: `${query} (Mocked Start)` },
       { lat: 40.7208, lon: -73.6425, label: `${query} (Mocked Destination)` }
@@ -105,7 +121,11 @@ export async function geocodeAddress(query) {
     // Throttling live geocode calls to Nominatim
     await throttleFetch();
     
+    sendServerApiLog("Geocoding", "network_request", { query: normQuery }, null, { target: "Nominatim", url });
+    
+    const startTime = Date.now();
     const response = await fetch(url);
+    const duration = Date.now() - startTime;
     if (response.ok) {
       const data = await response.json();
       const nominatimResults = data.map(item => ({
@@ -115,17 +135,26 @@ export async function geocodeAddress(query) {
       }));
       const merged = mergeResults(nominatimResults, localMatches);
       setCachedData(GEOCODE_CACHE_PREFIX, normQuery, merged);
+      
+      sendServerApiLog("Geocoding", "network_success", { query: normQuery }, duration, { target: "Nominatim", status: response.status, info: `found ${nominatimResults.length} live results` });
       return merged;
     }
+    sendServerApiLog("Geocoding", "network_failure", { query: normQuery }, duration, { target: "Nominatim", status: response.status, message: "Response status not OK" });
     console.warn(`Nominatim throttled: ${response.status}. Failover to Photon Komoot...`);
   } catch (error) {
+    sendServerApiLog("Geocoding", "network_failure", { query: normQuery }, null, { target: "Nominatim", status: "Error", message: error.message });
     console.warn("Nominatim rate-limit ban detected. Seamless failover to Photon Komoot...");
   }
 
   // 2. Try Photon Komoot (Secondary Live Network Fallback)
   try {
     const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`;
+    
+    sendServerApiLog("Geocoding", "network_request", { query: normQuery }, null, { target: "Photon", url });
+    
+    const startTime = Date.now();
     const response = await fetch(url);
+    const duration = Date.now() - startTime;
     if (response.ok) {
       const data = await response.json();
       const photonResults = (data.features || []).map(feat => {
@@ -149,13 +178,18 @@ export async function geocodeAddress(query) {
       });
       const merged = mergeResults(photonResults, localMatches);
       setCachedData(GEOCODE_CACHE_PREFIX, normQuery, merged);
+      
+      sendServerApiLog("Geocoding", "network_success", { query: normQuery }, duration, { target: "Photon", status: response.status, info: `found ${photonResults.length} live results` });
       return merged;
     }
+    sendServerApiLog("Geocoding", "network_failure", { query: normQuery }, duration, { target: "Photon", status: response.status, message: "Response status not OK" });
   } catch (error) {
+    sendServerApiLog("Geocoding", "network_failure", { query: normQuery }, null, { target: "Photon", status: "Error", message: error.message });
     console.warn("Photon geocoder failed, falling back to offline landmark POIs: ", error.message);
   }
 
   // 3. Fallback to Local Offline POIs
+  sendServerApiLog("Geocoding", "simulated_fallback", { query: normQuery }, null, { reason: "Offline POI Fallback" });
   setCachedData(GEOCODE_CACHE_PREFIX, normQuery, localMatches);
   return localMatches;
 }
@@ -177,11 +211,15 @@ export async function fetchBicycleRoute(startLat, startLon, endLat, endLon, bike
   const cached = getCachedData(ROUTE_CACHE_PREFIX, cacheKey);
   if (cached) {
     console.log(`📦 [Routing Cache] Cache hit for route: ${cacheKey}`);
+    sendServerApiLog("Routing", "cache_hit", { startLat, startLon, endLat, endLon, bikeType }, null, { key: `route "${cacheKey}"` });
     return cached;
   }
 
+  sendServerApiLog("Routing", "cache_miss", { startLat, startLon, endLat, endLon, bikeType }, null, { key: `route "${cacheKey}"` });
+
   if (process.env.MOCK === "true") {
     console.log("Mock data mode enabled via env var. Serving offline bicycle route.");
+    sendServerApiLog("Routing", "simulated_mode", { startLat, startLon, endLat, endLon, bikeType }, null, { reason: "MOCK=true" });
     const result = {
       shape: "m_r_~Ah~o]z@aCdBiF", 
       distance: 10.0,
@@ -216,21 +254,27 @@ export async function fetchBicycleRoute(startLat, startLon, endLat, endLon, bike
     // Throttling route network calls to Valhalla
     await throttleFetch();
 
+    sendServerApiLog("Routing", "network_request", { startLat, startLon, endLat, endLon, bikeType }, null, { target: "Valhalla", url });
+
+    const startTime = Date.now();
     const response = await fetch(url, {
       headers: {
         // Proactively set a customer identifier for fair-use tracking
         "X-Client-Id": "BikingForecastApp"
       }
     });
+    const duration = Date.now() - startTime;
 
     if (!response.ok) {
       const errText = await response.text();
+      sendServerApiLog("Routing", "network_failure", { startLat, startLon, endLat, endLon, bikeType }, duration, { target: "Valhalla", status: response.status, message: errText });
       throw new Error(`Valhalla Routing Error: ${response.status} - ${errText}`);
     }
 
     const data = await response.json();
     
     if (!data.trip || !data.trip.legs || data.trip.legs.length === 0) {
+      sendServerApiLog("Routing", "network_failure", { startLat, startLon, endLat, endLon, bikeType }, duration, { target: "Valhalla", status: response.status, message: "No route legs found in response" });
       throw new Error("No route found between selected points.");
     }
 
@@ -241,10 +285,12 @@ export async function fetchBicycleRoute(startLat, startLon, endLat, endLon, bike
       legs: data.trip.legs
     };
 
+    sendServerApiLog("Routing", "network_success", { startLat, startLon, endLat, endLon, bikeType }, duration, { target: "Valhalla", status: response.status, info: `distance ${result.distance.toFixed(1)} km, duration ${Math.round(result.time / 60)} mins` });
     setCachedData(ROUTE_CACHE_PREFIX, cacheKey, result);
     return result;
   } catch (error) {
     console.error("Valhalla route fetch failed:", error);
+    sendServerApiLog("Routing", "network_failure", { startLat, startLon, endLat, endLon, bikeType }, null, { target: "Valhalla", status: "Error", message: error.message });
     throw error;
   }
 }
@@ -407,6 +453,7 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance, forceRe
 
   if (process.env.MOCK === "true") {
     console.log("Mock data mode enabled via env var. Serving offline weather forecast.");
+    sendServerApiLog("Weather", "simulated_mode", { totalDistance, numSamples }, null, { reason: "MOCK=true" });
     const mockData = sampledPoints.map(p => generateMockWeather(p[0], p[1]));
     mockData.isOfflineForecast = true;
     return mockData;
@@ -416,15 +463,20 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance, forceRe
   if (!forceRefresh) {
     const cached = getCachedWeatherData(cacheKey);
     if (cached) {
+      sendServerApiLog("Weather", "cache_hit", { totalDistance, numSamples }, null, { key: `sampled key: ${cacheKey.substring(0, 30)}...` });
       return cached;
     }
   }
+
+  sendServerApiLog("Weather", "cache_miss", { totalDistance, numSamples }, null, { key: `sampled key: ${cacheKey.substring(0, 30)}...` });
 
   // Check if a 429 rate limit cooldown is active in localStorage
   if (typeof window !== "undefined") {
     const cooldownUntil = localStorage.getItem("weather_429_cooldown_until");
     if (cooldownUntil && Number(cooldownUntil) > Date.now()) {
+      const remainingSec = Math.ceil((Number(cooldownUntil) - Date.now()) / 1000);
       console.log("🛑 [Weather API] Cooldown active. Skipping network fetch and serving offline forecast.");
+      sendServerApiLog("Weather", "cooldown_active", { totalDistance }, null, { remaining: `${remainingSec}s` });
       const mockData = sampledPoints.map(p => generateMockWeather(p[0], p[1]));
       mockData.isOfflineForecast = true;
       mockData.errorType = "429";
@@ -447,9 +499,18 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance, forceRe
     console.log(`🌐 [Open-Meteo API] Fetching weather forecast for ${numSamples} coordinates:`, sampledPoints);
     console.log(`🔗 [Open-Meteo API] Request URL: ${url}`);
 
+    sendServerApiLog("Weather", "network_request", { totalDistance, numSamples }, null, { target: "Open-Meteo", url });
+
+    const startTime = Date.now();
     const response = await fetch(url);
+    const duration = Date.now() - startTime;
     
     if (!response.ok) {
+      if (response.status === 429) {
+        sendServerApiLog("Weather", "rate_limited", { totalDistance, numSamples }, duration, { target: "Open-Meteo", status: 429 });
+      } else {
+        sendServerApiLog("Weather", "network_failure", { totalDistance, numSamples }, duration, { target: "Open-Meteo", status: response.status, message: "Response status not OK" });
+      }
       throw new Error(`Open-Meteo error: ${response.status} - ${response.statusText}`);
     }
     
@@ -475,29 +536,37 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance, forceRe
       currentHourIdx = now.getHours(); // Fallback to current local hour index
     }
     
+    const tempDisp = `${weatherArray[0]?.hourly?.temperature_2m?.[currentHourIdx]}°C`;
     console.log(`✅ [Open-Meteo API] Successfully retrieved weather data for ${weatherArray.length} point(s). Sampled current hour (${currentHourStr}) metrics:`, {
-      temp: `${weatherArray[0]?.hourly?.temperature_2m?.[currentHourIdx]}°C`,
+      temp: tempDisp,
       humidity: `${weatherArray[0]?.hourly?.relative_humidity_2m?.[currentHourIdx]}%`,
       windSpeed: `${weatherArray[0]?.hourly?.wind_speed_10m?.[currentHourIdx]} km/h`,
       windDir: `${weatherArray[0]?.hourly?.wind_direction_10m?.[currentHourIdx]}°`
     });
 
+    sendServerApiLog("Weather", "network_success", { totalDistance, numSamples }, duration, { target: "Open-Meteo", status: response.status, info: `${weatherArray.length} point(s), current temp: ${tempDisp}` });
+
     return weatherArray;
   } catch (error) {
+    const isRateLimit = error.message?.includes("429") || error.message?.includes("Too Many Requests");
     console.warn(`Open-Meteo weather fetch failed: ${error.message || error}. Serving dynamic offline mathematical forecast.`);
     // Return high-fidelity mock forecast fallback
     const mockData = sampledPoints.map(p => generateMockWeather(p[0], p[1]));
     
     // Attach error states to array object
     mockData.isOfflineForecast = true;
-    mockData.errorType = error.message?.includes("429") ? "429" : "general";
+    mockData.errorType = isRateLimit ? "429" : "general";
     mockData.errorMessage = error.message || "Network request failed";
 
+    let cooldownUntilText = "";
     if (mockData.errorType === "429") {
       const now = new Date();
       const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
       mockData.cooldownUntil = midnight.getTime(); // Lock until local midnight
+      cooldownUntilText = `Cooldown locked until midnight.`;
     }
+
+    sendServerApiLog("Weather", "simulated_fallback", { totalDistance, numSamples }, null, { reason: `${error.message || "Fetch failed"}. ${cooldownUntilText}` });
 
     const now = new Date();
     const year = now.getFullYear();
@@ -534,11 +603,15 @@ export async function reverseGeocode(lat, lon) {
   const cached = getCachedData(REV_GEOCODE_CACHE_PREFIX, cacheKey);
   if (cached) {
     console.log(`📦 [Reverse Geocoding Cache] Cache hit for coordinates: ${cacheKey}`);
+    sendServerApiLog("Reverse Geocoding", "cache_hit", { lat, lon }, null, { key: `coords ${cacheKey}` });
     return cached;
   }
 
+  sendServerApiLog("Reverse Geocoding", "cache_miss", { lat, lon }, null, { key: `coords ${cacheKey}` });
+
   if (process.env.MOCK === "true") {
     console.log("Mock data mode enabled via env var. Serving offline reverse geocoding.");
+    sendServerApiLog("Reverse Geocoding", "simulated_mode", { lat, lon }, null, { reason: "MOCK=true" });
     return `Mock Location (${Number(lat).toFixed(3)}, ${Number(lon).toFixed(3)})`;
   }
 
@@ -549,11 +622,15 @@ export async function reverseGeocode(lat, lon) {
     // Throttle requests to Nominatim
     await throttleFetch();
     
+    sendServerApiLog("Reverse Geocoding", "network_request", { lat, lon }, null, { target: "Nominatim", url });
+
+    const startTime = Date.now();
     const response = await fetch(url, {
       headers: {
         "User-Agent": "BikingForecastApp"
       }
     });
+    const duration = Date.now() - startTime;
     if (response.ok) {
       const data = await response.json();
       const addr = data.address || {};
@@ -594,24 +671,34 @@ export async function reverseGeocode(lat, lon) {
       
       if (placeName) {
         setCachedData(REV_GEOCODE_CACHE_PREFIX, cacheKey, placeName);
+        sendServerApiLog("Reverse Geocoding", "network_success", { lat, lon }, duration, { target: "Nominatim", status: response.status, info: `Resolved to: "${placeName}"` });
         return placeName;
       }
       const fallbackName = data.display_name?.split(",")[0] || null;
       if (fallbackName) {
         const cleanedFallback = getCleanArea(fallbackName);
         setCachedData(REV_GEOCODE_CACHE_PREFIX, cacheKey, cleanedFallback);
+        sendServerApiLog("Reverse Geocoding", "network_success", { lat, lon }, duration, { target: "Nominatim", status: response.status, info: `Resolved fallback to: "${cleanedFallback}"` });
         return cleanedFallback;
       }
+      sendServerApiLog("Reverse Geocoding", "network_failure", { lat, lon }, duration, { target: "Nominatim", status: response.status, message: "Could not parse descriptive place fields" });
       return null;
     }
+    sendServerApiLog("Reverse Geocoding", "network_failure", { lat, lon }, duration, { target: "Nominatim", status: response.status, message: "Response status not OK" });
   } catch (error) {
+    sendServerApiLog("Reverse Geocoding", "network_failure", { lat, lon }, null, { target: "Nominatim", status: "Error", message: error.message });
     console.warn("Nominatim reverse geocode failed: ", error.message);
   }
 
   // 2. Try Photon Komoot reverse (Fallback)
   try {
     const url = `https://photon.komoot.io/reverse?lon=${lon}&lat=${lat}`;
+    
+    sendServerApiLog("Reverse Geocoding", "network_request", { lat, lon }, null, { target: "Photon", url });
+
+    const startTime = Date.now();
     const response = await fetch(url);
+    const duration = Date.now() - startTime;
     if (response.ok) {
       const data = await response.json();
       if (data.features && data.features.length > 0) {
@@ -639,13 +726,19 @@ export async function reverseGeocode(lat, lon) {
         
         if (placeName) {
           setCachedData(REV_GEOCODE_CACHE_PREFIX, cacheKey, placeName);
+          sendServerApiLog("Reverse Geocoding", "network_success", { lat, lon }, duration, { target: "Photon", status: response.status, info: `Resolved to: "${placeName}"` });
           return placeName;
         }
       }
+      sendServerApiLog("Reverse Geocoding", "network_failure", { lat, lon }, duration, { target: "Photon", status: response.status, message: "No features returned" });
+    } else {
+      sendServerApiLog("Reverse Geocoding", "network_failure", { lat, lon }, duration, { target: "Photon", status: response.status, message: "Response status not OK" });
     }
   } catch (error) {
+    sendServerApiLog("Reverse Geocoding", "network_failure", { lat, lon }, null, { target: "Photon", status: "Error", message: error.message });
     console.warn("Photon reverse geocode failed: ", error.message);
   }
 
+  sendServerApiLog("Reverse Geocoding", "simulated_fallback", { lat, lon }, null, { reason: "Reverse geocoding failed both services." });
   return null;
 }
