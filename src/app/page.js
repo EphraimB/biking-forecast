@@ -1193,19 +1193,50 @@ export default function Home() {
   const handleOverlayTimeModeChange = (val) => {
     setTimeMode(val);
     setIsDepartureTimeCustom(true);
+
+    if (val === "arrive") {
+      const totalDist = activeRouteData?.segments?.reduce((sum, seg) => sum + seg.distance, 0) || 0;
+      const baseSpeed = activeRouteData?.speed || 18;
+      const durationMins = totalDist ? Math.ceil((totalDist / baseSpeed) * 60) : 0;
+
+      const targetArrivalDate = new Date();
+      targetArrivalDate.setMinutes(targetArrivalDate.getMinutes() + durationMins);
+
+      if (selectedDayOffset === 0) {
+        const currentSelectedDate = new Date();
+        currentSelectedDate.setHours(selectedHour, selectedMinute, 0, 0);
+
+        if (currentSelectedDate < targetArrivalDate) {
+          setSelectedHour(targetArrivalDate.getHours());
+          setSelectedMinute(targetArrivalDate.getMinutes());
+        }
+      }
+    }
   };
 
   const handleOverlayResetClick = () => {
     const now = new Date();
     setSelectedDayOffset(0);
-    setSelectedHour(now.getHours());
     
-    const currentMin = now.getMinutes();
-    const roundedMin = Math.round(currentMin / 15) * 15 % 60;
-    setSelectedMinute(roundedMin);
-
-    setTimeMode("leave");
-    setIsDepartureTimeCustom(false);
+    if (timeMode === "arrive") {
+      const totalDist = activeRouteData?.segments?.reduce((sum, seg) => sum + seg.distance, 0) || 0;
+      const baseSpeed = activeRouteData?.speed || 18;
+      const durationMins = totalDist ? Math.ceil((totalDist / baseSpeed) * 60) : 0;
+      
+      const targetArrivalDate = new Date();
+      targetArrivalDate.setMinutes(targetArrivalDate.getMinutes() + durationMins);
+      
+      setSelectedHour(targetArrivalDate.getHours());
+      setSelectedMinute(targetArrivalDate.getMinutes());
+      setIsDepartureTimeCustom(true);
+    } else {
+      setSelectedHour(now.getHours());
+      const currentMin = now.getMinutes();
+      const roundedMin = Math.round(currentMin / 15) * 15 % 60;
+      setSelectedMinute(roundedMin);
+      setTimeMode("leave");
+      setIsDepartureTimeCustom(false);
+    }
   };
 
   const handleOverlayReverseClick = () => {
