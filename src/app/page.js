@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { 
   Bike, Plus, Trash2, Calendar, Clock, MapPin, Navigation, 
@@ -313,13 +313,7 @@ export default function Home() {
   const [isRiderConfigOpen, setIsRiderConfigOpen] = useState(false);
 
   // Adaptive Unit Toggle (📐 Metric / Imperial)
-  const [unitSystem, setUnitSystem] = useState(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("hud_unit_system");
-      if (saved) return saved;
-    }
-    return (process.env.NEXT_PUBLIC_IMPERIAL === "true" || process.env.IMPERIAL === "true") ? "imperial" : "metric";
-  });
+  const [unitSystem, setUnitSystem] = useState("metric");
 
   // Tagged Locations (Home, Work, Custom tags)
   const [taggedLocations, setTaggedLocations] = useState([]);
@@ -493,6 +487,7 @@ export default function Home() {
   const startInputRef = useRef(null);
   const endInputRef = useRef(null);
   const fetchedRouteIdsRef = useRef(new Set());
+  const lastLoggedRef = useRef(null);
 
 
   // Derived state: weatherLocationName represents active route's starting city or fallback base location
@@ -521,6 +516,11 @@ export default function Home() {
         setCooldownTime(cdTime);
         localStorage.setItem("weather_429_cooldown_until", cdTime.toString());
         // Do not display a toast notification for rate limit errors as requested by the user
+        return weatherData;
+      }
+      
+      // Do not display a toast notification in simulated mode (when MOCK=true)
+      if (process.env.MOCK === "true") {
         return weatherData;
       }
       
@@ -1549,6 +1549,16 @@ export default function Home() {
       ? weatherResults
       : (ambientWeatherForecast ? [ambientWeatherForecast] : []);
 
+    const startName = getDisplayNameForLocation(confirmedStart || draftStart);
+    const endName = getDisplayNameForLocation(confirmedEnd || draftEnd);
+    const matchingSaved = savedRoutes.find(r => 
+      r.coordinates && routeCoordinates && 
+      JSON.stringify(r.coordinates) === JSON.stringify(routeCoordinates)
+    );
+    const baseRouteName = matchingSaved 
+      ? matchingSaved.name 
+      : (startName && endName ? `${startName} ⇆ ${endName}` : "Active Route");
+
     if (hudState === 3 && isReturnTripMode && routeCoordinates && routeCoordinates.length > 0) {
       return {
         coordinates: [...routeCoordinates].reverse(),
@@ -1557,7 +1567,9 @@ export default function Home() {
         startLocation: confirmedEnd || draftEnd,
         endLocation: confirmedStart || draftStart,
         speed: newSpeed,
-        name: "Active Route (Return)"
+        name: matchingSaved 
+          ? `${matchingSaved.name} (Return)` 
+          : (startName && endName ? `${endName} ⇆ ${startName} (Return)` : "Active Route (Return)")
       };
     }
 
@@ -1568,11 +1580,29 @@ export default function Home() {
       startLocation: confirmedStart || draftStart,
       endLocation: confirmedEnd || draftEnd,
       speed: newSpeed,
-      name: "Active Route"
+      name: baseRouteName
     };
   };
 
-  const activeRouteData = getActiveRouteData();
+  const activeRouteData = useMemo(() => {
+    return getActiveRouteData();
+  }, [
+    selectedDayOffset,
+    weeklySchedule,
+    savedRoutes,
+    scheduledRoutesWeather,
+    hudState,
+    isReturnTripMode,
+    routeCoordinates,
+    routeSegments,
+    weatherResults,
+    ambientWeatherForecast,
+    confirmedStart,
+    confirmedEnd,
+    draftStart,
+    draftEnd,
+    newSpeed
+  ]);
 
   // Debounced map viewport move callback for panning updates
   const handleMapMove = useCallback((coord) => {
@@ -1661,7 +1691,9 @@ export default function Home() {
     return d.toLocaleDateString("en-US", { weekday: "long" });
   };
 
-  const activeForecast = getActiveForecast();
+  const activeForecast = useMemo(() => {
+    return getActiveForecast();
+  }, [activeRouteData, selectedDayOffset, selectedHour, selectedMinute, hudState, isReturnTripMode, isDepartureTimeCustom, timeMode]);
 
   const getLeaveNowOverlayData = () => {
     if (!activeForecast) return null;
@@ -1953,7 +1985,7 @@ export default function Home() {
 
   // 4. Debug Console Logger for Route-Specific Weather and Scores
   useEffect(() => {
-    if (!activeForecast || !activeForecast.penalties || !activeRouteData || !activeRouteData.weatherResults || activeRouteData.weatherResults.length === 0) return;
+    if (!isRestored || isLoading || !activeForecast || !activeForecast.penalties || !activeRouteData || !activeRouteData.weatherResults || activeRouteData.weatherResults.length === 0) return;
 
     let hourIdx;
     if (hudState === 3) {
@@ -1976,9 +2008,23 @@ export default function Home() {
 
     const targetDate = new Date();
     targetDate.setDate(targetDate.getDate() + selectedDayOffset);
-    const dateFormatted = targetDate.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-    
+
     const activeHourNumber = hourIdx % 24;
+    const targetTimeStr = new Date(targetDate.setHours(activeHourNumber, 0, 0, 0)).toISOString();
+
+    // Construct a unique key for the current log state
+    const logKey = [
+      activeRouteData.name || "Active Route",
+      activeForecast.score,
+      targetTimeStr,
+      !isReturnTripMode,
+      unitSystem,
+      activeRouteData.coordinates ? JSON.stringify(activeRouteData.coordinates) : ""
+    ].join("|");
+
+    if (lastLoggedRef.current === logKey) return;
+
+    const dateFormatted = targetDate.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
     const timeFormatted = `${activeHourNumber.toString().padStart(2, "0")}:00 ${activeHourNumber >= 12 ? "PM" : "AM"}`;
 
     const numPoints = activeRouteData.weatherResults.length;
@@ -2053,6 +2099,7 @@ export default function Home() {
 
     // Debounced automatic terminal logging via server POST route
     const logTimer = setTimeout(() => {
+      lastLoggedRef.current = logKey;
       fetch("/api/log-commute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2065,7 +2112,7 @@ export default function Home() {
             hourDetails: activeForecast
           },
           isOutbound: !isReturnTripMode,
-          targetTimeStr: new Date(targetDate.setHours(hourIdx % 24, 0, 0, 0)).toISOString(),
+          targetTimeStr,
           baseSpeed: activeRouteData.speed,
           unitSystem
         })
@@ -2073,7 +2120,7 @@ export default function Home() {
     }, 400);
 
     return () => clearTimeout(logTimer);
-  }, [activeForecast, activeRouteData, selectedDayOffset, selectedHour, hudState, isReturnTripMode, unitSystem]);
+  }, [activeForecast, activeRouteData, selectedDayOffset, selectedHour, hudState, isReturnTripMode, unitSystem, isRestored, isLoading]);
 
   const selectedDayDate = new Date();
   selectedDayDate.setDate(selectedDayDate.getDate() + selectedDayOffset);

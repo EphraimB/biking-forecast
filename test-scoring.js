@@ -1,8 +1,8 @@
 import { calculateCommuteScore, calculateDepartureTimeForArrival } from "./src/utils/weatherScoring.js";
 
 // Parse CLI Flags
-const isVerbose = process.argv.includes("--verbose") || process.argv.includes("-v");
-const isImperial = process.argv.includes("--imperial") || process.argv.includes("-i") || process.env.IMPERIAL === "true" || process.env.NEXT_PUBLIC_IMPERIAL === "true";
+const isVerbose = process.argv.includes("--verbose") || process.argv.includes("-v") || process.env.VERBOSE === "true";
+const isImperial = process.argv.includes("--imperial") || process.argv.includes("-i") || process.env.IMPERIAL_LOGS === "true";
 
 // Mock route segments (from North to South)
 // 10 km route split into 5 segments going South (bearing = 180)
@@ -131,12 +131,16 @@ function formatTerminalReportLineByLine(title, result, isOutbound, targetTimeStr
 
   console.log(`\n${bold}${cyan}${title}${reset}`);
   console.log(`  ${bold}Score     :${reset} ${bold}${scoreColor}${score}/100${reset} (${scoreRating})`);
-  console.log(`  ${gray}Deds      : Temp: -${details.penalties?.temp ?? 0} | Wind: -${details.penalties?.wind ?? 0} | Rain: -${details.penalties?.rain ?? 0} | WMO: -${details.penalties?.wmo ?? 0}${reset}`);
+  if (isVerbose) {
+    console.log(`  ${gray}Deds      : Temp: -${details.penalties?.temp ?? 0} | Wind: -${details.penalties?.wind ?? 0} | Rain: -${details.penalties?.rain ?? 0} | WMO: -${details.penalties?.wmo ?? 0}${reset}`);
+  }
   console.log(`  ${bold}Commute   :${reset} Dep: ${depTimeText} -> Arr: ${arrTimeText} (${duration} mins, ${displayDist})`);
   console.log(`  ${bold}Speed     :${reset} Avg: ${displaySpeedAvg} | Base: ${displaySpeedBase}`);
   console.log(`  ${bold}Weather   :${reset} ${details.wmoDesc ?? "Clear"} | Temp: ${displayTemp} | Rain: ${details.rainProb ?? 0}% (${displayPrecip})`);
-  console.log(`  ${bold}Wind      :${reset} Speed: ${displayWindSpeed} | Impact: ${details.windImpact ?? "None"}`);
-  console.log(`                 Headwind: ${displayHeadwind} | Crosswind: ${displayCrosswind} | Gusts: ${displayGusts}`);
+  if (isVerbose) {
+    console.log(`  ${bold}Wind      :${reset} Speed: ${displayWindSpeed} | Impact: ${details.windImpact ?? "None"}`);
+    console.log(`                 Headwind: ${displayHeadwind} | Crosswind: ${displayCrosswind} | Gusts: ${displayGusts}`);
+  }
 }
 
 // Run calculations
