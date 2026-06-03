@@ -2623,7 +2623,7 @@ export default function Home() {
             <button 
               className="hud-bubble" 
               onClick={() => setHudState(1)}
-              style={{ cursor: "pointer", fontWeight: "600", border: "1px solid rgba(255, 255, 255, 0.1)", display: "flex", alignItems: "center", gap: "8px", pointerEvents: "auto" }}
+              style={{ cursor: "pointer", fontWeight: "600", border: "1px solid var(--hud-border)", display: "flex", alignItems: "center", gap: "8px", pointerEvents: "auto" }}
               title="Plan Custom Route"
             >
               <Search size={16} style={{ color: "var(--hud-text-secondary)" }} />
@@ -2638,7 +2638,7 @@ export default function Home() {
             <button 
               className="hud-bubble" 
               onClick={() => setHudState(1)}
-              style={{ cursor: "pointer", fontWeight: "600", border: "1px solid rgba(255, 255, 255, 0.1)", display: "flex", alignItems: "center", gap: "8px", pointerEvents: "auto" }}
+              style={{ cursor: "pointer", fontWeight: "600", border: "1px solid var(--hud-border)", display: "flex", alignItems: "center", gap: "8px", pointerEvents: "auto" }}
               title="Change Active Route"
             >
               <Search size={16} style={{ color: "var(--hud-text-secondary)" }} />
@@ -2861,7 +2861,7 @@ export default function Home() {
                       </p>
 
                       {/* Quick Bulk Scheduler Form */}
-                      <div style={{ background: "rgba(255,255,255,0.05)", padding: "12px", borderRadius: "14px", border: "1px solid rgba(255,255,255,0.1)", display: "flex", flexDirection: "column", gap: "10px" }}>
+                      <div style={{ background: "var(--hud-btn-bg)", padding: "12px", borderRadius: "14px", border: "1px solid var(--hud-border)", display: "flex", flexDirection: "column", gap: "10px" }}>
                         <span style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--color-emerald)", display: "flex", alignItems: "center", gap: "4px" }}>
                           🚀 Quick Bulk Scheduler
                         </span>
@@ -2937,7 +2937,7 @@ export default function Home() {
                                   }}
                                   className={styles.pillDayCheckbox}
                                   style={{
-                                    background: isActive ? "var(--color-emerald)" : "rgba(255,255,255,0.06)",
+                                    background: isActive ? "var(--color-emerald)" : "var(--hud-btn-bg)",
                                     border: isActive ? "1px solid var(--color-emerald)" : "1px solid var(--hud-border)"
                                   }}
                                 >
@@ -3328,7 +3328,7 @@ export default function Home() {
                     {/* Render Use Current Location option */}
                     <div 
                       className={`hud-btn ${styles.setupDropItem}`} 
-                      style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", borderRadius: 0, paddingBottom: "10px", marginBottom: "4px" }}
+                      style={{ borderBottom: "1px solid var(--hud-border)", borderRadius: 0, paddingBottom: "10px", marginBottom: "4px" }}
                       onClick={() => handleSelectCurrentLocation(true)}
                     >
                       <span style={{ fontSize: "0.9rem", flexShrink: 0 }}>📍</span>
@@ -3485,7 +3485,7 @@ export default function Home() {
                     {/* Render Use Current Location option */}
                     <div 
                       className={`hud-btn ${styles.setupDropItem}`} 
-                      style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", borderRadius: 0, paddingBottom: "10px", marginBottom: "4px" }}
+                      style={{ borderBottom: "1px solid var(--hud-border)", borderRadius: 0, paddingBottom: "10px", marginBottom: "4px" }}
                       onClick={() => handleSelectCurrentLocation(false)}
                     >
                       <span style={{ fontSize: "0.9rem", flexShrink: 0 }}>📍</span>
@@ -3643,7 +3643,7 @@ export default function Home() {
               onTouchEnd={(e) => e.stopPropagation()}
             >
               {/* Header: Route Score & Clear Route (Combined) */}
-              <div className={styles.setupHeader} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "8px", marginBottom: "8px" }}>
+              <div className={styles.setupHeader} style={{ borderBottom: "1px solid var(--hud-border)", paddingBottom: "8px", marginBottom: "8px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <div 
                     className={`${styles.pulseDot} ${activeForecast.score >= 85 ? "hud-pulse-emerald" : activeForecast.score >= 50 ? "hud-pulse-amber" : "hud-pulse-ruby"}`}
@@ -3721,47 +3721,16 @@ export default function Home() {
               </div>
 
               {/* Leave / Arrive Segmented Control */}
-              <div style={{
-                display: "flex",
-                background: "rgba(0,0,0,0.3)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: "8px",
-                padding: "2px",
-                marginBottom: "2px"
-              }}>
+              <div className={styles.segmentedControl}>
                 <button 
                   onClick={() => handleOverlayTimeModeChange('leave')} 
-                  style={{
-                    flex: 1,
-                    background: getLeaveNowOverlayData().timeMode === "leave" ? "rgba(255, 255, 255, 0.12)" : "transparent",
-                    border: "none",
-                    borderRadius: "6px",
-                    color: getLeaveNowOverlayData().timeMode === "leave" ? "var(--color-emerald)" : "var(--hud-text-secondary)",
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    padding: "6px",
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    outline: "none",
-                  }}
+                  className={`${styles.segmentedBtn} ${getLeaveNowOverlayData().timeMode === "leave" ? styles.segmentedBtnActive : ""}`}
                 >
                   Leave At
                 </button>
                 <button 
                   onClick={() => handleOverlayTimeModeChange('arrive')} 
-                  style={{
-                    flex: 1,
-                    background: getLeaveNowOverlayData().timeMode === "arrive" ? "rgba(255, 255, 255, 0.12)" : "transparent",
-                    border: "none",
-                    borderRadius: "6px",
-                    color: getLeaveNowOverlayData().timeMode === "arrive" ? "var(--color-emerald)" : "var(--hud-text-secondary)",
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    padding: "6px",
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    outline: "none",
-                  }}
+                  className={`${styles.segmentedBtn} ${getLeaveNowOverlayData().timeMode === "arrive" ? styles.segmentedBtnActive : ""}`}
                 >
                   Arrive At
                 </button>
@@ -3874,57 +3843,25 @@ export default function Home() {
               </div>
 
               {/* Actions Row */}
-              <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+              <div style={{ borderTop: "1px solid var(--hud-border)", paddingTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
                 {getLeaveNowOverlayData().isSaved ? (
                   <button 
                     disabled 
-                    className="hud-btn"
-                    style={{
-                      background: "rgba(255,255,255,0.05)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      color: "var(--hud-text-secondary)",
-                      fontSize: "10px",
-                      fontWeight: 700,
-                      padding: "4px 8px",
-                      cursor: "not-allowed",
-                      borderRadius: "6px"
-                    }}
+                    className={`${styles.overlayBtn} hud-btn`}
                   >
                     ✓ Bookmarked
                   </button>
                 ) : (
                   <button 
                     onClick={handleOverlaySaveRouteClick} 
-                    className="hud-btn"
-                    style={{
-                      background: "rgba(255, 255, 255, 0.1)",
-                      border: "1px solid rgba(255, 255, 255, 0.2)",
-                      color: "var(--hud-text-primary)",
-                      fontSize: "10px",
-                      fontWeight: 700,
-                      padding: "4px 8px",
-                      cursor: "pointer",
-                      borderRadius: "6px",
-                      transition: "all 0.2s ease",
-                    }}
+                    className={`${styles.overlayBtn} hud-btn`}
                   >
                     💾 Save Route
                   </button>
                 )}
                 <button 
                   onClick={handleOverlayReverseClick} 
-                  className="hud-btn"
-                  style={{
-                    background: "var(--color-emerald)",
-                    border: "none",
-                    borderRadius: "6px",
-                    color: "white",
-                    fontSize: "10px",
-                    fontWeight: 700,
-                    padding: "4px 8px",
-                    cursor: "pointer",
-                    boxShadow: "0 2px 6px rgba(16, 185, 129, 0.3)",
-                  }}
+                  className={`${styles.overlayPrimaryBtn} hud-btn`}
                 >
                   ⇅ Reverse Route
                 </button>
@@ -3985,7 +3922,7 @@ export default function Home() {
                     }
                   }}
                   style={{ 
-                    background: isSelected ? "rgba(255,255,255,0.08)" : "transparent",
+                    background: isSelected ? "var(--hud-btn-bg)" : "transparent",
                     border: isSelected ? "1px solid var(--hud-border-glow)" : "1px solid transparent"
                   }}
                 >

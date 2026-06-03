@@ -57,6 +57,14 @@
   --hud-btn-border: rgba(255, 255, 255, 0.06);
   --hud-btn-hover-bg: hsla(0, 0%, 100%, 0.16);
   --hud-btn-hover-border: rgba(255, 255, 255, 0.15);
+  --hud-btn-disabled-bg: rgba(255, 255, 255, 0.04);
+  --hud-btn-disabled-border: rgba(255, 255, 255, 0.03);
+
+  /* Segmented Control Variables */
+  --segmented-bg: rgba(0, 0, 0, 0.3);
+  --segmented-border: rgba(255, 255, 255, 0.08);
+  --segmented-active-bg: rgba(255, 255, 255, 0.12);
+  --segmented-active-shadow: none;
 
   /* Atmospheric Tints */
   --color-wind: hsl(196, 60%, 80%);
@@ -99,6 +107,14 @@
   --hud-btn-border: rgba(0, 0, 0, 0.08);
   --hud-btn-hover-bg: rgba(0, 0, 0, 0.10);
   --hud-btn-hover-border: rgba(0, 0, 0, 0.15);
+  --hud-btn-disabled-bg: rgba(0, 0, 0, 0.03);
+  --hud-btn-disabled-border: rgba(0, 0, 0, 0.05);
+
+  /* Segmented Control Variables for Light Theme */
+  --segmented-bg: rgba(0, 0, 0, 0.05);
+  --segmented-border: rgba(0, 0, 0, 0.08);
+  --segmented-active-bg: #ffffff;
+  --segmented-active-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
 
   /* Darken wind flow lines in light mode so they are visible on a light map */
   --color-wind: hsl(200, 70%, 45%);
@@ -220,8 +236,8 @@ html, body {
 }
 
 .hud-btn:disabled {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border-color: rgba(255, 255, 255, 0.03) !important;
+  background: var(--hud-btn-disabled-bg) !important;
+  border-color: var(--hud-btn-disabled-border) !important;
   color: var(--hud-text-secondary) !important;
   cursor: not-allowed !important;
   box-shadow: none !important;
