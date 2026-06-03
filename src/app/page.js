@@ -3113,6 +3113,7 @@ export default function Home() {
           <button 
             className={`hud-bubble desktop-only`} 
             onClick={() => setIsLightMode(!isLightMode)}
+            style={{ cursor: "pointer" }}
             title="Toggle Light/Dark Theme"
           >
             {isLightMode ? "☀️" : "🌙"} <span className="mobile-hide">{isLightMode ? "LIGHT" : "DARK"}</span>
