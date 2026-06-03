@@ -1,7 +1,7 @@
 :root {
   /* Google Font Pairings */
-  --font-heading: var(--font-heading), sans-serif;
-  --font-body: var(--font-body), sans-serif;
+  --font-heading: var(--font-outfit), sans-serif;
+  --font-body: var(--font-inter), sans-serif;
 
   /* Custom HSL Design Tokens (HUD Slate Dark Theme) */
   --hud-bg-raw: 222, 47%, 11%;
