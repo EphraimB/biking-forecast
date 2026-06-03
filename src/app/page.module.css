@@ -1313,8 +1313,8 @@
 }
 
 .tagButton:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--hud-btn-hover-bg);
+  border-color: var(--hud-btn-hover-border);
 }
 
 .tagButtonActive {
@@ -1330,7 +1330,7 @@
 }
 
 .customTagInput {
-  background: rgba(15, 23, 42, 0.9);
+  background: var(--hud-btn-bg);
   border: 1px solid var(--color-emerald);
   border-radius: 6px;
   color: var(--hud-text-primary);
@@ -1354,7 +1354,7 @@
 }
 
 .tagClearButton:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--hud-btn-hover-bg);
   color: var(--color-ruby);
 }
 
@@ -1391,7 +1391,7 @@
 
 .searchIconBtn:hover {
   color: var(--color-emerald);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--hud-btn-hover-bg);
 }
 
 .relativeWrapper input {
