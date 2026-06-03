@@ -1,9 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@400;500;600;700;800&display=swap');
-
 :root {
   /* Google Font Pairings */
-  --font-heading: 'Outfit', 'Outfit Fallback', sans-serif;
-  --font-body: 'Inter', 'Inter Fallback', sans-serif;
+  --font-heading: var(--font-heading), sans-serif;
+  --font-body: var(--font-body), sans-serif;
 
   /* Custom HSL Design Tokens (HUD Slate Dark Theme) */
   --hud-bg-raw: 222, 47%, 11%;
