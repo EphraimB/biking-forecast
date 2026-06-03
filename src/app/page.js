@@ -2917,6 +2917,33 @@ export default function Home() {
                     triggerGeocode(val, true);
                   }}
                 />
+                {taggedLocations.length > 0 && (
+                  <div className={styles.quickTagsContainer}>
+                    {taggedLocations.map((tl, idx) => {
+                      const displayTag = tl.tag.toLowerCase() === 'home' ? '🏠 Home' : tl.tag.toLowerCase() === 'work' ? '💼 Work' : `🏷️ ${tl.tag}`;
+                      const isActive = draftStart && draftStart.lat !== undefined && draftStart.lon !== undefined && getDistance(tl.lat, tl.lon, draftStart.lat, draftStart.lon) < 0.05;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          className={`${styles.quickTagBtn} ${isActive ? styles.quickTagBtnActive : ''}`}
+                          onClick={() => {
+                            const resolvedLoc = { lat: tl.lat, lon: tl.lon, label: tl.label };
+                            setDraftStart(resolvedLoc);
+                            setStartQuery(getLabelWithTag(resolvedLoc, taggedLocations));
+                            setStartResults([]);
+                            if (startGeocodeTimeoutRef.current) {
+                              clearTimeout(startGeocodeTimeoutRef.current);
+                              startGeocodeTimeoutRef.current = null;
+                            }
+                          }}
+                        >
+                          {displayTag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 {startResults.length > 0 && (
                   <div className={`${styles.setupDropBox} hud-card`}>
                     {startResults.map((loc, idx) => (
@@ -2964,7 +2991,7 @@ export default function Home() {
                           autoFocus
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
-                              const val = e.target.value.trim();
+                               const val = e.target.value.trim();
                               handleToggleTag(draftStart, val, true);
                               setIsEditingCustomStart(false);
                             } else if (e.key === 'Escape') {
@@ -3017,6 +3044,33 @@ export default function Home() {
                     triggerGeocode(val, false);
                   }}
                 />
+                {taggedLocations.length > 0 && (
+                  <div className={styles.quickTagsContainer}>
+                    {taggedLocations.map((tl, idx) => {
+                      const displayTag = tl.tag.toLowerCase() === 'home' ? '🏠 Home' : tl.tag.toLowerCase() === 'work' ? '💼 Work' : `🏷️ ${tl.tag}`;
+                      const isActive = draftEnd && draftEnd.lat !== undefined && draftEnd.lon !== undefined && getDistance(tl.lat, tl.lon, draftEnd.lat, draftEnd.lon) < 0.05;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          className={`${styles.quickTagBtn} ${isActive ? styles.quickTagBtnActive : ''}`}
+                          onClick={() => {
+                            const resolvedLoc = { lat: tl.lat, lon: tl.lon, label: tl.label };
+                            setDraftEnd(resolvedLoc);
+                            setEndQuery(getLabelWithTag(resolvedLoc, taggedLocations));
+                            setEndResults([]);
+                            if (endGeocodeTimeoutRef.current) {
+                              clearTimeout(endGeocodeTimeoutRef.current);
+                              endGeocodeTimeoutRef.current = null;
+                            }
+                          }}
+                        >
+                          {displayTag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 {endResults.length > 0 && (
                   <div className={`${styles.setupDropBox} hud-card`}>
                     {endResults.map((loc, idx) => (
@@ -3064,7 +3118,7 @@ export default function Home() {
                           autoFocus
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
-                              const val = e.target.value.trim();
+                               const val = e.target.value.trim();
                               handleToggleTag(draftEnd, val, false);
                               setIsEditingCustomEnd(false);
                             } else if (e.key === 'Escape') {
@@ -3100,6 +3154,7 @@ export default function Home() {
                   </div>
                 )}
               </div>
+
 
               {/* Confirm Route build pipeline */}
               <button 
