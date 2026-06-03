@@ -23,7 +23,8 @@ export default function RouteMap({
   hudState = 0,
   userLocation = null,
   ambientWeatherForecast = null,
-  onMapMove = null
+  onMapMove = null,
+  activeHourIdx = null
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -196,7 +197,9 @@ export default function RouteMap({
 
     import("leaflet").then((L) => {
       let currentHourIdx;
-      if (hudState === 3) {
+      if (activeHourIdx !== undefined && activeHourIdx !== null) {
+        currentHourIdx = activeHourIdx;
+      } else if (hudState === 3) {
         // If actively scrubbing the timeline in State 3, sync with the scrubber values
         currentHourIdx = selectedDay * 24 + selectedHour;
       } else {
@@ -239,22 +242,30 @@ export default function RouteMap({
           
           accumulatedDistance += seg.distance; // seg.distance is in km
 
-          let difficulty = "Neutral";
+          let difficulty = "Neutral / Calm Wind";
           let color = "var(--primary)";
           let flowClass = "route-flow-neutral";
-          
-          if (headwind > 12 || crosswind > 20) {
-            difficulty = "Adverse Winds (Heavy effort)";
-            color = "var(--color-ruby)";
-            flowClass = "route-flow-hard";
-          } else if (headwind > 4 || crosswind > 10) {
-            difficulty = "Moderate resistance";
-            color = "var(--color-amber)";
-            flowClass = "route-flow-medium";
-          } else if (headwind < -4) {
-            difficulty = "Helpful Tailwind";
-            color = "var(--color-emerald)";
-            flowClass = "route-flow-easy";
+
+          if (windSpeed > 3) {
+            const absHeadwind = Math.abs(headwind);
+            if (crosswind > absHeadwind) {
+              difficulty = "Crosswinds";
+              color = "hsl(30, 95%, 48%)";
+              flowClass = windSpeed > 15 ? "route-flow-hard" : "route-flow-medium";
+            } else if (headwind > 0) {
+              const t = Math.min(1, Math.max(0, (headwind - 3) / 12));
+              const lightness = Math.round(65 - t * 25);
+              color = `hsl(350, 85%, ${lightness}%)`;
+              difficulty = headwind > 10 ? "Heavy Headwind" : "Lighter Headwind";
+              flowClass = headwind > 10 ? "route-flow-hard" : "route-flow-medium";
+            } else {
+              const tailwind = -headwind;
+              const t = Math.min(1, Math.max(0, (tailwind - 3) / 12));
+              const lightness = Math.round(60 - t * 25);
+              color = `hsl(142, 75%, ${lightness}%)`;
+              difficulty = tailwind > 10 ? "Heavy Tailwind" : "Lighter Tailwind";
+              flowClass = "route-flow-easy";
+            }
           }
 
           const polyCoords = [[seg.lat1, seg.lon1], [seg.lat2, seg.lon2]];
@@ -320,7 +331,6 @@ export default function RouteMap({
             <RouteMapTooltip 
               difficulty={difficulty}
               color={color}
-              displayDist={displayDist}
               displaySpeed={displaySpeed}
               speedPercent={speedPercent}
               bearing={seg.bearing}
@@ -542,7 +552,7 @@ export default function RouteMap({
 
     });
 
-  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState, customSpeed, userLocation]);
+  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState, customSpeed, userLocation, activeHourIdx]);
 
   // Synchronously compute derived environmental metrics in render (avoiding useEffect cascading triggers)
   const getAmbientWeatherMetrics = () => {
@@ -555,7 +565,9 @@ export default function RouteMap({
     }
 
     let currentHourIdx;
-    if (hudState === 3) {
+    if (activeHourIdx !== undefined && activeHourIdx !== null) {
+      currentHourIdx = activeHourIdx;
+    } else if (hudState === 3) {
       currentHourIdx = selectedDay * 24 + selectedHour;
     } else {
       const now = new Date();
