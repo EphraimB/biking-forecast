@@ -155,6 +155,7 @@ export default function RouteMap({
         }
 
         map.on("click", (e) => {
+          lastCenteredStartRef.current = `${e.latlng.lat},${e.latlng.lng}`;
           if (onMapClickRef.current) {
             onMapClickRef.current({ lat: e.latlng.lat, lon: e.latlng.lng });
           }

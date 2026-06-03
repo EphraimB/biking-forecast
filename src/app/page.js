@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { 
   Bike, Plus, Trash2, Calendar, Clock, MapPin, Navigation, 
@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 import { fetchBicycleRoute, fetchRouteWeather, geocodeAddress, reverseGeocode } from "@/utils/api";
-import { decodePolyline6, calculateRouteSegments, sampleCoordinates } from "@/utils/routeUtils";
+import { decodePolyline6, calculateRouteSegments, sampleCoordinates, getDistance } from "@/utils/routeUtils";
 import { calculateCommuteScore, calculateDepartureTimeForArrival, WMO_MAP } from "@/utils/weatherScoring";
 import styles from "./page.module.css";
 
@@ -159,9 +159,10 @@ function CustomTimeInput({ value, onChange, unitSystem, isBulk = false }) {
           value={localHour}
           onChange={handleLocalHourInputChange}
           onBlur={(e) => commitHour(e.target.value)}
+          onFocus={(e) => e.target.select()}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              e.target.blur();
+               e.target.blur();
             }
           }}
           className={inputClass}
@@ -175,9 +176,10 @@ function CustomTimeInput({ value, onChange, unitSystem, isBulk = false }) {
           value={localMinute}
           onChange={handleLocalMinuteInputChange}
           onBlur={(e) => commitMinute(e.target.value)}
+          onFocus={(e) => e.target.select()}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              e.target.blur();
+               e.target.blur();
             }
           }}
           className={inputClass}
@@ -196,9 +198,10 @@ function CustomTimeInput({ value, onChange, unitSystem, isBulk = false }) {
           value={localHour}
           onChange={handleLocalHourInputChange}
           onBlur={(e) => commitHour(e.target.value)}
+          onFocus={(e) => e.target.select()}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              e.target.blur();
+               e.target.blur();
             }
           }}
           className={inputClass}
@@ -212,9 +215,10 @@ function CustomTimeInput({ value, onChange, unitSystem, isBulk = false }) {
           value={localMinute}
           onChange={handleLocalMinuteInputChange}
           onBlur={(e) => commitMinute(e.target.value)}
+          onFocus={(e) => e.target.select()}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              e.target.blur();
+               e.target.blur();
             }
           }}
           className={inputClass}
@@ -223,7 +227,7 @@ function CustomTimeInput({ value, onChange, unitSystem, isBulk = false }) {
           value={period}
           onChange={(e) => handlePeriodChange(e.target.value)}
           className={selectClass}
-          style={{ marginLeft: "2px" }}
+          style={{ marginLeft: "2px", width: "auto" }}
         >
           <option value="AM" style={{ background: "#0f172a", color: "#f8fafc" }}>AM</option>
           <option value="PM" style={{ background: "#0f172a", color: "#f8fafc" }}>PM</option>
@@ -315,6 +319,92 @@ export default function Home() {
   // Adaptive Unit Toggle (📐 Metric / Imperial)
   const [unitSystem, setUnitSystem] = useState("metric");
 
+  // Tagged Locations (Home, Work, Custom tags)
+  const [taggedLocations, setTaggedLocations] = useState([]);
+  const [isEditingCustomStart, setIsEditingCustomStart] = useState(false);
+  const [isEditingCustomEnd, setIsEditingCustomEnd] = useState(false);
+
+  const getDisplayNameForLocation = useCallback((loc) => {
+    if (!loc) return "";
+    if (taggedLocations.length > 0 && loc.lat !== undefined && loc.lon !== undefined) {
+      const match = taggedLocations.find(tl => getDistance(tl.lat, tl.lon, loc.lat, loc.lon) < 0.05); // 50m
+      if (match) {
+        const emojis = { home: "🏠 Home", work: "💼 Work" };
+        return emojis[match.tag.toLowerCase()] || `🏷️ ${match.tag}`;
+      }
+    }
+    const label = loc.label || "";
+    if (label.startsWith("🏠") || label.startsWith("💼") || label.startsWith("🏷️") || label.startsWith("🎓")) {
+      return label.split(" (")[0];
+    }
+    if (label.startsWith("(") && label.endsWith(")")) return label;
+    return label.split(",")[0];
+  }, [taggedLocations]);
+
+  const getLabelWithTag = useCallback((loc, taggedLocs = taggedLocations) => {
+    if (!loc) return "";
+    if (taggedLocs.length > 0 && loc.lat !== undefined && loc.lon !== undefined) {
+      const match = taggedLocs.find(tl => getDistance(tl.lat, tl.lon, loc.lat, loc.lon) < 0.05);
+      if (match) {
+        const emojis = { home: "🏠 Home", work: "💼 Work" };
+        const displayTag = emojis[match.tag.toLowerCase()] || `🏷️ ${match.tag}`;
+        const cleanLabel = loc.label ? loc.label.split(",")[0] : "";
+        return `${displayTag} (${cleanLabel})`;
+      }
+    }
+    return loc.label || "";
+  }, [taggedLocations]);
+
+  const saveTaggedLocation = (lat, lon, tag, label) => {
+    setTaggedLocations(prev => {
+      const filtered = prev.filter(tl => getDistance(tl.lat, tl.lon, lat, lon) >= 0.05);
+      let updated;
+      if (tag) {
+        updated = [...filtered, { lat, lon, tag, label }];
+      } else {
+        updated = filtered;
+      }
+      localStorage.setItem("hud_tagged_locations", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const getRouteDisplayName = useCallback((route) => {
+    if (!route) return "";
+    const startName = getDisplayNameForLocation(route.start);
+    const endName = getDisplayNameForLocation(route.end);
+    if (!route.name || route.name.includes(" ⇆ ")) {
+      return `${startName} ⇆ ${endName}`;
+    }
+    return route.name;
+  }, [getDisplayNameForLocation]);
+
+  const handleToggleTag = (loc, tag, isStart) => {
+    if (!loc) return;
+    saveTaggedLocation(loc.lat, loc.lon, tag, loc.label);
+    
+    // Proactively update query string for the input
+    const emojis = { home: "🏠 Home", work: "💼 Work" };
+    const displayTag = tag ? (emojis[tag.toLowerCase()] || `🏷️ ${tag}`) : null;
+    const cleanLabel = loc.label.split(",")[0];
+    const newQueryVal = displayTag ? `${displayTag} (${cleanLabel})` : loc.label;
+    
+    if (isStart) {
+      setStartQuery(newQueryVal);
+    } else {
+      setEndQuery(newQueryVal);
+    }
+  };
+
+  const getActiveTag = useCallback((loc) => {
+    if (!loc || !loc.lat || !loc.lon) return null;
+    const match = taggedLocations.find(tl => getDistance(tl.lat, tl.lon, loc.lat, loc.lon) < 0.05);
+    return match ? match.tag : null;
+  }, [taggedLocations]);
+
+  const startTag = getActiveTag(draftStart);
+  const endTag = getActiveTag(draftEnd);
+
   // Custom Departure overlay time input states
   const [prevSelectedHour, setPrevSelectedHour] = useState(selectedHour);
   const [prevSelectedMinute, setPrevSelectedMinute] = useState(selectedMinute);
@@ -400,12 +490,14 @@ export default function Home() {
   const mapMoveTimeoutRef = useRef(null);
   const startInputRef = useRef(null);
   const endInputRef = useRef(null);
+  const fetchedRouteIdsRef = useRef(new Set());
+  const lastLoggedRef = useRef(null);
 
 
   // Derived state: weatherLocationName represents active route's starting city or fallback base location
   const activeStartLoc = (hudState === 2 || hudState === 3) ? confirmedStart : draftStart;
   const weatherLocationName = (activeStartLoc && activeStartLoc.label && baseWeatherLocationName !== "Map Viewport")
-    ? (activeStartLoc.label.split(",")[0] || "Route Start")
+    ? (getDisplayNameForLocation(activeStartLoc) || "Route Start")
     : baseWeatherLocationName;
 
   const formatCooldown = (seconds) => {
@@ -428,6 +520,11 @@ export default function Home() {
         setCooldownTime(cdTime);
         localStorage.setItem("weather_429_cooldown_until", cdTime.toString());
         // Do not display a toast notification for rate limit errors as requested by the user
+        return weatherData;
+      }
+      
+      // Do not display a toast notification in simulated mode (when MOCK=true)
+      if (process.env.MOCK === "true") {
         return weatherData;
       }
       
@@ -760,6 +857,29 @@ export default function Home() {
     }
   }, [cooldownTime]);
 
+  // Keep "Leave Now" time synced to the current system clock if not in custom mode
+  useEffect(() => {
+    if (isDepartureTimeCustom || selectedDayOffset !== 0) return;
+
+    const syncTime = () => {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMin = now.getMinutes();
+      
+      if (selectedHour !== currentHour) {
+        setSelectedHour(currentHour);
+      }
+      if (selectedMinute !== currentMin) {
+        setSelectedMinute(currentMin);
+      }
+    };
+
+    syncTime();
+
+    const interval = setInterval(syncTime, 10000);
+    return () => clearInterval(interval);
+  }, [isDepartureTimeCustom, selectedDayOffset, selectedHour, selectedMinute]);
+
   // 1. Initial Mount: Restore Active View State
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -779,6 +899,17 @@ export default function Home() {
           setSavedRoutes(JSON.parse(saved));
         } catch (e) {
           console.error("Error loading saved routes:", e);
+        }
+      }
+
+      const savedTagged = localStorage.getItem("hud_tagged_locations");
+      let loadedTags = [];
+      if (savedTagged) {
+        try {
+          loadedTags = JSON.parse(savedTagged);
+          setTaggedLocations(loadedTags);
+        } catch (e) {
+          console.error("Error loading tagged locations:", e);
         }
       }
 
@@ -822,8 +953,8 @@ export default function Home() {
             setConfirmedEnd(endLoc);
             setDraftStart(startLoc);
             setDraftEnd(endLoc);
-            setStartQuery(startLoc.label);
-            setEndQuery(endLoc.label);
+            setStartQuery(getLabelWithTag(startLoc, loadedTags));
+            setEndQuery(getLabelWithTag(endLoc, loadedTags));
             
             // Re-trigger background fetches, maintaining correct visual state
             loadRouteDetails(
@@ -883,7 +1014,8 @@ export default function Home() {
     }, 0);
 
     return () => clearTimeout(handle);
-  }, [fetchAmbientWeather, loadRouteDetails]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 2. Global View State Cache Synchronizer (Guarded)
   useEffect(() => {
@@ -1015,8 +1147,8 @@ export default function Home() {
     // Physically swap search query values and draft locations
     setDraftStart(oldEnd);
     setDraftEnd(oldStart);
-    setStartQuery(oldEnd.label || "");
-    setEndQuery(oldStart.label || "");
+    setStartQuery(getLabelWithTag(oldEnd) || "");
+    setEndQuery(getLabelWithTag(oldStart) || "");
 
     // Physically swap confirmed endpoints
     setConfirmedStart(oldEnd);
@@ -1138,8 +1270,8 @@ export default function Home() {
       setHudState(2);
       setDraftStart(confirmedStart);
       setDraftEnd(confirmedEnd);
-      setStartQuery(confirmedStart.label || "");
-      setEndQuery(confirmedEnd.label || "");
+      setStartQuery(getLabelWithTag(confirmedStart) || "");
+      setEndQuery(getLabelWithTag(confirmedEnd) || "");
     } else {
       setHudState(0);
       setConfirmedStart(null);
@@ -1158,8 +1290,8 @@ export default function Home() {
     setDraftEnd(route.end);
     setConfirmedStart(route.start);
     setConfirmedEnd(route.end);
-    setStartQuery(route.start.label || "");
-    setEndQuery(route.end.label || "");
+    setStartQuery(getLabelWithTag(route.start) || "");
+    setEndQuery(getLabelWithTag(route.end) || "");
     if (route.bikeType) setNewBikeType(route.bikeType);
     if (route.speed) setNewSpeed(route.speed);
     
@@ -1338,21 +1470,27 @@ export default function Home() {
     };
   };
 
+  // Clear processed prefetch attempts when config or schedule changes
+  useEffect(() => {
+    fetchedRouteIdsRef.current.clear();
+  }, [newBikeType, newSpeed, weeklySchedule]);
+
   // 3. Background Weather Pre-fetcher for Weekly Scheduled Routes
   useEffect(() => {
     const fetchScheduledWeather = async () => {
-      // Find all distinct route IDs in weeklySchedule that are NOT null and NOT already in scheduledRoutesWeather
+      // Find all distinct route IDs in weeklySchedule that are NOT null, and NOT yet attempted in this config run
       const boundRouteIds = Object.values(weeklySchedule)
         .map(s => s?.routeId)
-        .filter(id => id && !scheduledRoutesWeather[id]);
+        .filter(id => id && !fetchedRouteIdsRef.current.has(id));
       
       const distinctIds = [...new Set(boundRouteIds)];
       if (distinctIds.length === 0) return;
 
-      const newWeather = { ...scheduledRoutesWeather };
+      const fetchedResults = {};
       let updated = false;
 
       for (const rid of distinctIds) {
+        fetchedRouteIdsRef.current.add(rid); // Mark as attempted immediately to prevent duplicate fetches
         const route = savedRoutes.find(r => r.id === rid);
         if (route) {
           try {
@@ -1376,7 +1514,7 @@ export default function Home() {
             }
             
             const wData = handleWeatherResponse(await fetchRouteWeather(coords, dist));
-            newWeather[rid] = {
+            fetchedResults[rid] = {
               weather: wData,
               coordinates: coords,
               segments: segments,
@@ -1390,12 +1528,15 @@ export default function Home() {
       }
 
       if (updated) {
-        setScheduledRoutesWeather(newWeather);
+        setScheduledRoutesWeather(prev => ({
+          ...prev,
+          ...fetchedResults
+        }));
       }
     };
 
     fetchScheduledWeather();
-  }, [weeklySchedule, savedRoutes, scheduledRoutesWeather, newBikeType, newSpeed, handleWeatherResponse]);
+  }, [weeklySchedule, savedRoutes, newBikeType, newSpeed, handleWeatherResponse]);
 
   // Compute currently displayed route based on selected day offset schedule
   const getActiveRouteData = () => {
@@ -1435,6 +1576,16 @@ export default function Home() {
       ? weatherResults
       : (ambientWeatherForecast ? [ambientWeatherForecast] : []);
 
+    const startName = getDisplayNameForLocation(confirmedStart || draftStart);
+    const endName = getDisplayNameForLocation(confirmedEnd || draftEnd);
+    const matchingSaved = savedRoutes.find(r => 
+      r.coordinates && routeCoordinates && 
+      JSON.stringify(r.coordinates) === JSON.stringify(routeCoordinates)
+    );
+    const baseRouteName = matchingSaved 
+      ? matchingSaved.name 
+      : (startName && endName ? `${startName} ⇆ ${endName}` : "Active Route");
+
     if (hudState === 3 && isReturnTripMode && routeCoordinates && routeCoordinates.length > 0) {
       return {
         coordinates: [...routeCoordinates].reverse(),
@@ -1443,7 +1594,9 @@ export default function Home() {
         startLocation: confirmedEnd || draftEnd,
         endLocation: confirmedStart || draftStart,
         speed: newSpeed,
-        name: "Active Route (Return)"
+        name: matchingSaved 
+          ? `${matchingSaved.name} (Return)` 
+          : (startName && endName ? `${endName} ⇆ ${startName} (Return)` : "Active Route (Return)")
       };
     }
 
@@ -1454,11 +1607,29 @@ export default function Home() {
       startLocation: confirmedStart || draftStart,
       endLocation: confirmedEnd || draftEnd,
       speed: newSpeed,
-      name: "Active Route"
+      name: baseRouteName
     };
   };
 
-  const activeRouteData = getActiveRouteData();
+  const activeRouteData = useMemo(() => {
+    return getActiveRouteData();
+  }, [
+    selectedDayOffset,
+    weeklySchedule,
+    savedRoutes,
+    scheduledRoutesWeather,
+    hudState,
+    isReturnTripMode,
+    routeCoordinates,
+    routeSegments,
+    weatherResults,
+    ambientWeatherForecast,
+    confirmedStart,
+    confirmedEnd,
+    draftStart,
+    draftEnd,
+    newSpeed
+  ]);
 
   // Debounced map viewport move callback for panning updates
   const handleMapMove = useCallback((coord) => {
@@ -1547,7 +1718,9 @@ export default function Home() {
     return d.toLocaleDateString("en-US", { weekday: "long" });
   };
 
-  const activeForecast = getActiveForecast();
+  const activeForecast = useMemo(() => {
+    return getActiveForecast();
+  }, [activeRouteData, selectedDayOffset, selectedHour, selectedMinute, hudState, isReturnTripMode, isDepartureTimeCustom, timeMode]);
 
   const getLeaveNowOverlayData = () => {
     if (!activeForecast) return null;
@@ -1620,6 +1793,14 @@ export default function Home() {
       timeMode,
       isSaved
     };
+  };
+
+  const isPastTime = () => {
+    const now = new Date();
+    const selectedDateTime = new Date();
+    selectedDateTime.setDate(selectedDateTime.getDate() + selectedDayOffset);
+    selectedDateTime.setHours(selectedHour, selectedMinute, 0, 0);
+    return selectedDateTime.getTime() < now.getTime() - 60000;
   };
 
   // Pure derived state: Packing list calculated synchronously inside render (satisfies react-hooks linter rules)
@@ -1839,7 +2020,7 @@ export default function Home() {
 
   // 4. Debug Console Logger for Route-Specific Weather and Scores
   useEffect(() => {
-    if (!activeForecast || !activeForecast.penalties || !activeRouteData || !activeRouteData.weatherResults || activeRouteData.weatherResults.length === 0) return;
+    if (!isRestored || isLoading || !activeForecast || !activeForecast.penalties || !activeRouteData || !activeRouteData.weatherResults || activeRouteData.weatherResults.length === 0) return;
 
     let hourIdx;
     if (hudState === 3) {
@@ -1862,9 +2043,23 @@ export default function Home() {
 
     const targetDate = new Date();
     targetDate.setDate(targetDate.getDate() + selectedDayOffset);
-    const dateFormatted = targetDate.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-    
+
     const activeHourNumber = hourIdx % 24;
+    const targetTimeStr = new Date(targetDate.setHours(activeHourNumber, 0, 0, 0)).toISOString();
+
+    // Construct a unique key for the current log state
+    const logKey = [
+      activeRouteData.name || "Active Route",
+      activeForecast.score,
+      targetTimeStr,
+      !isReturnTripMode,
+      unitSystem,
+      activeRouteData.coordinates ? JSON.stringify(activeRouteData.coordinates) : ""
+    ].join("|");
+
+    if (lastLoggedRef.current === logKey) return;
+
+    const dateFormatted = targetDate.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
     const timeFormatted = `${activeHourNumber.toString().padStart(2, "0")}:00 ${activeHourNumber >= 12 ? "PM" : "AM"}`;
 
     const numPoints = activeRouteData.weatherResults.length;
@@ -1936,7 +2131,31 @@ export default function Home() {
     console.groupEnd();
 
     console.groupEnd();
-  }, [activeForecast, activeRouteData, selectedDayOffset, selectedHour, hudState]);
+
+    // Debounced automatic terminal logging via server POST route
+    const logTimer = setTimeout(() => {
+      lastLoggedRef.current = logKey;
+      fetch("/api/log-commute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: `ACTIVE ROUTE FORECAST - ${activeRouteData.name || "Custom Route"}`,
+          result: {
+            score: activeForecast.score,
+            duration: activeForecast.duration,
+            speed: activeForecast.speed,
+            hourDetails: activeForecast
+          },
+          isOutbound: !isReturnTripMode,
+          targetTimeStr,
+          baseSpeed: activeRouteData.speed,
+          unitSystem
+        })
+      }).catch(() => {});
+    }, 400);
+
+    return () => clearTimeout(logTimer);
+  }, [activeForecast, activeRouteData, selectedDayOffset, selectedHour, hudState, isReturnTripMode, unitSystem, isRestored, isLoading]);
 
   const selectedDayDate = new Date();
   selectedDayDate.setDate(selectedDayDate.getDate() + selectedDayOffset);
@@ -1989,10 +2208,9 @@ export default function Home() {
 
       let destinationName = "Destination";
       if (boundRoute) {
-        destinationName = boundRoute.end.label.split(",")[0] || "Destination";
+        destinationName = getDisplayNameForLocation(boundRoute.end) || "Destination";
       } else if (confirmedEnd || draftEnd) {
-        const destLoc = confirmedEnd || draftEnd;
-        destinationName = destLoc.label.split(",")[0] || "Destination";
+        destinationName = getDisplayNameForLocation(confirmedEnd || draftEnd) || "Destination";
       }
 
       if (boundRoute && boundWeatherEntry) {
@@ -2158,12 +2376,14 @@ export default function Home() {
             try {
               const resolved = await reverseGeocode(coord.lat, coord.lon);
               if (resolved) {
+                const resolvedLoc = { ...coord, label: resolved };
+                const taggedLabel = getLabelWithTag(resolvedLoc);
                 if (isStart) {
-                  setDraftStart(prev => prev ? { ...prev, label: resolved } : null);
-                  setStartQuery(resolved);
+                  setDraftStart(resolvedLoc);
+                  setStartQuery(taggedLabel);
                 } else {
-                  setDraftEnd(prev => prev ? { ...prev, label: resolved } : null);
-                  setEndQuery(resolved);
+                  setDraftEnd(resolvedLoc);
+                  setEndQuery(taggedLabel);
                 }
               }
             } catch (err) {
@@ -2388,7 +2608,7 @@ export default function Home() {
                           className={`hud-btn ${styles.savedRouteItem}`} 
                           onClick={() => handleLoadSavedRoute(route)}
                         >
-                          <span className={styles.savedRouteText}>{route.name}</span>
+                          <span className={styles.savedRouteText}>{getRouteDisplayName(route)}</span>
                           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                             <button 
                               onClick={(e) => {
@@ -2683,7 +2903,7 @@ export default function Home() {
                         className={`hud-btn ${styles.setupDropItem}`} 
                         onClick={() => {
                           setDraftStart(loc);
-                          setStartQuery(loc.label);
+                          setStartQuery(getLabelWithTag(loc));
                           setStartResults([]);
                           if (startGeocodeTimeoutRef.current) {
                             clearTimeout(startGeocodeTimeoutRef.current);
@@ -2695,6 +2915,66 @@ export default function Home() {
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{loc.label}</span>
                       </div>
                     ))}
+                  </div>
+                )}
+                {draftStart && (
+                  <div className={styles.tagSelector}>
+                    <span className={styles.tagLabel}>Tag start:</span>
+                    <button
+                      className={`${styles.tagButton} ${startTag === 'home' ? styles.tagButtonActive : ''}`}
+                      onClick={() => handleToggleTag(draftStart, 'home', true)}
+                    >
+                      🏠 Home
+                    </button>
+                    <button
+                      className={`${styles.tagButton} ${startTag === 'work' ? styles.tagButtonActive : ''}`}
+                      onClick={() => handleToggleTag(draftStart, 'work', true)}
+                    >
+                      💼 Work
+                    </button>
+                    {isEditingCustomStart ? (
+                      <div className={styles.customTagInputWrapper}>
+                        <input
+                          type="text"
+                          className={styles.customTagInput}
+                          placeholder="Tag..."
+                          defaultValue={startTag && startTag !== 'home' && startTag !== 'work' ? startTag : ''}
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const val = e.target.value.trim();
+                              handleToggleTag(draftStart, val, true);
+                              setIsEditingCustomStart(false);
+                            } else if (e.key === 'Escape') {
+                              setIsEditingCustomStart(false);
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const val = e.target.value.trim();
+                            if (val) {
+                              handleToggleTag(draftStart, val, true);
+                            }
+                            setIsEditingCustomStart(false);
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        className={`${styles.tagButton} ${startTag && startTag !== 'home' && startTag !== 'work' ? styles.tagButtonActive : ''}`}
+                        onClick={() => setIsEditingCustomStart(true)}
+                      >
+                        🏷️ {startTag && startTag !== 'home' && startTag !== 'work' ? startTag : 'Custom'}
+                      </button>
+                    )}
+                    {startTag && (
+                      <button
+                        className={styles.tagClearButton}
+                        onClick={() => handleToggleTag(draftStart, null, true)}
+                        title="Clear Tag"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -2723,7 +3003,7 @@ export default function Home() {
                         className={`hud-btn ${styles.setupDropItem}`} 
                         onClick={() => {
                           setDraftEnd(loc);
-                          setEndQuery(loc.label);
+                          setEndQuery(getLabelWithTag(loc));
                           setEndResults([]);
                           if (endGeocodeTimeoutRef.current) {
                             clearTimeout(endGeocodeTimeoutRef.current);
@@ -2735,6 +3015,66 @@ export default function Home() {
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{loc.label}</span>
                       </div>
                     ))}
+                  </div>
+                )}
+                {draftEnd && (
+                  <div className={styles.tagSelector}>
+                    <span className={styles.tagLabel}>Tag dest:</span>
+                    <button
+                      className={`${styles.tagButton} ${endTag === 'home' ? styles.tagButtonActive : ''}`}
+                      onClick={() => handleToggleTag(draftEnd, 'home', false)}
+                    >
+                      🏠 Home
+                    </button>
+                    <button
+                      className={`${styles.tagButton} ${endTag === 'work' ? styles.tagButtonActive : ''}`}
+                      onClick={() => handleToggleTag(draftEnd, 'work', false)}
+                    >
+                      💼 Work
+                    </button>
+                    {isEditingCustomEnd ? (
+                      <div className={styles.customTagInputWrapper}>
+                        <input
+                          type="text"
+                          className={styles.customTagInput}
+                          placeholder="Tag..."
+                          defaultValue={endTag && endTag !== 'home' && endTag !== 'work' ? endTag : ''}
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const val = e.target.value.trim();
+                              handleToggleTag(draftEnd, val, false);
+                              setIsEditingCustomEnd(false);
+                            } else if (e.key === 'Escape') {
+                              setIsEditingCustomEnd(false);
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const val = e.target.value.trim();
+                            if (val) {
+                              handleToggleTag(draftEnd, val, false);
+                            }
+                            setIsEditingCustomEnd(false);
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        className={`${styles.tagButton} ${endTag && endTag !== 'home' && endTag !== 'work' ? styles.tagButtonActive : ''}`}
+                        onClick={() => setIsEditingCustomEnd(true)}
+                      >
+                        🏷️ {endTag && endTag !== 'home' && endTag !== 'work' ? endTag : 'Custom'}
+                      </button>
+                    )}
+                    {endTag && (
+                      <button
+                        className={styles.tagClearButton}
+                        onClick={() => handleToggleTag(draftEnd, null, false)}
+                        title="Clear Tag"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -2930,6 +3270,7 @@ export default function Home() {
                     maxLength={2}
                     value={overlayHourVal}
                     onChange={(e) => setOverlayHourVal(e.target.value.replace(/\D/g, ''))}
+                    onFocus={(e) => e.target.select()}
                     onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); e.stopPropagation(); }}
                     onKeyUp={(e) => e.stopPropagation()}
                     onKeyPress={(e) => e.stopPropagation()}
@@ -2949,6 +3290,7 @@ export default function Home() {
                     maxLength={2}
                     value={overlayMinVal}
                     onChange={(e) => setOverlayMinVal(e.target.value.replace(/\D/g, ''))}
+                    onFocus={(e) => e.target.select()}
                     onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); e.stopPropagation(); }}
                     onKeyUp={(e) => e.stopPropagation()}
                     onKeyPress={(e) => e.stopPropagation()}
@@ -2967,8 +3309,9 @@ export default function Home() {
                       className={styles.timeSelect}
                       style={{
                         fontSize: "11px",
-                        padding: "5px 6px",
-                        flex: 1.1,
+                        padding: "5px 4px",
+                        flex: "0 0 auto",
+                        width: "auto",
                       }}
                     >
                       <option value="AM" style={{ background: "#0f172a", color: "#f8fafc" }}>AM</option>
@@ -2993,6 +3336,12 @@ export default function Home() {
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                     <span>⏰</span>
                     <span><strong>Arrival</strong>: {getLeaveNowOverlayData().arrivalTimeStr}</span>
+                  </div>
+                )}
+                {isPastTime() && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--color-amber)", fontSize: "11px", fontWeight: "700" }}>
+                    <span>⚠️</span>
+                    <span>Selected time is in the past</span>
                   </div>
                 )}
               </div>
@@ -3102,6 +3451,7 @@ export default function Home() {
                       const outboundHour = parseInt(daySched.outbound.split(":")[0]);
                       setSelectedHour(outboundHour);
                       setIsReturnTripMode(false);
+                      setIsDepartureTimeCustom(true);
                     } else {
                       // Helpfully prompt route setup
                       setHudState(1);
@@ -3133,6 +3483,7 @@ export default function Home() {
                           const outboundHour = parseInt(daySched.outbound.split(":")[0]);
                           setSelectedHour(outboundHour);
                           setIsReturnTripMode(false);
+                          setIsDepartureTimeCustom(true);
                         } else {
                           setHudState(1);
                         }
@@ -3186,6 +3537,7 @@ export default function Home() {
                           const returnHour = parseInt(daySched.return.split(":")[0]);
                           setSelectedHour(returnHour);
                           setIsReturnTripMode(true);
+                          setIsDepartureTimeCustom(true);
                         } else {
                           setHudState(1);
                         }
@@ -3264,6 +3616,7 @@ export default function Home() {
                       const outboundHour = parseInt(daySched.outbound.split(":")[0]);
                       setSelectedHour(outboundHour);
                       setIsReturnTripMode(false);
+                      setIsDepartureTimeCustom(true);
                     }}
                     style={{ 
                       background: !isReturnTripMode ? "var(--color-emerald)" : "transparent",
@@ -3288,6 +3641,7 @@ export default function Home() {
                       const returnHour = parseInt(daySched.return.split(":")[0]);
                       setSelectedHour(returnHour);
                       setIsReturnTripMode(true);
+                      setIsDepartureTimeCustom(true);
                     }}
                     style={{ 
                       background: isReturnTripMode ? "var(--color-emerald)" : "transparent",
@@ -3314,7 +3668,10 @@ export default function Home() {
                   min="6" // 6:00 AM
                   max="20" // 8:00 PM
                   value={selectedHour}
-                  onChange={(e) => setSelectedHour(parseInt(e.target.value))}
+                  onChange={(e) => {
+                    setSelectedHour(parseInt(e.target.value));
+                    setIsDepartureTimeCustom(true);
+                  }}
                   className={styles.rangeScrubber}
                 />
               </div>
@@ -3392,7 +3749,7 @@ export default function Home() {
               >
                 <option value="">🗺️ Follow Active / Default Route</option>
                 {savedRoutes.map(r => (
-                  <option key={r.id} value={r.id}>🔖 {r.name}</option>
+                  <option key={r.id} value={r.id}>🔖 {getRouteDisplayName(r)}</option>
                 ))}
               </select>
             </div>
@@ -3494,7 +3851,10 @@ export default function Home() {
                   <div key={index} className={styles.scheduledCommuteCard}>
                     <div className={styles.scheduledHeader}>
                       <span className={styles.scheduledRouteName}>
-                        {group.routeName}
+                        {(() => {
+                          const route = savedRoutes.find(r => r.id === group.routeId);
+                          return route ? getRouteDisplayName(route) : group.routeName;
+                        })()}
                       </span>
                       <button
                         onClick={() => deleteGroupSchedule(group.days)}

@@ -77,6 +77,14 @@ export async function geocodeAddress(query) {
     item.label.toLowerCase().includes(normQuery)
   );
 
+  if (process.env.MOCK === "true") {
+    console.log("Mock data mode enabled via env var. Serving offline geocoding results.");
+    return localMatches.length > 0 ? localMatches : [
+      { lat: 40.7064, lon: -73.6187, label: `${query} (Mocked Start)` },
+      { lat: 40.7208, lon: -73.6425, label: `${query} (Mocked Destination)` }
+    ];
+  }
+
   // Helper to merge and deduplicate
   const mergeResults = (primary, secondary) => {
     const combined = [...primary];
@@ -170,6 +178,17 @@ export async function fetchBicycleRoute(startLat, startLon, endLat, endLon, bike
   if (cached) {
     console.log(`📦 [Routing Cache] Cache hit for route: ${cacheKey}`);
     return cached;
+  }
+
+  if (process.env.MOCK === "true") {
+    console.log("Mock data mode enabled via env var. Serving offline bicycle route.");
+    const result = {
+      shape: "m_r_~Ah~o]z@aCdBiF", 
+      distance: 10.0,
+      time: 2000,
+      legs: [{ shape: "m_r_~Ah~o]z@aCdBiF" }]
+    };
+    return result;
   }
 
   try {
@@ -386,6 +405,13 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance, forceRe
   const sampledPoints = sampleCoordinates(routeCoordinates, numSamples);
   const cacheKey = getCacheKey(sampledPoints);
 
+  if (process.env.MOCK === "true") {
+    console.log("Mock data mode enabled via env var. Serving offline weather forecast.");
+    const mockData = sampledPoints.map(p => generateMockWeather(p[0], p[1]));
+    mockData.isOfflineForecast = true;
+    return mockData;
+  }
+
   // Check cache first (if not forcing refresh)
   if (!forceRefresh) {
     const cached = getCachedWeatherData(cacheKey);
@@ -499,11 +525,21 @@ export async function reverseGeocode(lat, lon) {
   const BOROUGHS = ["Manhattan", "Brooklyn", "Queens", "Bronx", "Staten Island"];
   const cacheKey = `${Number(lat).toFixed(4)},${Number(lon).toFixed(4)}`;
 
+  const getCleanArea = (area) => {
+    if (!area) return "";
+    return area.replace(/^(Village of|Town of|City of) /i, "").trim();
+  };
+
   // Check cache first
   const cached = getCachedData(REV_GEOCODE_CACHE_PREFIX, cacheKey);
   if (cached) {
     console.log(`📦 [Reverse Geocoding Cache] Cache hit for coordinates: ${cacheKey}`);
     return cached;
+  }
+
+  if (process.env.MOCK === "true") {
+    console.log("Mock data mode enabled via env var. Serving offline reverse geocoding.");
+    return `Mock Location (${Number(lat).toFixed(3)}, ${Number(lon).toFixed(3)})`;
   }
 
   // 1. Try Nominatim reverse (Primary)
@@ -522,27 +558,38 @@ export async function reverseGeocode(lat, lon) {
       const data = await response.json();
       const addr = data.address || {};
       
-      // Select the most specific location label
-      const specificFields = [
-        addr.neighbourhood,
-        addr.quarter,
-        addr.park,
-        addr.leisure,
-        addr.tourism,
-        addr.village,
-        addr.town
-      ];
-      
-      let placeName = specificFields.find(val => val && !BOROUGHS.includes(val));
-      
-      if (!placeName && addr.suburb && !BOROUGHS.includes(addr.suburb)) {
-        placeName = addr.suburb;
-      }
-      if (!placeName && addr.city_district && !BOROUGHS.includes(addr.city_district)) {
-        placeName = addr.city_district;
-      }
-      if (!placeName) {
-        placeName = addr.road || addr.suburb || addr.city_district || addr.city;
+      let placeName = null;
+      if (addr.road) {
+        const houseNum = addr.house_number ? `${addr.house_number} ` : "";
+        const rawArea = addr.village || addr.town || addr.suburb || addr.city_district || addr.city;
+        const area = getCleanArea(rawArea);
+        placeName = `${houseNum}${addr.road}${area ? `, ${area}` : ""}`;
+      } else {
+        // Select the most specific location label
+        const specificFields = [
+          addr.neighbourhood,
+          addr.quarter,
+          addr.park,
+          addr.leisure,
+          addr.tourism,
+          addr.village,
+          addr.town
+        ];
+        
+        let specificName = specificFields.find(val => val && !BOROUGHS.includes(val));
+        
+        if (!specificName && addr.suburb && !BOROUGHS.includes(addr.suburb)) {
+          specificName = addr.suburb;
+        }
+        if (!specificName && addr.city_district && !BOROUGHS.includes(addr.city_district)) {
+          specificName = addr.city_district;
+        }
+        
+        if (specificName) {
+          placeName = getCleanArea(specificName);
+        } else {
+          placeName = addr.road || addr.suburb || addr.city_district || addr.city;
+        }
       }
       
       if (placeName) {
@@ -551,9 +598,11 @@ export async function reverseGeocode(lat, lon) {
       }
       const fallbackName = data.display_name?.split(",")[0] || null;
       if (fallbackName) {
-        setCachedData(REV_GEOCODE_CACHE_PREFIX, cacheKey, fallbackName);
+        const cleanedFallback = getCleanArea(fallbackName);
+        setCachedData(REV_GEOCODE_CACHE_PREFIX, cacheKey, cleanedFallback);
+        return cleanedFallback;
       }
-      return fallbackName;
+      return null;
     }
   } catch (error) {
     console.warn("Nominatim reverse geocode failed: ", error.message);
@@ -570,14 +619,22 @@ export async function reverseGeocode(lat, lon) {
         const prop = feat.properties || {};
         
         let placeName = null;
-        if (prop.locality && !BOROUGHS.includes(prop.locality)) {
-          placeName = prop.locality;
-        }
-        if (!placeName && prop.district && !BOROUGHS.includes(prop.district)) {
-          placeName = prop.district;
-        }
-        if (!placeName) {
-          placeName = prop.name || prop.street || prop.locality || prop.district;
+        if (prop.street) {
+          const houseNum = prop.housenumber ? `${prop.housenumber} ` : "";
+          const rawArea = prop.city || prop.locality || prop.district;
+          const area = getCleanArea(rawArea);
+          placeName = `${houseNum}${prop.street}${area ? `, ${area}` : ""}`;
+        } else {
+          if (prop.locality && !BOROUGHS.includes(prop.locality)) {
+            placeName = getCleanArea(prop.locality);
+          }
+          if (!placeName && prop.district && !BOROUGHS.includes(prop.district)) {
+            placeName = getCleanArea(prop.district);
+          }
+          if (!placeName) {
+            const rawFallback = prop.name || prop.street || prop.locality || prop.district;
+            placeName = getCleanArea(rawFallback);
+          }
         }
         
         if (placeName) {
