@@ -323,8 +323,32 @@ export default function Home() {
   const [taggedLocations, setTaggedLocations] = useState([]);
   const [isEditingCustomStart, setIsEditingCustomStart] = useState(false);
   const [isEditingCustomEnd, setIsEditingCustomEnd] = useState(false);
+  const [isStartFocused, setIsStartFocused] = useState(false);
+  const [isEndFocused, setIsEndFocused] = useState(false);
+  const [resolvingCurrentLocField, setResolvingCurrentLocField] = useState(null); // 'start', 'end', or null
+
+
+
+  const filteredStartTags = useMemo(() => {
+    if (!startQuery.trim()) return taggedLocations;
+    const q = startQuery.toLowerCase();
+    return taggedLocations.filter(tl => 
+      tl.tag.toLowerCase().includes(q) || 
+      (tl.label && tl.label.toLowerCase().includes(q))
+    );
+  }, [startQuery, taggedLocations]);
+
+  const filteredEndTags = useMemo(() => {
+    if (!endQuery.trim()) return taggedLocations;
+    const q = endQuery.toLowerCase();
+    return taggedLocations.filter(tl => 
+      tl.tag.toLowerCase().includes(q) || 
+      (tl.label && tl.label.toLowerCase().includes(q))
+    );
+  }, [endQuery, taggedLocations]);
 
   const getDisplayNameForLocation = useCallback((loc) => {
+
     if (!loc) return "";
     if (taggedLocations.length > 0 && loc.lat !== undefined && loc.lon !== undefined) {
       const match = taggedLocations.find(tl => getDistance(tl.lat, tl.lon, loc.lat, loc.lon) < 0.05); // 50m
@@ -738,67 +762,106 @@ export default function Home() {
     }
   }, [handleWeatherResponse]);
 
-  const triggerGeocode = useCallback((query, isStart) => {
+  const performGeocodeSearch = useCallback(async (query, isStart) => {
     if (!query || query.trim().length < 3) {
-      if (isStart) {
-        setStartResults([]);
-        if (startGeocodeTimeoutRef.current) {
-          clearTimeout(startGeocodeTimeoutRef.current);
-          startGeocodeTimeoutRef.current = null;
-        }
-      } else {
-        setEndResults([]);
-        if (endGeocodeTimeoutRef.current) {
-          clearTimeout(endGeocodeTimeoutRef.current);
-          endGeocodeTimeoutRef.current = null;
-        }
-      }
+      if (isStart) setStartResults([]);
+      else setEndResults([]);
       return;
     }
 
     if (isStart) {
-      if (startGeocodeTimeoutRef.current) {
-        clearTimeout(startGeocodeTimeoutRef.current);
+      setIsSearchingStart(true);
+      try {
+        const res = await geocodeAddress(query);
+        setStartResults(res || []);
+        setIsStartFocused(true);
+      } catch (err) {
+        console.error("Geocoding start address failed:", err);
+      } finally {
+        setIsSearchingStart(false);
       }
-      startGeocodeTimeoutRef.current = setTimeout(async () => {
-        setIsSearchingStart(true);
-        try {
-          const res = await geocodeAddress(query);
-          setStartResults(res || []);
-        } catch (err) {
-          console.error("Geocoding start address failed:", err);
-        } finally {
-          setIsSearchingStart(false);
-          startGeocodeTimeoutRef.current = null;
-        }
-      }, 600);
     } else {
-      if (endGeocodeTimeoutRef.current) {
-        clearTimeout(endGeocodeTimeoutRef.current);
+      setIsSearchingEnd(true);
+      try {
+        const res = await geocodeAddress(query);
+        setEndResults(res || []);
+        setIsEndFocused(true);
+      } catch (err) {
+        console.error("Geocoding end address failed:", err);
+      } finally {
+        setIsSearchingEnd(false);
       }
-      endGeocodeTimeoutRef.current = setTimeout(async () => {
-        setIsSearchingEnd(true);
-        try {
-          const res = await geocodeAddress(query);
-          setEndResults(res || []);
-        } catch (err) {
-          console.error("Geocoding end address failed:", err);
-        } finally {
-          setIsSearchingEnd(false);
-          endGeocodeTimeoutRef.current = null;
-        }
-      }, 600);
     }
   }, []);
+
+
+  const handleSelectCurrentLocation = useCallback(async (isStart) => {
+    const field = isStart ? 'start' : 'end';
+    setResolvingCurrentLocField(field);
+    
+    const useCoords = async (lat, lon) => {
+      let resolvedAddress = "Current Location";
+      try {
+        const resolved = await reverseGeocode(lat, lon);
+        if (resolved) {
+          resolvedAddress = resolved;
+        }
+      } catch (err) {
+        console.error("Reverse geocoding current location failed:", err);
+      }
+      
+      const resolvedLoc = { lat, lon, label: resolvedAddress };
+      if (isStart) {
+        setDraftStart(resolvedLoc);
+        setStartQuery(getLabelWithTag(resolvedLoc, taggedLocations));
+        setIsStartFocused(false);
+      } else {
+        setDraftEnd(resolvedLoc);
+        setEndQuery(getLabelWithTag(resolvedLoc, taggedLocations));
+        setIsEndFocused(false);
+      }
+      setResolvingCurrentLocField(null);
+    };
+
+    if (userLocation) {
+      await useCoords(userLocation.lat, userLocation.lon);
+    } else if (typeof window !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          setUserLocation({ lat, lon });
+          await useCoords(lat, lon);
+        },
+        async (err) => {
+          console.error("Geolocation failed:", err);
+          // Fallback to Central Park
+          const fallbackLat = 40.7851;
+          const fallbackLon = -73.9682;
+          setUserLocation({ lat: fallbackLat, lon: fallbackLon });
+          await useCoords(fallbackLat, fallbackLon);
+        }
+      );
+    } else {
+      // Fallback
+      const fallbackLat = 40.7851;
+      const fallbackLon = -73.9682;
+      await useCoords(fallbackLat, fallbackLon);
+    }
+  }, [userLocation, taggedLocations, getLabelWithTag]);
+
+
 
   // Click outside to close autosuggestions dropdowns
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (startInputRef.current && !startInputRef.current.contains(event.target)) {
         setStartResults([]);
+        setIsStartFocused(false);
       }
       if (endInputRef.current && !endInputRef.current.contains(event.target)) {
         setEndResults([]);
+        setIsEndFocused(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -808,6 +871,7 @@ export default function Home() {
       document.removeEventListener("touchstart", handleClickOutside);
     };
   }, []);
+
 
   // Auto-hide toast notification after 6 seconds (if not persistent)
   useEffect(() => {
@@ -1270,6 +1334,8 @@ export default function Home() {
   };
 
   const handleCloseRouteSetup = () => {
+    setIsStartFocused(false);
+    setIsEndFocused(false);
     if (routeCoordinates.length > 0 && confirmedStart && confirmedEnd) {
       setHudState(2);
       setDraftStart(confirmedStart);
@@ -1288,6 +1354,7 @@ export default function Home() {
       setIsReturnTripMode(false);
     }
   };
+
 
   const handleLoadSavedRoute = (route) => {
     setDraftStart(route.start);
@@ -2908,29 +2975,86 @@ export default function Home() {
                   className="hud-input" 
                   placeholder="🏡 Enter Start Address..." 
                   value={startQuery}
+                  onFocus={() => setIsStartFocused(true)}
                   onChange={(e) => {
                     const val = e.target.value;
                     setStartQuery(val);
                     if (draftStart && val !== draftStart.label) {
                       setDraftStart(null);
                     }
-                    triggerGeocode(val, true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      performGeocodeSearch(startQuery, true);
+                    }
                   }}
                 />
-                {startResults.length > 0 && (
+                <button 
+                  type="button" 
+                  className={styles.searchIconBtn} 
+                  onClick={() => performGeocodeSearch(startQuery, true)}
+                  title="Search address"
+                >
+                  {isSearchingStart ? (
+                    <RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} />
+                  ) : (
+                    <Search size={14} />
+                  )}
+                </button>
+                {isStartFocused && (
                   <div className={`${styles.setupDropBox} hud-card`}>
+                    {/* Render Use Current Location option */}
+                    <div 
+                      className={`hud-btn ${styles.setupDropItem}`} 
+                      style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", borderRadius: 0, paddingBottom: "10px", marginBottom: "4px" }}
+                      onClick={() => handleSelectCurrentLocation(true)}
+                    >
+                      <span style={{ fontSize: "0.9rem", flexShrink: 0 }}>📍</span>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: "600" }}>
+                        {resolvingCurrentLocField === 'start' ? "Resolving location..." : "Use Current Location"}
+                      </span>
+                      {resolvingCurrentLocField === 'start' && (
+                        <RefreshCw size={12} style={{ animation: "spin 1s linear infinite", marginLeft: "auto" }} />
+                      )}
+                    </div>
+
+                    {/* Render saved tags first */}
+                    {filteredStartTags.map((tl, idx) => {
+                      const cleanLabel = tl.label ? tl.label.split(",")[0] : "";
+                      return (
+                        <div 
+                          key={`tag-${idx}`} 
+                          className={`hud-btn ${styles.setupDropItem}`} 
+                          onClick={() => {
+                            const resolvedLoc = { lat: tl.lat, lon: tl.lon, label: tl.label };
+                            setDraftStart(resolvedLoc);
+                            setStartQuery(getLabelWithTag(resolvedLoc, taggedLocations));
+                            setStartResults([]);
+                            setIsStartFocused(false);
+                          }}
+                        >
+                          <span style={{ fontSize: "0.9rem", flexShrink: 0 }}>
+                            {tl.tag.toLowerCase() === 'home' ? '🏠' : tl.tag.toLowerCase() === 'work' ? '💼' : '🏷️'}
+                          </span>
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <strong>{tl.tag}</strong> {cleanLabel ? `(${cleanLabel})` : ""}
+                          </span>
+                          <span className={styles.savedBadge}>Saved</span>
+                        </div>
+                      );
+                    })}
+                    
+                    {/* Render geocoded results */}
                     {startResults.map((loc, idx) => (
                       <div 
-                        key={idx} 
+                        key={`result-${idx}`} 
                         className={`hud-btn ${styles.setupDropItem}`} 
                         onClick={() => {
                           setDraftStart(loc);
                           setStartQuery(getLabelWithTag(loc));
                           setStartResults([]);
-                          if (startGeocodeTimeoutRef.current) {
-                            clearTimeout(startGeocodeTimeoutRef.current);
-                            startGeocodeTimeoutRef.current = null;
-                          }
+                          setIsStartFocused(false);
                         }}
                       >
                         <MapPin size={12} style={{ color: "var(--color-emerald)", flexShrink: 0 }} />
@@ -2964,7 +3088,7 @@ export default function Home() {
                           autoFocus
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
-                              const val = e.target.value.trim();
+                               const val = e.target.value.trim();
                               handleToggleTag(draftStart, val, true);
                               setIsEditingCustomStart(false);
                             } else if (e.key === 'Escape') {
@@ -3008,29 +3132,86 @@ export default function Home() {
                   className="hud-input" 
                   placeholder="🏢 Enter Destination..." 
                   value={endQuery}
+                  onFocus={() => setIsEndFocused(true)}
                   onChange={(e) => {
                     const val = e.target.value;
                     setEndQuery(val);
                     if (draftEnd && val !== draftEnd.label) {
                       setDraftEnd(null);
                     }
-                    triggerGeocode(val, false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      performGeocodeSearch(endQuery, false);
+                    }
                   }}
                 />
-                {endResults.length > 0 && (
+                <button 
+                  type="button" 
+                  className={styles.searchIconBtn} 
+                  onClick={() => performGeocodeSearch(endQuery, false)}
+                  title="Search address"
+                >
+                  {isSearchingEnd ? (
+                    <RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} />
+                  ) : (
+                    <Search size={14} />
+                  )}
+                </button>
+                {isEndFocused && (
                   <div className={`${styles.setupDropBox} hud-card`}>
+                    {/* Render Use Current Location option */}
+                    <div 
+                      className={`hud-btn ${styles.setupDropItem}`} 
+                      style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", borderRadius: 0, paddingBottom: "10px", marginBottom: "4px" }}
+                      onClick={() => handleSelectCurrentLocation(false)}
+                    >
+                      <span style={{ fontSize: "0.9rem", flexShrink: 0 }}>📍</span>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: "600" }}>
+                        {resolvingCurrentLocField === 'end' ? "Resolving location..." : "Use Current Location"}
+                      </span>
+                      {resolvingCurrentLocField === 'end' && (
+                        <RefreshCw size={12} style={{ animation: "spin 1s linear infinite", marginLeft: "auto" }} />
+                      )}
+                    </div>
+
+                    {/* Render saved tags first */}
+                    {filteredEndTags.map((tl, idx) => {
+                      const cleanLabel = tl.label ? tl.label.split(",")[0] : "";
+                      return (
+                        <div 
+                          key={`tag-${idx}`} 
+                          className={`hud-btn ${styles.setupDropItem}`} 
+                          onClick={() => {
+                            const resolvedLoc = { lat: tl.lat, lon: tl.lon, label: tl.label };
+                            setDraftEnd(resolvedLoc);
+                            setEndQuery(getLabelWithTag(resolvedLoc, taggedLocations));
+                            setEndResults([]);
+                            setIsEndFocused(false);
+                          }}
+                        >
+                          <span style={{ fontSize: "0.9rem", flexShrink: 0 }}>
+                            {tl.tag.toLowerCase() === 'home' ? '🏠' : tl.tag.toLowerCase() === 'work' ? '💼' : '🏷️'}
+                          </span>
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <strong>{tl.tag}</strong> {cleanLabel ? `(${cleanLabel})` : ""}
+                          </span>
+                          <span className={styles.savedBadge}>Saved</span>
+                        </div>
+                      );
+                    })}
+                    
+                    {/* Render geocoded results */}
                     {endResults.map((loc, idx) => (
                       <div 
-                        key={idx} 
+                        key={`result-${idx}`} 
                         className={`hud-btn ${styles.setupDropItem}`} 
                         onClick={() => {
                           setDraftEnd(loc);
                           setEndQuery(getLabelWithTag(loc));
                           setEndResults([]);
-                          if (endGeocodeTimeoutRef.current) {
-                            clearTimeout(endGeocodeTimeoutRef.current);
-                            endGeocodeTimeoutRef.current = null;
-                          }
+                          setIsEndFocused(false);
                         }}
                       >
                         <MapPin size={12} style={{ color: "var(--color-emerald)", flexShrink: 0 }} />
@@ -3039,6 +3220,7 @@ export default function Home() {
                     ))}
                   </div>
                 )}
+
                 {draftEnd && (
                   <div className={styles.tagSelector}>
                     <span className={styles.tagLabel}>Tag dest:</span>
@@ -3054,6 +3236,7 @@ export default function Home() {
                     >
                       💼 Work
                     </button>
+
                     {isEditingCustomEnd ? (
                       <div className={styles.customTagInputWrapper}>
                         <input
@@ -3064,7 +3247,7 @@ export default function Home() {
                           autoFocus
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
-                              const val = e.target.value.trim();
+                               const val = e.target.value.trim();
                               handleToggleTag(draftEnd, val, false);
                               setIsEditingCustomEnd(false);
                             } else if (e.key === 'Escape') {
@@ -3100,6 +3283,7 @@ export default function Home() {
                   </div>
                 )}
               </div>
+
 
               {/* Confirm Route build pipeline */}
               <button 
