@@ -486,6 +486,7 @@ export default function Home() {
   const mapMoveTimeoutRef = useRef(null);
   const startInputRef = useRef(null);
   const endInputRef = useRef(null);
+  const fetchedRouteIdsRef = useRef(new Set());
 
 
   // Derived state: weatherLocationName represents active route's starting city or fallback base location
@@ -980,7 +981,8 @@ export default function Home() {
     }, 0);
 
     return () => clearTimeout(handle);
-  }, [fetchAmbientWeather, loadRouteDetails, getLabelWithTag]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 2. Global View State Cache Synchronizer (Guarded)
   useEffect(() => {
@@ -1435,21 +1437,27 @@ export default function Home() {
     };
   };
 
+  // Clear processed prefetch attempts when config or schedule changes
+  useEffect(() => {
+    fetchedRouteIdsRef.current.clear();
+  }, [newBikeType, newSpeed, weeklySchedule]);
+
   // 3. Background Weather Pre-fetcher for Weekly Scheduled Routes
   useEffect(() => {
     const fetchScheduledWeather = async () => {
-      // Find all distinct route IDs in weeklySchedule that are NOT null and NOT already in scheduledRoutesWeather
+      // Find all distinct route IDs in weeklySchedule that are NOT null, and NOT yet attempted in this config run
       const boundRouteIds = Object.values(weeklySchedule)
         .map(s => s?.routeId)
-        .filter(id => id && !scheduledRoutesWeather[id]);
+        .filter(id => id && !fetchedRouteIdsRef.current.has(id));
       
       const distinctIds = [...new Set(boundRouteIds)];
       if (distinctIds.length === 0) return;
 
-      const newWeather = { ...scheduledRoutesWeather };
+      const fetchedResults = {};
       let updated = false;
 
       for (const rid of distinctIds) {
+        fetchedRouteIdsRef.current.add(rid); // Mark as attempted immediately to prevent duplicate fetches
         const route = savedRoutes.find(r => r.id === rid);
         if (route) {
           try {
@@ -1473,7 +1481,7 @@ export default function Home() {
             }
             
             const wData = handleWeatherResponse(await fetchRouteWeather(coords, dist));
-            newWeather[rid] = {
+            fetchedResults[rid] = {
               weather: wData,
               coordinates: coords,
               segments: segments,
@@ -1487,12 +1495,15 @@ export default function Home() {
       }
 
       if (updated) {
-        setScheduledRoutesWeather(newWeather);
+        setScheduledRoutesWeather(prev => ({
+          ...prev,
+          ...fetchedResults
+        }));
       }
     };
 
     fetchScheduledWeather();
-  }, [weeklySchedule, savedRoutes, scheduledRoutesWeather, newBikeType, newSpeed, handleWeatherResponse]);
+  }, [weeklySchedule, savedRoutes, newBikeType, newSpeed, handleWeatherResponse]);
 
   // Compute currently displayed route based on selected day offset schedule
   const getActiveRouteData = () => {
