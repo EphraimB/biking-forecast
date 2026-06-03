@@ -97,13 +97,13 @@
   top: 70px;
   left: 0;
   right: 0;
-  background: #0f172a;
-  border: 1px solid var(--slate-700);
+  background: var(--hud-bg-card);
+  border: 1px solid var(--hud-border);
   border-radius: 8px;
   zIndex: 999;
   max-height: 200px;
   overflow-y: auto;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--hud-shadow);
 }
 
 .searchResultItem {
@@ -116,7 +116,7 @@
 }
 
 .searchResultItem:hover {
-  background: #1e293b;
+  background: var(--hud-border);
 }
 
 .searchResultIcon {

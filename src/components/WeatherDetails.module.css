@@ -137,10 +137,10 @@
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: #f1f5f9;
+  background: var(--hud-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(226, 232, 240, 0.8);
+  border: 1px solid var(--hud-border);
   transition: transform 0.5s ease;
 }

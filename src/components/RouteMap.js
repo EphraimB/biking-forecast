@@ -24,15 +24,31 @@ export default function RouteMap({
   userLocation = null,
   ambientWeatherForecast = null,
   onMapMove = null,
-  activeHourIdx = null
+  activeHourIdx = null,
+  isLightMode = false
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const tileLayerRef = useRef(null);
   const layersRef = useRef({ polylines: [], markers: [], telemetries: [], weatherOverlays: [] });
   const lastFittedRouteRef = useRef("");
   const lastCenteredStartRef = useRef(null);
   const onMapMoveRef = useRef(onMapMove);
   const onMapClickRef = useRef(onMapClick);
+  const isLightModeRef = useRef(isLightMode);
+
+  useEffect(() => {
+    isLightModeRef.current = isLightMode;
+  }, [isLightMode]);
+
+  useEffect(() => {
+    if (tileLayerRef.current) {
+      const url = isLightMode
+        ? "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+        : "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+      tileLayerRef.current.setUrl(url);
+    }
+  }, [isLightMode]);
 
   useEffect(() => {
     onMapMoveRef.current = onMapMove;
@@ -117,10 +133,14 @@ export default function RouteMap({
           attributionControl: false
         }).setView([40.7128, -74.0060], 13);
 
-        // Premium CartoDB Dark Matter / Positron spatial canvas tiles (Dark mode matching HUD)
-        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        // Premium CartoDB Dark Matter / Positron spatial canvas tiles
+        const initUrl = isLightModeRef.current
+          ? "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          : "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+        const tileLayer = L.tileLayer(initUrl, {
           maxZoom: 20
         }).addTo(map);
+        tileLayerRef.current = tileLayer;
 
         const isFinePointer = typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches;
         if (isFinePointer) {
@@ -416,7 +436,7 @@ export default function RouteMap({
               <div style="font-family: var(--font-body); font-size: 12px; color: var(--hud-text-primary); padding: 4px;">
                 <h4 style="font-family: var(--font-heading); color: #3b82f6; font-size: 14px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">💧 Hydration Alert</h4>
                 <p style="margin-bottom: 8px; line-height: 1.45;">${whyText}</p>
-                <div style="background: rgba(255,255,255,0.06); padding: 8px; border-radius: 8px; text-align: center;">
+                <div class="popup-alert-box">
                   Drink <strong>${waterAmount}</strong> of fluid at this coordinate (${displayCheckpointDist}).
                 </div>
               </div>
@@ -467,7 +487,7 @@ export default function RouteMap({
               <div style="font-family: var(--font-body); font-size: 12px; color: var(--hud-text-primary); padding: 4px;">
                 <h4 style="font-family: var(--font-heading); color: #f59e0b; font-size: 14px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">🍌 Caloric Fuel Alert</h4>
                 <p style="margin-bottom: 8px; line-height: 1.45;">${whyText}</p>
-                <div style="background: rgba(255,255,255,0.06); padding: 8px; border-radius: 8px; text-align: center;">
+                <div class="popup-alert-box">
                   Consume <strong>${carbAmount}</strong> to fuel through this segment (${displayCheckpointDist}).
                 </div>
               </div>

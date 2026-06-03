@@ -17,7 +17,7 @@ export default function RouteMapTooltip({
 }) {
   return (
     <div style={{ minWidth: "220px", color: "var(--hud-text-primary)", padding: "4px" }}>
-      <div style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.12)", paddingBottom: "6px", marginBottom: "8px" }}>
+      <div style={{ borderBottom: "1px solid var(--hud-border)", paddingBottom: "6px", marginBottom: "8px" }}>
         <span style={{ fontFamily: "var(--font-heading)", fontSize: "13px", fontWeight: "800", color: color }}>
           {difficulty}
         </span>
