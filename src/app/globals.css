@@ -96,6 +96,10 @@
   background-color: #f1f5f9;
 }
 
+[data-theme="light"] .hud-input {
+  background: rgba(0, 0, 0, 0.05);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

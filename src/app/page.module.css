@@ -54,10 +54,10 @@
   max-height: 300px;
   overflow-y: auto;
   pointer-events: auto;
-  background: rgba(10, 15, 30, 0.97);
+  background: var(--hud-bg-card);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--hud-border);
+  box-shadow: var(--hud-shadow);
 }
 
 .hubDropdownHeader {
@@ -135,8 +135,8 @@
   font-size: 0.78rem;
   padding: 6px 10px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid var(--hud-border);
+  background: var(--hud-bg-translucent);
   color: var(--hud-text-primary);
   width: 100%;
 }
@@ -213,7 +213,6 @@
   font-size: 0.78rem;
   font-weight: 800;
   cursor: pointer;
-  background: rgba(15, 23, 42, 0.85);
   pointer-events: auto;
 }
 
@@ -225,11 +224,11 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--hud-border);
   pointer-events: auto;
-  background: rgba(10, 15, 30, 0.97);
+  background: var(--hud-bg-card);
   backdrop-filter: blur(20px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--hud-shadow);
   z-index: 10000;
 }
 
@@ -262,8 +261,9 @@
 }
 
 .selectOverride {
-  background: #111827;
+  background: var(--hud-bg-translucent);
   border: 1px solid var(--hud-border);
+  color: var(--hud-text-primary);
 }
 
 .speedSliderRow {
@@ -282,7 +282,6 @@
   font-size: 0.78rem;
   font-weight: 800;
   cursor: pointer;
-  background: rgba(15, 23, 42, 0.85);
   pointer-events: auto;
 }
 
@@ -310,11 +309,11 @@
   gap: 12px;
   max-height: 360px;
   overflow-y: auto;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--hud-border);
   pointer-events: auto;
-  background: rgba(10, 15, 30, 0.97);
+  background: var(--hud-bg-card);
   backdrop-filter: blur(20px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--hud-shadow);
   z-index: 10000;
 }
 
@@ -439,12 +438,12 @@
   gap: 4px;
   display: flex;
   flex-direction: column;
-  background: rgba(10, 15, 30, 0.95);
+  background: var(--hud-bg-card);
   backdrop-filter: blur(16px) saturate(180%);
   -webkit-backdrop-filter: blur(16px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--hud-border);
   border-radius: 12px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--hud-shadow);
 }
 
 .setupDropBox::-webkit-scrollbar {
@@ -637,7 +636,10 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  background: rgba(15, 23, 42, 0.85);
+  background: var(--hud-bg-card);
+  border: 1px solid var(--hud-border);
+  border-radius: 20px;
+  box-shadow: var(--hud-shadow);
   pointer-events: auto;
 }
 
@@ -724,7 +726,9 @@
   justify-content: space-between;
   gap: 16px;
   width: 100%;
-  background: rgba(15, 23, 42, 0.9);
+  background: var(--hud-bg-card);
+  border-top: 1px solid var(--hud-border);
+  box-shadow: var(--hud-shadow);
   pointer-events: auto;
 }
 
@@ -779,11 +783,11 @@
   gap: 16px;
   max-height: 80vh;
   overflow-y: auto;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--hud-border);
   pointer-events: auto;
-  background: rgba(10, 15, 30, 0.97);
+  background: var(--hud-bg-card);
   backdrop-filter: blur(20px);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 10px 10px -5px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--hud-shadow);
 }
 
 .plannerColumns {
