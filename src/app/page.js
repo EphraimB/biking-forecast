@@ -551,10 +551,14 @@ export default function Home() {
 
   const handleShowSimulatedInfo = useCallback((e) => {
     e.stopPropagation();
+    const isSimulatedMode = process.env.MOCK === "true";
+    const msg = isSimulatedMode 
+      ? "Simulated weather mode active (MOCK=true)." 
+      : "Daily weather limit reached. Simulated forecast active for the rest of today.";
     setToast({
-      id: "toast-429-info",
-      type: "warning",
-      message: "Daily weather limit reached. Simulated forecast active for the rest of today.",
+      id: "toast-simulated-info",
+      type: isSimulatedMode ? "info" : "warning",
+      message: msg,
       isPersistent: false
     });
   }, []);
@@ -2732,40 +2736,53 @@ export default function Home() {
             📐 <span className="mobile-hide">{unitSystem === "metric" ? "METRIC" : "IMPERIAL"}</span>
           </button>
 
-          {dynamicAmbientWeather && (
-            <div className={`hud-bubble ${styles.weatherBubble}`} title={`Location: ${dynamicAmbientWeather.desc}`}>
-              <SunDim size={16} className={styles.sunDimIcon} style={{ animation: "spin 12s linear infinite" }} />
-              <span className={styles.weatherText}>
-                <span className="mobile-hide" style={{ color: "var(--color-emerald)", fontWeight: "800", marginRight: "4px" }}>
-                  {dynamicAmbientWeather.desc}:
-                </span>
-                {formatTemp(dynamicAmbientWeather.temp)}
-                <span> • {formatWind(dynamicAmbientWeather.windSpeed)} {dynamicAmbientWeather.windDir}</span>
-                {cooldownRemaining > 0 && (
-                  <span 
-                    className={styles.cooldownBadge} 
-                    onClick={handleShowSimulatedInfo}
-                    style={{ cursor: "pointer" }}
-                    title="Daily weather limit reached. Simulated forecast active for the rest of today. Tap for more info."
-                  >
-                    ⚠️ SIMULATED <span className="mobile-hide">(Daily Limit)</span>
+          {dynamicAmbientWeather && (() => {
+            const isSimulatedMode = process.env.MOCK === "true";
+            const isSimulatedBadgeVisible = cooldownRemaining > 0 || isSimulatedMode;
+            const isRefreshDisabled = isRefreshingWeather || cooldownRemaining > 0 || isSimulatedMode;
+            
+            let refreshTitle = "Refresh Weather";
+            if (cooldownRemaining > 0) {
+              refreshTitle = "Daily weather limit reached. Simulated forecast active for the rest of today.";
+            } else if (isSimulatedMode) {
+              refreshTitle = "Simulated weather mode active (MOCK=true).";
+            }
+            
+            return (
+              <div className={`hud-bubble ${styles.weatherBubble}`} title={`Location: ${dynamicAmbientWeather.desc}`}>
+                <SunDim size={16} className={styles.sunDimIcon} style={{ animation: "spin 12s linear infinite" }} />
+                <span className={styles.weatherText}>
+                  <span className="mobile-hide" style={{ color: "var(--color-emerald)", fontWeight: "800", marginRight: "4px" }}>
+                    {dynamicAmbientWeather.desc}:
                   </span>
-                )}
-              </span>
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleRefreshWeather();
-                }} 
-                className={`${styles.weatherRefreshBtn} ${isRefreshingWeather ? styles.spinning : ""}`}
-                title={cooldownRemaining > 0 ? "Daily weather limit reached. Simulated forecast active for the rest of today." : "Refresh Weather"}
-                disabled={isRefreshingWeather || cooldownRemaining > 0}
-                style={{ opacity: cooldownRemaining > 0 ? 0.35 : 1, cursor: cooldownRemaining > 0 ? "not-allowed" : "pointer" }}
-              >
-                <RefreshCw size={12} />
-              </button>
-            </div>
-          )}
+                  {formatTemp(dynamicAmbientWeather.temp)}
+                  <span> • {formatWind(dynamicAmbientWeather.windSpeed)} {dynamicAmbientWeather.windDir}</span>
+                  {isSimulatedBadgeVisible && (
+                    <span 
+                      className={styles.cooldownBadge} 
+                      onClick={handleShowSimulatedInfo}
+                      style={{ cursor: "pointer" }}
+                      title={isSimulatedMode ? "Simulated weather mode active (MOCK=true). Tap for more info." : "Daily weather limit reached. Simulated forecast active for the rest of today. Tap for more info."}
+                    >
+                      ⚠️ SIMULATED {isSimulatedMode ? "" : <span className="mobile-hide">(Daily Limit)</span>}
+                    </span>
+                  )}
+                </span>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRefreshWeather();
+                  }} 
+                  className={`${styles.weatherRefreshBtn} ${isRefreshingWeather ? styles.spinning : ""}`}
+                  title={refreshTitle}
+                  disabled={isRefreshDisabled}
+                  style={{ opacity: isRefreshDisabled ? 0.35 : 1, cursor: isRefreshDisabled ? "not-allowed" : "pointer" }}
+                >
+                  <RefreshCw size={12} />
+                </button>
+              </div>
+            );
+          })()}
 
 
 
