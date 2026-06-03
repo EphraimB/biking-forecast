@@ -853,6 +853,29 @@ export default function Home() {
     }
   }, [cooldownTime]);
 
+  // Keep "Leave Now" time synced to the current system clock if not in custom mode
+  useEffect(() => {
+    if (isDepartureTimeCustom || selectedDayOffset !== 0) return;
+
+    const syncTime = () => {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMin = now.getMinutes();
+      
+      if (selectedHour !== currentHour) {
+        setSelectedHour(currentHour);
+      }
+      if (selectedMinute !== currentMin) {
+        setSelectedMinute(currentMin);
+      }
+    };
+
+    syncTime();
+
+    const interval = setInterval(syncTime, 10000);
+    return () => clearInterval(interval);
+  }, [isDepartureTimeCustom, selectedDayOffset, selectedHour, selectedMinute]);
+
   // 1. Initial Mount: Restore Active View State
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -1766,6 +1789,14 @@ export default function Home() {
       timeMode,
       isSaved
     };
+  };
+
+  const isPastTime = () => {
+    const now = new Date();
+    const selectedDateTime = new Date();
+    selectedDateTime.setDate(selectedDateTime.getDate() + selectedDayOffset);
+    selectedDateTime.setHours(selectedHour, selectedMinute, 0, 0);
+    return selectedDateTime.getTime() < now.getTime() - 60000;
   };
 
   // Pure derived state: Packing list calculated synchronously inside render (satisfies react-hooks linter rules)
@@ -3300,6 +3331,12 @@ export default function Home() {
                     <span><strong>Arrival</strong>: {getLeaveNowOverlayData().arrivalTimeStr}</span>
                   </div>
                 )}
+                {isPastTime() && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--color-amber)", fontSize: "11px", fontWeight: "700" }}>
+                    <span>⚠️</span>
+                    <span>Selected time is in the past</span>
+                  </div>
+                )}
               </div>
 
               {/* Actions Row */}
@@ -3407,6 +3444,7 @@ export default function Home() {
                       const outboundHour = parseInt(daySched.outbound.split(":")[0]);
                       setSelectedHour(outboundHour);
                       setIsReturnTripMode(false);
+                      setIsDepartureTimeCustom(true);
                     } else {
                       // Helpfully prompt route setup
                       setHudState(1);
@@ -3438,6 +3476,7 @@ export default function Home() {
                           const outboundHour = parseInt(daySched.outbound.split(":")[0]);
                           setSelectedHour(outboundHour);
                           setIsReturnTripMode(false);
+                          setIsDepartureTimeCustom(true);
                         } else {
                           setHudState(1);
                         }
@@ -3491,6 +3530,7 @@ export default function Home() {
                           const returnHour = parseInt(daySched.return.split(":")[0]);
                           setSelectedHour(returnHour);
                           setIsReturnTripMode(true);
+                          setIsDepartureTimeCustom(true);
                         } else {
                           setHudState(1);
                         }
@@ -3569,6 +3609,7 @@ export default function Home() {
                       const outboundHour = parseInt(daySched.outbound.split(":")[0]);
                       setSelectedHour(outboundHour);
                       setIsReturnTripMode(false);
+                      setIsDepartureTimeCustom(true);
                     }}
                     style={{ 
                       background: !isReturnTripMode ? "var(--color-emerald)" : "transparent",
@@ -3593,6 +3634,7 @@ export default function Home() {
                       const returnHour = parseInt(daySched.return.split(":")[0]);
                       setSelectedHour(returnHour);
                       setIsReturnTripMode(true);
+                      setIsDepartureTimeCustom(true);
                     }}
                     style={{ 
                       background: isReturnTripMode ? "var(--color-emerald)" : "transparent",
@@ -3619,7 +3661,10 @@ export default function Home() {
                   min="6" // 6:00 AM
                   max="20" // 8:00 PM
                   value={selectedHour}
-                  onChange={(e) => setSelectedHour(parseInt(e.target.value))}
+                  onChange={(e) => {
+                    setSelectedHour(parseInt(e.target.value));
+                    setIsDepartureTimeCustom(true);
+                  }}
                   className={styles.rangeScrubber}
                 />
               </div>
