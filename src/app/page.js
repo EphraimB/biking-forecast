@@ -926,28 +926,7 @@ export default function Home() {
     }
   }, [cooldownTime]);
 
-  // Keep "Leave Now" time synced to the current system clock if not in custom mode
-  useEffect(() => {
-    if (isDepartureTimeCustom || selectedDayOffset !== 0) return;
 
-    const syncTime = () => {
-      const now = new Date();
-      const currentHour = now.getHours();
-      const currentMin = now.getMinutes();
-      
-      if (selectedHour !== currentHour) {
-        setSelectedHour(currentHour);
-      }
-      if (selectedMinute !== currentMin) {
-        setSelectedMinute(currentMin);
-      }
-    };
-
-    syncTime();
-
-    const interval = setInterval(syncTime, 10000);
-    return () => clearInterval(interval);
-  }, [isDepartureTimeCustom, selectedDayOffset, selectedHour, selectedMinute]);
 
   // 1. Initial Mount: Restore Active View State
   useEffect(() => {
@@ -1192,23 +1171,24 @@ export default function Home() {
 
   const handleOverlayTimeModeChange = (val) => {
     setTimeMode(val);
-    setIsDepartureTimeCustom(true);
 
-    if (val === "arrive") {
-      const totalDist = activeRouteData?.segments?.reduce((sum, seg) => sum + seg.distance, 0) || 0;
-      const baseSpeed = activeRouteData?.speed || 18;
-      const durationMins = totalDist ? Math.ceil((totalDist / baseSpeed) * 60) : 0;
+    if (isDepartureTimeCustom) {
+      if (val === "arrive") {
+        const totalDist = activeRouteData?.segments?.reduce((sum, seg) => sum + seg.distance, 0) || 0;
+        const baseSpeed = activeRouteData?.speed || 18;
+        const durationMins = totalDist ? Math.ceil((totalDist / baseSpeed) * 60) : 0;
 
-      const targetArrivalDate = new Date();
-      targetArrivalDate.setMinutes(targetArrivalDate.getMinutes() + durationMins);
+        const targetArrivalDate = new Date();
+        targetArrivalDate.setMinutes(targetArrivalDate.getMinutes() + durationMins);
 
-      if (selectedDayOffset === 0) {
-        const currentSelectedDate = new Date();
-        currentSelectedDate.setHours(selectedHour, selectedMinute, 0, 0);
+        if (selectedDayOffset === 0) {
+          const currentSelectedDate = new Date();
+          currentSelectedDate.setHours(selectedHour, selectedMinute, 0, 0);
 
-        if (currentSelectedDate < targetArrivalDate) {
-          setSelectedHour(targetArrivalDate.getHours());
-          setSelectedMinute(targetArrivalDate.getMinutes());
+          if (currentSelectedDate < targetArrivalDate) {
+            setSelectedHour(targetArrivalDate.getHours());
+            setSelectedMinute(targetArrivalDate.getMinutes());
+          }
         }
       }
     }
@@ -1228,7 +1208,7 @@ export default function Home() {
       
       setSelectedHour(targetArrivalDate.getHours());
       setSelectedMinute(targetArrivalDate.getMinutes());
-      setIsDepartureTimeCustom(true);
+      setIsDepartureTimeCustom(false); // Resets to live syncing mode
     } else {
       setSelectedHour(now.getHours());
       const currentMin = now.getMinutes();
@@ -1758,6 +1738,40 @@ export default function Home() {
     newSpeed
   ]);
 
+  // Keep "Leave Now" / "Arrive Now" time synced to the current system clock if not in custom mode
+  useEffect(() => {
+    if (isDepartureTimeCustom || selectedDayOffset !== 0) return;
+
+    const syncTime = () => {
+      const now = new Date();
+      let targetHour = now.getHours();
+      let targetMin = now.getMinutes();
+
+      if (timeMode === "arrive" && activeRouteData) {
+        const totalDist = activeRouteData.segments?.reduce((sum, seg) => sum + seg.distance, 0) || 0;
+        const baseSpeed = activeRouteData.speed || 18;
+        const durationMins = totalDist ? Math.ceil((totalDist / baseSpeed) * 60) : 0;
+        
+        const targetArrivalDate = new Date();
+        targetArrivalDate.setMinutes(targetArrivalDate.getMinutes() + durationMins);
+        targetHour = targetArrivalDate.getHours();
+        targetMin = targetArrivalDate.getMinutes();
+      }
+      
+      if (selectedHour !== targetHour) {
+        setSelectedHour(targetHour);
+      }
+      if (selectedMinute !== targetMin) {
+        setSelectedMinute(targetMin);
+      }
+    };
+
+    syncTime();
+
+    const interval = setInterval(syncTime, 10000);
+    return () => clearInterval(interval);
+  }, [isDepartureTimeCustom, selectedDayOffset, selectedHour, selectedMinute, timeMode, activeRouteData]);
+
   // Debounced map viewport move callback for panning updates
   const handleMapMove = useCallback((coord) => {
     if (isLoading) return;
@@ -1931,7 +1945,16 @@ export default function Home() {
     const selectedDateTime = new Date();
     selectedDateTime.setDate(selectedDateTime.getDate() + selectedDayOffset);
     selectedDateTime.setHours(selectedHour, selectedMinute, 0, 0);
-    return selectedDateTime.getTime() < now.getTime() - 60000;
+    
+    let targetTime = selectedDateTime.getTime();
+    if (timeMode === "arrive" && activeRouteData) {
+      const totalDist = activeRouteData.segments?.reduce((sum, seg) => sum + seg.distance, 0) || 0;
+      const baseSpeed = activeRouteData.speed || 18;
+      const durationMins = totalDist ? Math.ceil((totalDist / baseSpeed) * 60) : 0;
+      targetTime = selectedDateTime.getTime() - durationMins * 60 * 1000;
+    }
+    
+    return targetTime < now.getTime() - 60000;
   };
 
   // Pure derived state: Packing list calculated synchronously inside render (satisfies react-hooks linter rules)
@@ -3630,9 +3653,9 @@ export default function Home() {
               {/* Departure Mode Title & Reset */}
               <div className={styles.setupHeader} style={{ marginBottom: "6px" }}>
                 <span className={styles.setupTitle} style={{ color: "#ef4444", display: "flex", alignItems: "center", gap: "6px", fontSize: "0.82rem" }}>
-                  🏁 {getLeaveNowOverlayData().isDepartureTimeCustom ? (getLeaveNowOverlayData().timeMode === "arrive" ? "Custom Arrival" : "Custom Departure") : "Leave Now"}
+                  🏁 {getLeaveNowOverlayData().isDepartureTimeCustom ? (getLeaveNowOverlayData().timeMode === "arrive" ? "Custom Arrival" : "Custom Departure") : (getLeaveNowOverlayData().timeMode === "arrive" ? "Arrive Now" : "Leave Now")}
                 </span>
-                {getLeaveNowOverlayData().isDepartureTimeCustom && (
+                {(getLeaveNowOverlayData().isDepartureTimeCustom || selectedDayOffset !== 0) && (
                   <button 
                     onClick={handleOverlayResetClick} 
                     className={styles.overlayResetBtn}
@@ -3799,7 +3822,7 @@ export default function Home() {
                 {isPastTime() && (
                   <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--color-amber)", fontSize: "11px", fontWeight: "700" }}>
                     <span>⚠️</span>
-                    <span>Selected time is in the past</span>
+                    <span>{timeMode === "arrive" ? "Selected arrival time requires departing in the past" : "Selected time is in the past"}</span>
                   </div>
                 )}
               </div>
