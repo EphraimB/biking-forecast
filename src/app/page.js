@@ -760,58 +760,38 @@ export default function Home() {
     }
   }, [handleWeatherResponse]);
 
-  const triggerGeocode = useCallback((query, isStart) => {
+  const performGeocodeSearch = useCallback(async (query, isStart) => {
     if (!query || query.trim().length < 3) {
-      if (isStart) {
-        setStartResults([]);
-        if (startGeocodeTimeoutRef.current) {
-          clearTimeout(startGeocodeTimeoutRef.current);
-          startGeocodeTimeoutRef.current = null;
-        }
-      } else {
-        setEndResults([]);
-        if (endGeocodeTimeoutRef.current) {
-          clearTimeout(endGeocodeTimeoutRef.current);
-          endGeocodeTimeoutRef.current = null;
-        }
-      }
+      if (isStart) setStartResults([]);
+      else setEndResults([]);
       return;
     }
 
     if (isStart) {
-      if (startGeocodeTimeoutRef.current) {
-        clearTimeout(startGeocodeTimeoutRef.current);
+      setIsSearchingStart(true);
+      try {
+        const res = await geocodeAddress(query);
+        setStartResults(res || []);
+        setIsStartFocused(true);
+      } catch (err) {
+        console.error("Geocoding start address failed:", err);
+      } finally {
+        setIsSearchingStart(false);
       }
-      startGeocodeTimeoutRef.current = setTimeout(async () => {
-        setIsSearchingStart(true);
-        try {
-          const res = await geocodeAddress(query);
-          setStartResults(res || []);
-        } catch (err) {
-          console.error("Geocoding start address failed:", err);
-        } finally {
-          setIsSearchingStart(false);
-          startGeocodeTimeoutRef.current = null;
-        }
-      }, 600);
     } else {
-      if (endGeocodeTimeoutRef.current) {
-        clearTimeout(endGeocodeTimeoutRef.current);
+      setIsSearchingEnd(true);
+      try {
+        const res = await geocodeAddress(query);
+        setEndResults(res || []);
+        setIsEndFocused(true);
+      } catch (err) {
+        console.error("Geocoding end address failed:", err);
+      } finally {
+        setIsSearchingEnd(false);
       }
-      endGeocodeTimeoutRef.current = setTimeout(async () => {
-        setIsSearchingEnd(true);
-        try {
-          const res = await geocodeAddress(query);
-          setEndResults(res || []);
-        } catch (err) {
-          console.error("Geocoding end address failed:", err);
-        } finally {
-          setIsSearchingEnd(false);
-          endGeocodeTimeoutRef.current = null;
-        }
-      }, 600);
     }
   }, []);
+
 
   // Click outside to close autosuggestions dropdowns
   useEffect(() => {
@@ -2943,9 +2923,26 @@ export default function Home() {
                     if (draftStart && val !== draftStart.label) {
                       setDraftStart(null);
                     }
-                    triggerGeocode(val, true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      performGeocodeSearch(startQuery, true);
+                    }
                   }}
                 />
+                <button 
+                  type="button" 
+                  className={styles.searchIconBtn} 
+                  onClick={() => performGeocodeSearch(startQuery, true)}
+                  title="Search address"
+                >
+                  {isSearchingStart ? (
+                    <RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} />
+                  ) : (
+                    <Search size={14} />
+                  )}
+                </button>
                 {isStartFocused && (filteredStartTags.length > 0 || startResults.length > 0) && (
                   <div className={`${styles.setupDropBox} hud-card`}>
                     {/* Render saved tags first */}
@@ -2961,10 +2958,6 @@ export default function Home() {
                             setStartQuery(getLabelWithTag(resolvedLoc, taggedLocations));
                             setStartResults([]);
                             setIsStartFocused(false);
-                            if (startGeocodeTimeoutRef.current) {
-                              clearTimeout(startGeocodeTimeoutRef.current);
-                              startGeocodeTimeoutRef.current = null;
-                            }
                           }}
                         >
                           <span style={{ fontSize: "0.9rem", flexShrink: 0 }}>
@@ -2988,10 +2981,6 @@ export default function Home() {
                           setStartQuery(getLabelWithTag(loc));
                           setStartResults([]);
                           setIsStartFocused(false);
-                          if (startGeocodeTimeoutRef.current) {
-                            clearTimeout(startGeocodeTimeoutRef.current);
-                            startGeocodeTimeoutRef.current = null;
-                          }
                         }}
                       >
                         <MapPin size={12} style={{ color: "var(--color-emerald)", flexShrink: 0 }} />
@@ -3076,9 +3065,26 @@ export default function Home() {
                     if (draftEnd && val !== draftEnd.label) {
                       setDraftEnd(null);
                     }
-                    triggerGeocode(val, false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      performGeocodeSearch(endQuery, false);
+                    }
                   }}
                 />
+                <button 
+                  type="button" 
+                  className={styles.searchIconBtn} 
+                  onClick={() => performGeocodeSearch(endQuery, false)}
+                  title="Search address"
+                >
+                  {isSearchingEnd ? (
+                    <RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} />
+                  ) : (
+                    <Search size={14} />
+                  )}
+                </button>
                 {isEndFocused && (filteredEndTags.length > 0 || endResults.length > 0) && (
                   <div className={`${styles.setupDropBox} hud-card`}>
                     {/* Render saved tags first */}
@@ -3094,10 +3100,6 @@ export default function Home() {
                             setEndQuery(getLabelWithTag(resolvedLoc, taggedLocations));
                             setEndResults([]);
                             setIsEndFocused(false);
-                            if (endGeocodeTimeoutRef.current) {
-                              clearTimeout(endGeocodeTimeoutRef.current);
-                              endGeocodeTimeoutRef.current = null;
-                            }
                           }}
                         >
                           <span style={{ fontSize: "0.9rem", flexShrink: 0 }}>
@@ -3121,10 +3123,6 @@ export default function Home() {
                           setEndQuery(getLabelWithTag(loc));
                           setEndResults([]);
                           setIsEndFocused(false);
-                          if (endGeocodeTimeoutRef.current) {
-                            clearTimeout(endGeocodeTimeoutRef.current);
-                            endGeocodeTimeoutRef.current = null;
-                          }
                         }}
                       >
                         <MapPin size={12} style={{ color: "var(--color-emerald)", flexShrink: 0 }} />
@@ -3148,6 +3146,7 @@ export default function Home() {
                     >
                       💼 Work
                     </button>
+
                     {isEditingCustomEnd ? (
                       <div className={styles.customTagInputWrapper}>
                         <input
