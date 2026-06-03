@@ -159,9 +159,10 @@ function CustomTimeInput({ value, onChange, unitSystem, isBulk = false }) {
           value={localHour}
           onChange={handleLocalHourInputChange}
           onBlur={(e) => commitHour(e.target.value)}
+          onFocus={(e) => e.target.select()}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              e.target.blur();
+               e.target.blur();
             }
           }}
           className={inputClass}
@@ -175,9 +176,10 @@ function CustomTimeInput({ value, onChange, unitSystem, isBulk = false }) {
           value={localMinute}
           onChange={handleLocalMinuteInputChange}
           onBlur={(e) => commitMinute(e.target.value)}
+          onFocus={(e) => e.target.select()}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              e.target.blur();
+               e.target.blur();
             }
           }}
           className={inputClass}
@@ -196,9 +198,10 @@ function CustomTimeInput({ value, onChange, unitSystem, isBulk = false }) {
           value={localHour}
           onChange={handleLocalHourInputChange}
           onBlur={(e) => commitHour(e.target.value)}
+          onFocus={(e) => e.target.select()}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              e.target.blur();
+               e.target.blur();
             }
           }}
           className={inputClass}
@@ -212,9 +215,10 @@ function CustomTimeInput({ value, onChange, unitSystem, isBulk = false }) {
           value={localMinute}
           onChange={handleLocalMinuteInputChange}
           onBlur={(e) => commitMinute(e.target.value)}
+          onFocus={(e) => e.target.select()}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              e.target.blur();
+               e.target.blur();
             }
           }}
           className={inputClass}
@@ -223,7 +227,7 @@ function CustomTimeInput({ value, onChange, unitSystem, isBulk = false }) {
           value={period}
           onChange={(e) => handlePeriodChange(e.target.value)}
           className={selectClass}
-          style={{ marginLeft: "2px" }}
+          style={{ marginLeft: "2px", width: "auto" }}
         >
           <option value="AM" style={{ background: "#0f172a", color: "#f8fafc" }}>AM</option>
           <option value="PM" style={{ background: "#0f172a", color: "#f8fafc" }}>PM</option>
@@ -3266,6 +3270,7 @@ export default function Home() {
                     maxLength={2}
                     value={overlayHourVal}
                     onChange={(e) => setOverlayHourVal(e.target.value.replace(/\D/g, ''))}
+                    onFocus={(e) => e.target.select()}
                     onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); e.stopPropagation(); }}
                     onKeyUp={(e) => e.stopPropagation()}
                     onKeyPress={(e) => e.stopPropagation()}
@@ -3285,6 +3290,7 @@ export default function Home() {
                     maxLength={2}
                     value={overlayMinVal}
                     onChange={(e) => setOverlayMinVal(e.target.value.replace(/\D/g, ''))}
+                    onFocus={(e) => e.target.select()}
                     onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); e.stopPropagation(); }}
                     onKeyUp={(e) => e.stopPropagation()}
                     onKeyPress={(e) => e.stopPropagation()}
@@ -3303,8 +3309,9 @@ export default function Home() {
                       className={styles.timeSelect}
                       style={{
                         fontSize: "11px",
-                        padding: "5px 6px",
-                        flex: 1.1,
+                        padding: "5px 4px",
+                        flex: "0 0 auto",
+                        width: "auto",
                       }}
                     >
                       <option value="AM" style={{ background: "#0f172a", color: "#f8fafc" }}>AM</option>
