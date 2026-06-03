@@ -25,6 +25,33 @@
   --color-ruby: hsl(350, 80%, 48%);
   --color-ruby-glow: hsla(350, 80%, 48%, 0.35);
 
+  /* Semantic Color Aliases */
+  --rose: var(--color-ruby);
+  --emerald: var(--color-emerald);
+  --amber: var(--color-amber);
+  --rose-glow: var(--color-ruby-glow);
+  --emerald-glow: var(--color-emerald-glow);
+  --amber-glow: var(--color-amber-glow);
+
+  /* Global Interface Mappings */
+  --foreground: var(--hud-text-primary);
+  --card-border: var(--hud-border);
+
+  /* Slate Gray Colors */
+  --slate-300: hsla(215, 20%, 75%, 1);
+  --slate-400: hsla(215, 20%, 65%, 1);
+  --slate-500: hsla(215, 15%, 55%, 1);
+  --slate-700: hsla(215, 25%, 85%, 1);
+  --slate-800: hsla(210, 40%, 98%, 1);
+  --slate-900: hsla(210, 40%, 98%, 1);
+
+  /* SVG Dial Variables */
+  --svg-dial-bg: rgba(255, 255, 255, 0.03);
+  --svg-dial-border: rgba(255, 255, 255, 0.06);
+  --svg-dial-ring: rgba(255, 255, 255, 0.15);
+  --svg-dial-label: rgba(255, 255, 255, 0.4);
+  --svg-dial-arrow: rgba(255, 255, 255, 0.6);
+
   /* Atmospheric Tints */
   --color-wind: hsl(196, 60%, 80%);
   --color-rain: hsl(212, 100%, 48%);
@@ -34,6 +61,43 @@
   --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
   --duration-fluid: 400ms;
   --duration-snap: 200ms;
+}
+
+[data-theme="light"] {
+  --hud-bg-raw: 220, 20%, 97%;
+  --hud-bg-translucent: rgba(255, 255, 255, 0.65);
+  --hud-bg-card: rgba(255, 255, 255, 0.85);
+  --hud-border: hsla(220, 20%, 20%, 0.12);
+  --hud-border-glow: hsla(217, 91%, 50%, 0.15);
+  --hud-text-primary: hsla(220, 40%, 15%, 1);
+  --hud-text-secondary: hsla(220, 15%, 45%, 1);
+  --hud-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.12);
+
+  /* Slate Gray Colors for Light Theme */
+  --slate-300: hsla(220, 15%, 45%, 1);
+  --slate-400: hsla(220, 15%, 50%, 1);
+  --slate-500: hsla(220, 15%, 40%, 1);
+  --slate-700: hsla(220, 30%, 25%, 1);
+  --slate-800: hsla(220, 40%, 15%, 1);
+  --slate-900: hsla(220, 40%, 12%, 1);
+
+  /* SVG Dial Variables for Light Theme */
+  --svg-dial-bg: rgba(0, 0, 0, 0.03);
+  --svg-dial-border: rgba(0, 0, 0, 0.08);
+  --svg-dial-ring: rgba(0, 0, 0, 0.15);
+  --svg-dial-label: rgba(0, 0, 0, 0.5);
+  --svg-dial-arrow: rgba(0, 0, 0, 0.6);
+
+  /* Darken wind flow lines in light mode so they are visible on a light map */
+  --color-wind: hsl(200, 70%, 45%);
+}
+
+[data-theme="light"] body {
+  background-color: #f1f5f9;
+}
+
+[data-theme="light"] .hud-input {
+  background: rgba(0, 0, 0, 0.05);
 }
 
 * {
@@ -240,6 +304,16 @@ html, body {
 .hud-pulse-ruby {
   --pulse-color: var(--color-ruby-glow);
   animation: ring-glow-pulse 2s infinite;
+}
+
+.popup-alert-box {
+  background: rgba(255, 255, 255, 0.06);
+  padding: 8px;
+  border-radius: 8px;
+  text-align: center;
+}
+[data-theme="light"] .popup-alert-box {
+  background: rgba(0, 0, 0, 0.05);
 }
 
 /* ------------------------------------------------------------- */
