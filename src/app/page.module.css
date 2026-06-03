@@ -910,6 +910,18 @@
     gap: 16px;
   }
 
+  .timeInput,
+  .bulkTimeInput {
+    width: 42px !important;
+    padding: 4px 2px !important;
+  }
+
+  .timeSelect,
+  .bulkTimeSelect {
+    padding: 4px 8px !important;
+    min-width: 52px !important;
+  }
+
   .ribbonOuter {
     left: 10px;
     right: 10px;
