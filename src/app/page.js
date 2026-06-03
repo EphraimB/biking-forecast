@@ -2044,7 +2044,29 @@ export default function Home() {
     console.groupEnd();
 
     console.groupEnd();
-  }, [activeForecast, activeRouteData, selectedDayOffset, selectedHour, hudState]);
+
+    // Debounced automatic terminal logging via server POST route
+    const logTimer = setTimeout(() => {
+      fetch("/api/log-commute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: `ACTIVE ROUTE FORECAST - ${activeRouteData.name || "Custom Route"}`,
+          result: {
+            score: activeForecast.score,
+            duration: activeForecast.duration,
+            speed: activeForecast.speed,
+            hourDetails: activeForecast
+          },
+          isOutbound: !isReturnTripMode,
+          targetTimeStr: new Date(targetDate.setHours(hourIdx % 24, 0, 0, 0)).toISOString(),
+          baseSpeed: activeRouteData.speed
+        })
+      }).catch(() => {});
+    }, 400);
+
+    return () => clearTimeout(logTimer);
+  }, [activeForecast, activeRouteData, selectedDayOffset, selectedHour, hudState, isReturnTripMode]);
 
   const selectedDayDate = new Date();
   selectedDayDate.setDate(selectedDayDate.getDate() + selectedDayOffset);
