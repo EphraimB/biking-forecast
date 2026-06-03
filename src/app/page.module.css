@@ -1231,3 +1231,47 @@
   background: rgba(255, 255, 255, 0.08);
   color: var(--color-ruby);
 }
+
+.savedBadge {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: var(--color-emerald);
+  font-size: 0.58rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: auto;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.searchIconBtn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--hud-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.searchIconBtn:hover {
+  color: var(--color-emerald);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.relativeWrapper input {
+  padding-right: 38px !important;
+}
+
+
+
+
