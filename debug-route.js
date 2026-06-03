@@ -114,8 +114,8 @@ function formatTerminalReportLineByLine(title, result, isOutbound, targetTimeStr
   
   const arrivalTime = new Date(departureTime.getTime() + duration * 60 * 1000);
   
-  const depTimeText = departureTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const arrTimeText = arrivalTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const depTimeText = departureTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: isImperial });
+  const arrTimeText = arrivalTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: isImperial });
 
   const displayDist = isImperial ? `${((details.distance ?? 0) * 0.621371).toFixed(1)} miles` : `${(details.distance ?? 0).toFixed(1)} km`;
   const displaySpeedAvg = isImperial ? `${(speed * 0.621371).toFixed(1)} mph` : `${speed.toFixed(1)} km/h`;
