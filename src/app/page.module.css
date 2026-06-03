@@ -410,6 +410,84 @@
   pointer-events: auto;
 }
 
+.segmentedControl {
+  display: flex;
+  background: var(--segmented-bg);
+  border: 1px solid var(--segmented-border);
+  border-radius: 8px;
+  padding: 2px;
+  margin-bottom: 2px;
+}
+
+.segmentedBtn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--hud-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.segmentedBtnActive {
+  background: var(--segmented-active-bg);
+  box-shadow: var(--segmented-active-shadow);
+  color: var(--color-emerald);
+}
+
+.overlayBtn {
+  background: var(--hud-btn-bg);
+  border: 1px solid var(--hud-btn-border);
+  color: var(--hud-text-primary);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all var(--duration-snap) ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.overlayBtn:hover {
+  background: var(--hud-btn-hover-bg);
+  border-color: var(--hud-btn-hover-border);
+}
+
+.overlayBtn:disabled {
+  background: var(--hud-btn-disabled-bg) !important;
+  border-color: var(--hud-btn-disabled-border) !important;
+  color: var(--hud-text-secondary) !important;
+  cursor: not-allowed !important;
+  opacity: 0.5;
+}
+
+.overlayPrimaryBtn {
+  background: var(--color-emerald);
+  border: 1px solid transparent;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px var(--color-emerald-glow);
+  transition: all var(--duration-snap) ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.overlayPrimaryBtn:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 2px 8px var(--color-emerald-glow);
+}
+
 .setupHeader {
   display: flex;
   justify-content: space-between;
@@ -481,14 +559,14 @@
 }
 
 .setupDropItem:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.10);
+  background: var(--hud-btn-hover-bg);
+  border-color: var(--hud-btn-hover-border);
   color: var(--color-emerald);
 }
 
 .timeSelect,
 .bulkTimeSelect {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--hud-btn-bg);
   border: 1px solid var(--hud-border);
   border-radius: 6px;
   color: var(--hud-text-primary);
@@ -506,13 +584,13 @@
 
 .timeSelect:hover,
 .bulkTimeSelect:hover {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.25);
+  background: var(--hud-btn-hover-bg);
+  border-color: var(--hud-btn-hover-border);
 }
 
 .timeSelect:focus,
 .bulkTimeSelect:focus {
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--hud-btn-hover-bg);
   border-color: var(--color-emerald);
   box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
 }
@@ -524,13 +602,13 @@
 
 .timeSelect option,
 .bulkTimeSelect option {
-  background: #0f172a;
-  color: #f8fafc;
+  background: hsl(var(--hud-bg-raw));
+  color: var(--hud-text-primary);
 }
 
 .timeInput,
 .bulkTimeInput {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--hud-btn-bg);
   border: 1px solid var(--hud-border);
   border-radius: 6px;
   color: var(--hud-text-primary);
@@ -546,13 +624,13 @@
 
 .timeInput:hover,
 .bulkTimeInput:hover {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.25);
+  background: var(--hud-btn-hover-bg);
+  border-color: var(--hud-btn-hover-border);
 }
 
 .timeInput:focus,
 .bulkTimeInput:focus {
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--hud-btn-hover-bg);
   border-color: var(--color-emerald);
   box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
 }
