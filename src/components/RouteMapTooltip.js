@@ -7,7 +7,6 @@ import WindDial from "./svgs/WindDial";
 export default function RouteMapTooltip({
   difficulty,
   color,
-  displayDist,
   displaySpeed,
   speedPercent,
   bearing,
@@ -27,12 +26,8 @@ export default function RouteMapTooltip({
       {/* 2-Column Telemetry Grid */}
       <div className="tooltip-grid-container">
         
-        {/* Left Column: Speedometer & Distance Stats */}
+        {/* Left Column: Speedometer Stats */}
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <div className="tooltip-cell">
-            <span className="tooltip-label">DISTANCE</span>
-            <strong className="tooltip-val">{displayDist}</strong>
-          </div>
           <div className="tooltip-cell">
             <span className="tooltip-label">BIKER SPEED</span>
             <strong className="tooltip-val" style={{ color: color }}>{displaySpeed}</strong>
