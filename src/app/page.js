@@ -320,6 +320,31 @@ export default function Home() {
   // Adaptive Unit Toggle (📐 Metric / Imperial)
   const [unitSystem, setUnitSystem] = useState("metric");
 
+  // Light / Dark Theme toggle (☀️ / 🌙)
+  const [isLightMode, setIsLightMode] = useState(false);
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme === "light") {
+      setIsLightMode(true);
+    } else if (savedTheme === "dark") {
+      setIsLightMode(false);
+    } else {
+      const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
+      setIsLightMode(prefersLight);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isLightMode) {
+      document.documentElement.setAttribute("data-theme", "light");
+      localStorage.setItem("theme", "light");
+    } else {
+      document.documentElement.setAttribute("data-theme", "dark");
+      localStorage.setItem("theme", "dark");
+    }
+  }, [isLightMode]);
+
   // Tagged Locations (Home, Work, Custom tags)
   const [taggedLocations, setTaggedLocations] = useState([]);
   const [isEditingCustomStart, setIsEditingCustomStart] = useState(false);
@@ -2511,6 +2536,7 @@ export default function Home() {
           customSpeed={activeRouteData.speed}
           isDrawingMode={hudState === 1}
           hudState={hudState}
+          isLightMode={isLightMode}
           activeHourIdx={activeForecast ? activeForecast.departureHourIdx : null}
           onMapClick={async (coord) => {
             const tempLabel = `(${coord.lat.toFixed(4)}, ${coord.lon.toFixed(4)})`;
@@ -3083,6 +3109,15 @@ export default function Home() {
             📐 <span className="mobile-hide">{unitSystem === "metric" ? "METRIC" : "IMPERIAL"}</span>
           </button>
 
+          {/* Theme Mode Toggling Bubble (Desktop-only) */}
+          <button 
+            className={`hud-bubble desktop-only`} 
+            onClick={() => setIsLightMode(!isLightMode)}
+            title="Toggle Light/Dark Theme"
+          >
+            {isLightMode ? "☀️" : "🌙"} <span className="mobile-hide">{isLightMode ? "LIGHT" : "DARK"}</span>
+          </button>
+
           {dynamicAmbientWeather && (() => {
             const isSimulatedMode = process.env.MOCK === "true";
             const isSimulatedBadgeVisible = cooldownRemaining > 0 || isSimulatedMode;
@@ -3201,6 +3236,16 @@ export default function Home() {
                   <span style={{ fontSize: "1.1rem" }}>🚴</span> Rider Configurator
                 </button>
 
+
+                <button 
+                  className={`hud-btn ${styles.mobileMenuItem}`}
+                  onClick={() => {
+                    setIsLightMode(!isLightMode);
+                  }}
+                  style={{ width: "100%", textAlign: "left", border: "1px solid rgba(255, 255, 255, 0.08)" }}
+                >
+                  <span style={{ fontSize: "1.1rem" }}>{isLightMode ? "☀️" : "🌙"}</span> Theme: <strong>{isLightMode ? "LIGHT" : "DARK"}</strong>
+                </button>
 
                 <button 
                   className={`hud-btn ${styles.mobileMenuItem}`}

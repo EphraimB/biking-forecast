@@ -11,10 +11,10 @@ export default function WindDial({ bearing, windDir, color, displayWind, windCom
         flexDirection: "column", 
         alignItems: "center", 
         justifyContent: "center", 
-        background: "rgba(255, 255, 255, 0.03)", 
+        background: "var(--svg-dial-bg)", 
         padding: "6px", 
         borderRadius: "8px", 
-        border: "1px solid rgba(255, 255, 255, 0.06)" 
+        border: "1px solid var(--svg-dial-border)" 
       }}
     >
       <span className={labelClassName} style={{ fontSize: "8px", color: "var(--hud-text-secondary)", letterSpacing: "0.05em", display: "block", textTransform: "uppercase", marginBottom: "4px", textAlign: "center" }}>
@@ -23,13 +23,13 @@ export default function WindDial({ bearing, windDir, color, displayWind, windCom
       
       <svg width="44" height="44" viewBox="0 0 44 44" style={{ overflow: "visible" }}>
         {/* Compass Ring */}
-        <circle cx="22" cy="22" r="19" fill="none" stroke="rgba(255, 255, 255, 0.15)" strokeWidth="1" />
-        <text x="22" y="7" fontSize="6" textAnchor="middle" fill="rgba(255, 255, 255, 0.4)" fontWeight="700">N</text>
+        <circle cx="22" cy="22" r="19" fill="none" stroke="var(--svg-dial-ring)" strokeWidth="1" />
+        <text x="22" y="7" fontSize="6" textAnchor="middle" fill="var(--svg-dial-label)" fontWeight="700">N</text>
         
         {/* Rider Bearing Vector (Silver dashed line arrow) */}
         <g transform={`rotate(${bearing}, 22, 22)`}>
-          <line x1="22" y1="22" x2="22" y2="5" stroke="rgba(255, 255, 255, 0.5)" strokeWidth="1.5" strokeDasharray="2,2" />
-          <polygon points="22,3 25,7 19,7" fill="rgba(255, 255, 255, 0.6)" />
+          <line x1="22" y1="22" x2="22" y2="5" stroke="var(--svg-dial-arrow)" strokeWidth="1.5" strokeDasharray="2,2" />
+          <polygon points="22,3 25,7 19,7" fill="var(--svg-dial-arrow)" />
         </g>
         
         {/* Wind Vector (Solid arrow pointing in wind direction) */}
