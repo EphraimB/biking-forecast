@@ -1313,8 +1313,8 @@
 }
 
 .tagButton:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--hud-btn-hover-bg);
+  border-color: var(--hud-btn-hover-border);
 }
 
 .tagButtonActive {

@@ -3384,8 +3384,9 @@ export default function Home() {
                     ))}
                   </div>
                 )}
-                {draftStart && (
-                  <div className={styles.tagSelector}>
+              </div>
+              {draftStart && (
+                <div className={styles.tagSelector}>
                     <span className={styles.tagLabel}>Tag start:</span>
                     <button
                       className={`${styles.tagButton} ${startTag === 'home' ? styles.tagButtonActive : ''}`}
@@ -3444,7 +3445,6 @@ export default function Home() {
                     )}
                   </div>
                 )}
-              </div>
 
               {/* End input */}
               <div ref={endInputRef} className={styles.relativeWrapper}>
@@ -3541,9 +3541,9 @@ export default function Home() {
                     ))}
                   </div>
                 )}
-
-                {draftEnd && (
-                  <div className={styles.tagSelector}>
+              </div>
+              {draftEnd && (
+                <div className={styles.tagSelector}>
                     <span className={styles.tagLabel}>Tag dest:</span>
                     <button
                       className={`${styles.tagButton} ${endTag === 'home' ? styles.tagButtonActive : ''}`}
@@ -3603,7 +3603,6 @@ export default function Home() {
                     )}
                   </div>
                 )}
-              </div>
 
 
               {/* Confirm Route build pipeline */}
