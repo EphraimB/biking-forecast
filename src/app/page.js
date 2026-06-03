@@ -295,6 +295,7 @@ export default function Home() {
   const [bulkOutbound, setBulkOutbound] = useState("08:00");
   const [bulkReturn, setBulkReturn] = useState("17:30");
   const [bulkSelectedDays, setBulkSelectedDays] = useState([]);
+  const [isBulkApplied, setIsBulkApplied] = useState(false);
 
   // Saved Routes Hub (🔖 Persistence)
   const [savedRoutes, setSavedRoutes] = useState([]);
@@ -1399,12 +1400,26 @@ export default function Home() {
   };
 
   const applyBulkSchedule = () => {
+    if (!bulkRouteId) {
+      setToast({
+        id: `bulk-schedule-no-route-${Date.now()}`,
+        type: "warning",
+        message: "Please select a saved route to schedule.",
+        isPersistent: false
+      });
+      return;
+    }
     if (bulkSelectedDays.length === 0) {
-      alert("Please select at least one day of the week.");
+      setToast({
+        id: `bulk-schedule-no-days-${Date.now()}`,
+        type: "warning",
+        message: "Please select at least one day of the week to assign.",
+        isPersistent: false
+      });
       return;
     }
     
-    const routeVal = bulkRouteId ? bulkRouteId : null;
+    const routeVal = bulkRouteId;
     const updatedSchedule = { ...weeklySchedule };
     
     bulkSelectedDays.forEach(day => {
@@ -1417,6 +1432,16 @@ export default function Home() {
     
     setWeeklySchedule(updatedSchedule);
     setBulkSelectedDays([]); // Reset day selections after applying
+    setIsBulkApplied(true);
+    setToast({
+      id: `bulk-schedule-applied-${Date.now()}`,
+      type: "success",
+      message: "Commute schedule updated successfully!",
+      isPersistent: false
+    });
+    setTimeout(() => {
+      setIsBulkApplied(false);
+    }, 1500);
   };
 
   const deleteGroupSchedule = (daysToClear) => {
@@ -2714,21 +2739,230 @@ export default function Home() {
             </div>
           )}
 
-          {/* Weekly Schedule Planner Trigger (Permanently Available in States 0, 2, 3) */}
+          {/* Weekly Schedule Planner Trigger & Dropdown (Permanently Available in States 0, 2, 3) */}
           {(hudState === 0 || hudState === 2 || hudState === 3) && (
-            <button 
-              className={`hud-bubble desktop-only ${styles.hubBtn}`}
-              onClick={toggleWeeklyPlanner}
-              style={{ 
-                border: isWeeklyPlannerOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)"
-              }}
-              title="Weekly Schedule Planner"
-            >
-              <Calendar size={16} style={{ color: isWeeklyPlannerOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
-              <span style={{ fontSize: "0.78rem", fontWeight: "800", color: isWeeklyPlannerOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }}>
-                WEEKLY<span className="mobile-hide"> PLANNER</span>
-              </span>
-            </button>
+            <div className={isWeeklyPlannerOpen ? "" : "desktop-only"} style={{ position: "relative" }}>
+              <button 
+                className={`hud-bubble desktop-only ${styles.hubBtn}`}
+                onClick={toggleWeeklyPlanner}
+                style={{ 
+                  border: isWeeklyPlannerOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)"
+                }}
+                title="Weekly Schedule Planner"
+              >
+                <Calendar size={16} style={{ color: isWeeklyPlannerOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }} />
+                <span style={{ fontSize: "0.78rem", fontWeight: "800", color: isWeeklyPlannerOpen ? "var(--color-emerald)" : "var(--hud-text-primary)" }}>
+                  WEEKLY<span className="mobile-hide"> PLANNER</span>
+                </span>
+              </button>
+
+              {/* Weekly Commute Planner HUD Sliding/Overlay Card */}
+              {isWeeklyPlannerOpen && (
+                <div 
+                  className={`${styles.weeklyPlannerPanel} hud-card hud-card-responsive`}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onMouseUp={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchMove={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hud-border)", paddingBottom: "10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <Calendar size={18} style={{ color: "var(--color-emerald)" }} />
+                      <h4 style={{ fontFamily: "var(--font-heading)", fontSize: "1rem", fontWeight: "800" }}>📅 Weekly Commute Planner</h4>
+                    </div>
+                    <button onClick={() => setIsWeeklyPlannerOpen(false)} className={styles.closeBtn}><X size={16} /></button>
+                  </div>
+
+                  <div className={styles.plannerColumns}>
+                    <div className={styles.plannerLeftColumn}>
+                      <p style={{ fontSize: "0.74rem", color: "var(--hud-text-secondary)", lineHeight: "1.45", marginBottom: "12px" }}>
+                        Build your weekly commute schedule. Add routes, AM/PM times, and assign them to multiple days in one click.
+                      </p>
+
+                      {/* Quick Bulk Scheduler Form */}
+                      <div style={{ background: "rgba(255,255,255,0.05)", padding: "12px", borderRadius: "14px", border: "1px solid rgba(255,255,255,0.1)", display: "flex", flexDirection: "column", gap: "10px" }}>
+                        <span style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--color-emerald)", display: "flex", alignItems: "center", gap: "4px" }}>
+                          🚀 Quick Bulk Scheduler
+                        </span>
+
+                        {/* Bulk Route Selector */}
+                        <div className={styles.inputRow}>
+                          <span className={styles.inputLabel}>Route</span>
+                          <select
+                            className="hud-input"
+                            value={bulkRouteId}
+                            onChange={(e) => setBulkRouteId(e.target.value)}
+                            style={{ background: "#111827", border: "1px solid var(--hud-border)", fontSize: "0.72rem", padding: "6px" }}
+                          >
+                            {savedRoutes.length === 0 ? (
+                              <option value="" disabled>No saved routes. Save a route first!</option>
+                            ) : (
+                              <>
+                                <option value="" disabled>Select a Saved Route...</option>
+                                {savedRoutes.map(r => (
+                                  <option key={r.id} value={r.id}>🔖 {getRouteDisplayName(r)}</option>
+                                ))}
+                              </>
+                            )}
+                          </select>
+                        </div>
+
+                        {/* Bulk Times */}
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
+                            <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Arrive by</span>
+                            <CustomTimeInput
+                              value={bulkOutbound}
+                              onChange={setBulkOutbound}
+                              unitSystem={unitSystem}
+                              isBulk={true}
+                            />
+                          </div>
+                          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
+                            <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Leave at</span>
+                            <CustomTimeInput
+                              value={bulkReturn}
+                              onChange={setBulkReturn}
+                              unitSystem={unitSystem}
+                              isBulk={true}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Day Selection Checkboxes (Sleek rows of pills) */}
+                        <div className={styles.inputRow}>
+                          <span className={styles.inputLabel}>Days to Assign</span>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                            {[
+                              { val: 1, label: "M" },
+                              { val: 2, label: "T" },
+                              { val: 3, label: "W" },
+                              { val: 4, label: "T" },
+                              { val: 5, label: "F" },
+                              { val: 6, label: "S" },
+                              { val: 0, label: "S" }
+                            ].map((dayObj, index) => {
+                              const isActive = bulkSelectedDays.includes(dayObj.val);
+                              
+                              return (
+                                <button
+                                  key={index}
+                                  onClick={() => {
+                                    if (isActive) {
+                                      setBulkSelectedDays(bulkSelectedDays.filter(d => d !== dayObj.val));
+                                    } else {
+                                      setBulkSelectedDays([...bulkSelectedDays, dayObj.val]);
+                                    }
+                                  }}
+                                  className={styles.pillDayCheckbox}
+                                  style={{
+                                    background: isActive ? "var(--color-emerald)" : "rgba(255,255,255,0.06)",
+                                    border: isActive ? "1px solid var(--color-emerald)" : "1px solid var(--hud-border)"
+                                  }}
+                                >
+                                  {dayObj.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Apply Button */}
+                        <button
+                          className={`hud-btn active ${isBulkApplied ? styles.bulkAppliedBtn : ""}`}
+                          onClick={applyBulkSchedule}
+                          style={{
+                            width: "100%",
+                            justifyContent: "center",
+                            padding: "8px",
+                            fontSize: "0.78rem",
+                            cursor: "pointer",
+                            marginTop: "4px",
+                            transition: "all 0.3s ease"
+                          }}
+                        >
+                          {isBulkApplied ? "✓ Added to Schedule!" : "⚡ Add to Schedule"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className={styles.plannerRightColumn}>
+                      {/* List of active schedules */}
+                      <div className={styles.scheduledCommutesList}>
+                        <span style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--hud-text-secondary)" }}>
+                          📅 Scheduled Commutes
+                        </span>
+
+                        {groupedSchedules.length === 0 ? (
+                          <div className={styles.emptySchedulePlaceholder}>
+                            💨 No scheduled commutes yet. Select a route, outbound/return times, choose your days, and press &quot;Add to Schedule&quot; above!
+                          </div>
+                        ) : (
+                          groupedSchedules.map((group, index) => {
+                            const sortedDays = group.days.sort((a, b) => {
+                              const order = [1, 2, 3, 4, 5, 6, 0];
+                              return order.indexOf(a) - order.indexOf(b);
+                            });
+                            const daysLabel = sortedDays.map(d => WEEKDAYS_SHORT[d]).join(", ");
+                            
+                            // Calculate suggested times for a representative day in this group
+                            const targetDay = group.days[0];
+                            const outboundDep = getSuggestedDeparture(group.routeId, targetDay, group.outbound, false);
+                            const returnArr = getSuggestedArrival(group.routeId, targetDay, group.return);
+                            
+                            return (
+                              <div key={index} className={styles.scheduledCommuteCard}>
+                                <div className={styles.scheduledHeader}>
+                                  <span className={styles.scheduledRouteName}>
+                                    {(() => {
+                                      const route = savedRoutes.find(r => r.id === group.routeId);
+                                      return route ? getRouteDisplayName(route) : group.routeName;
+                                    })()}
+                                  </span>
+                                  <button
+                                    onClick={() => deleteGroupSchedule(group.days)}
+                                    className={styles.scheduledRemoveBtn}
+                                    title="Remove from Schedule"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+
+                                {/* Day list badges */}
+                                <span style={{ fontSize: "0.72rem", color: "var(--color-emerald)", fontWeight: "700" }}>
+                                  🗓️ {daysLabel}
+                                </span>
+
+                                {/* Outbound & Return AM/PM Arrive by vs. Suggested Leave-by Times */}
+                                <div className={styles.scheduledDetailsWrapper}>
+                                  <div className={styles.scheduledDetailsRow}>
+                                    <span style={{ fontSize: "0.7rem", color: "var(--hud-text-secondary)" }}>
+                                      🌅 Arrive by: <strong>{formatTimeToAMPM(group.outbound)}</strong>
+                                    </span>
+                                    <span style={{ fontSize: "0.7rem", color: "var(--hud-text-primary)", paddingLeft: "14px" }}>
+                                      👉 Leave by: <strong style={{ color: "var(--color-emerald)" }}>{formatTimeToAMPM(outboundDep.timeStr)}</strong> ({outboundDep.duration} min commute)
+                                    </span>
+                                  </div>
+                                  <div className={styles.scheduledDetailsRow}>
+                                    <span style={{ fontSize: "0.7rem", color: "var(--hud-text-secondary)" }}>
+                                      🌇 Leave at: <strong>{formatTimeToAMPM(group.return)}</strong>
+                                    </span>
+                                    <span style={{ fontSize: "0.7rem", color: "var(--hud-text-primary)", paddingLeft: "14px" }}>
+                                      👉 Arrive home: <strong style={{ color: "var(--color-emerald)" }}>{formatTimeToAMPM(returnArr.timeStr)}</strong> ({returnArr.duration} min return, tailwind-aware)
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -3916,192 +4150,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Weekly Commute Planner HUD Sliding/Overlay Card */}
-      {isWeeklyPlannerOpen && (
-        <div 
-          className={`${styles.weeklyPlannerPanel} hud-card hud-card-responsive`}
-          onMouseDown={(e) => e.stopPropagation()}
-          onMouseUp={(e) => e.stopPropagation()}
-          onTouchStart={(e) => e.stopPropagation()}
-          onTouchMove={(e) => e.stopPropagation()}
-          onTouchEnd={(e) => e.stopPropagation()}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hud-border)", paddingBottom: "10px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <Calendar size={18} style={{ color: "var(--color-emerald)" }} />
-              <h4 style={{ fontFamily: "var(--font-heading)", fontSize: "1rem", fontWeight: "800" }}>📅 Weekly Commute Planner</h4>
-            </div>
-            <button onClick={() => setIsWeeklyPlannerOpen(false)} className={styles.closeBtn}><X size={16} /></button>
-          </div>
 
-          <p style={{ fontSize: "0.74rem", color: "var(--hud-text-secondary)", lineHeight: "1.45" }}>
-            Build your weekly commute schedule. Add routes, AM/PM times, and assign them to multiple days in one click.
-          </p>
-
-          {/* Quick Bulk Scheduler Form */}
-          <div style={{ background: "rgba(255,255,255,0.05)", padding: "12px", borderRadius: "14px", border: "1px solid rgba(255,255,255,0.1)", display: "flex", flexDirection: "column", gap: "10px" }}>
-            <span style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--color-emerald)", display: "flex", alignItems: "center", gap: "4px" }}>
-              🚀 Quick Bulk Scheduler
-            </span>
-
-            {/* Bulk Route Selector */}
-            <div className={styles.inputRow}>
-              <span className={styles.inputLabel}>Route</span>
-              <select
-                className="hud-input"
-                value={bulkRouteId}
-                onChange={(e) => setBulkRouteId(e.target.value)}
-                style={{ background: "#111827", border: "1px solid var(--hud-border)", fontSize: "0.72rem", padding: "6px" }}
-              >
-                <option value="">🗺️ Follow Active / Default Route</option>
-                {savedRoutes.map(r => (
-                  <option key={r.id} value={r.id}>🔖 {getRouteDisplayName(r)}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Bulk Times */}
-            <div style={{ display: "flex", gap: "8px" }}>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Arrive by</span>
-                <CustomTimeInput
-                  value={bulkOutbound}
-                  onChange={setBulkOutbound}
-                  unitSystem={unitSystem}
-                  isBulk={true}
-                />
-              </div>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ fontSize: "0.66rem", color: "var(--hud-text-secondary)" }}>Leave at</span>
-                <CustomTimeInput
-                  value={bulkReturn}
-                  onChange={setBulkReturn}
-                  unitSystem={unitSystem}
-                  isBulk={true}
-                />
-              </div>
-            </div>
-
-            {/* Day Selection Checkboxes (Sleek rows of pills) */}
-            <div className={styles.inputRow}>
-              <span className={styles.inputLabel}>Days to Assign</span>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                {[
-                  { val: 1, label: "M" },
-                  { val: 2, label: "T" },
-                  { val: 3, label: "W" },
-                  { val: 4, label: "T" },
-                  { val: 5, label: "F" },
-                  { val: 6, label: "S" },
-                  { val: 0, label: "S" }
-                ].map((dayObj, index) => {
-                  const isActive = bulkSelectedDays.includes(dayObj.val);
-                  
-                  return (
-                    <button
-                      key={index}
-                      onClick={() => {
-                        if (isActive) {
-                          setBulkSelectedDays(bulkSelectedDays.filter(d => d !== dayObj.val));
-                        } else {
-                          setBulkSelectedDays([...bulkSelectedDays, dayObj.val]);
-                        }
-                      }}
-                      className={styles.pillDayCheckbox}
-                      style={{
-                        background: isActive ? "var(--color-emerald)" : "rgba(255,255,255,0.06)",
-                        border: isActive ? "1px solid var(--color-emerald)" : "1px solid var(--hud-border)"
-                      }}
-                    >
-                      {dayObj.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Apply Button */}
-            <button
-              className="hud-btn active"
-              onClick={applyBulkSchedule}
-              style={{ width: "100%", justifyContent: "center", padding: "8px", fontSize: "0.78rem", cursor: "pointer", marginTop: "4px" }}
-            >
-              ⚡ Add to Schedule
-            </button>
-          </div>
-
-          {/* List of active schedules */}
-          <div className={styles.scheduledCommutesList}>
-            <span style={{ fontSize: "0.82rem", fontWeight: "800", color: "var(--hud-text-secondary)" }}>
-              📅 Scheduled Commutes
-            </span>
-
-            {groupedSchedules.length === 0 ? (
-              <div className={styles.emptySchedulePlaceholder}>
-                💨 No scheduled commutes yet. Select a route, outbound/return times, choose your days, and press &quot;Add to Schedule&quot; above!
-              </div>
-            ) : (
-              groupedSchedules.map((group, index) => {
-                const sortedDays = group.days.sort((a, b) => {
-                  const order = [1, 2, 3, 4, 5, 6, 0];
-                  return order.indexOf(a) - order.indexOf(b);
-                });
-                const daysLabel = sortedDays.map(d => WEEKDAYS_SHORT[d]).join(", ");
-                
-                // Calculate suggested times for a representative day in this group
-                const targetDay = group.days[0];
-                const outboundDep = getSuggestedDeparture(group.routeId, targetDay, group.outbound, false);
-                const returnArr = getSuggestedArrival(group.routeId, targetDay, group.return);
-                
-                return (
-                  <div key={index} className={styles.scheduledCommuteCard}>
-                    <div className={styles.scheduledHeader}>
-                      <span className={styles.scheduledRouteName}>
-                        {(() => {
-                          const route = savedRoutes.find(r => r.id === group.routeId);
-                          return route ? getRouteDisplayName(route) : group.routeName;
-                        })()}
-                      </span>
-                      <button
-                        onClick={() => deleteGroupSchedule(group.days)}
-                        className={styles.scheduledRemoveBtn}
-                        title="Remove from Schedule"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-
-                    {/* Day list badges */}
-                    <span style={{ fontSize: "0.72rem", color: "var(--color-emerald)", fontWeight: "700" }}>
-                      🗓️ {daysLabel}
-                    </span>
-
-                    {/* Outbound & Return AM/PM Arrive by vs. Suggested Leave-by Times */}
-                    <div className={styles.scheduledDetailsWrapper}>
-                      <div className={styles.scheduledDetailsRow}>
-                        <span style={{ fontSize: "0.7rem", color: "var(--hud-text-secondary)" }}>
-                          🌅 Arrive by: <strong>{formatTimeToAMPM(group.outbound)}</strong>
-                        </span>
-                        <span style={{ fontSize: "0.7rem", color: "var(--hud-text-primary)", paddingLeft: "14px" }}>
-                          👉 Leave by: <strong style={{ color: "var(--color-emerald)" }}>{formatTimeToAMPM(outboundDep.timeStr)}</strong> ({outboundDep.duration} min commute)
-                        </span>
-                      </div>
-                      <div className={styles.scheduledDetailsRow}>
-                        <span style={{ fontSize: "0.7rem", color: "var(--hud-text-secondary)" }}>
-                          🌇 Leave at: <strong>{formatTimeToAMPM(group.return)}</strong>
-                        </span>
-                        <span style={{ fontSize: "0.7rem", color: "var(--hud-text-primary)", paddingLeft: "14px" }}>
-                          👉 Arrive home: <strong style={{ color: "var(--color-emerald)" }}>{formatTimeToAMPM(returnArr.timeStr)}</strong> ({returnArr.duration} min return, tailwind-aware)
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
