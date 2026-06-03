@@ -77,6 +77,14 @@ export async function geocodeAddress(query) {
     item.label.toLowerCase().includes(normQuery)
   );
 
+  if (process.env.MOCK_DATA === "true" || process.env.NEXT_PUBLIC_MOCK_DATA === "true") {
+    console.log("Mock data mode enabled via env var. Serving offline geocoding results.");
+    return localMatches.length > 0 ? localMatches : [
+      { lat: 40.7064, lon: -73.6187, label: `${query} (Mocked Start)` },
+      { lat: 40.7208, lon: -73.6425, label: `${query} (Mocked Destination)` }
+    ];
+  }
+
   // Helper to merge and deduplicate
   const mergeResults = (primary, secondary) => {
     const combined = [...primary];
@@ -170,6 +178,17 @@ export async function fetchBicycleRoute(startLat, startLon, endLat, endLon, bike
   if (cached) {
     console.log(`📦 [Routing Cache] Cache hit for route: ${cacheKey}`);
     return cached;
+  }
+
+  if (process.env.MOCK_DATA === "true" || process.env.NEXT_PUBLIC_MOCK_DATA === "true") {
+    console.log("Mock data mode enabled via env var. Serving offline bicycle route.");
+    const result = {
+      shape: "m_r_~Ah~o]z@aCdBiF", 
+      distance: 10.0,
+      time: 2000,
+      legs: [{ shape: "m_r_~Ah~o]z@aCdBiF" }]
+    };
+    return result;
   }
 
   try {
@@ -386,6 +405,13 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance, forceRe
   const sampledPoints = sampleCoordinates(routeCoordinates, numSamples);
   const cacheKey = getCacheKey(sampledPoints);
 
+  if (process.env.MOCK_DATA === "true" || process.env.NEXT_PUBLIC_MOCK_DATA === "true") {
+    console.log("Mock data mode enabled via env var. Serving offline weather forecast.");
+    const mockData = sampledPoints.map(p => generateMockWeather(p[0], p[1]));
+    mockData.isOfflineForecast = true;
+    return mockData;
+  }
+
   // Check cache first (if not forcing refresh)
   if (!forceRefresh) {
     const cached = getCachedWeatherData(cacheKey);
@@ -509,6 +535,11 @@ export async function reverseGeocode(lat, lon) {
   if (cached) {
     console.log(`📦 [Reverse Geocoding Cache] Cache hit for coordinates: ${cacheKey}`);
     return cached;
+  }
+
+  if (process.env.MOCK_DATA === "true" || process.env.NEXT_PUBLIC_MOCK_DATA === "true") {
+    console.log("Mock data mode enabled via env var. Serving offline reverse geocoding.");
+    return `Mock Location (${Number(lat).toFixed(3)}, ${Number(lon).toFixed(3)})`;
   }
 
   // 1. Try Nominatim reverse (Primary)

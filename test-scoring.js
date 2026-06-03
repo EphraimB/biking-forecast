@@ -2,6 +2,7 @@ import { calculateCommuteScore, calculateDepartureTimeForArrival } from "./src/u
 
 // Parse CLI Flags
 const isVerbose = process.argv.includes("--verbose") || process.argv.includes("-v");
+const isImperial = process.argv.includes("--imperial") || process.argv.includes("-i") || process.env.IMPERIAL === "true" || process.env.NEXT_PUBLIC_IMPERIAL === "true";
 
 // Mock route segments (from North to South)
 // 10 km route split into 5 segments going South (bearing = 180)
@@ -108,17 +109,34 @@ function formatTerminalReportLineByLine(title, result, isOutbound, targetTimeStr
   const depTimeText = departureTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const arrTimeText = arrivalTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
+  const displayDist = isImperial ? `${((details.distance ?? 0) * 0.621371).toFixed(1)} miles` : `${(details.distance ?? 0).toFixed(1)} km`;
+  const displaySpeedAvg = isImperial ? `${(speed * 0.621371).toFixed(1)} mph` : `${speed.toFixed(1)} km/h`;
+  const displaySpeedBase = isImperial ? `${(baseSpeed * 0.621371).toFixed(1)} mph` : `${baseSpeed.toFixed(1)} km/h`;
+  
+  const tempVal = details.temp ?? 20;
+  const displayTemp = isImperial ? `${(tempVal * 1.8 + 32).toFixed(1)}°F` : `${tempVal.toFixed(1)}°C`;
+  
+  const precipVal = details.precip ?? 0;
+  const displayPrecip = isImperial ? `${(precipVal * 0.0393701).toFixed(3)} in` : `${precipVal.toFixed(1)} mm`;
+  
+  const windSpeedVal = details.windSpeed ?? 0;
+  const displayWindSpeed = isImperial ? `${(windSpeedVal * 0.621371).toFixed(1)} mph` : `${windSpeedVal.toFixed(1)} km/h`;
+  
+  const headwindVal = details.headwind ?? 0;
+  const crosswindVal = details.crosswind ?? 0;
+  const gustsVal = details.gusts ?? 0;
+  const displayHeadwind = isImperial ? `${(headwindVal * 0.621371).toFixed(1)} mph` : `${headwindVal.toFixed(1)} km/h`;
+  const displayCrosswind = isImperial ? `${(crosswindVal * 0.621371).toFixed(1)} mph` : `${crosswindVal.toFixed(1)} km/h`;
+  const displayGusts = isImperial ? `${(gustsVal * 0.621371).toFixed(1)} mph` : `${gustsVal.toFixed(1)} km/h`;
+
   console.log(`\n${bold}${cyan}${title}${reset}`);
   console.log(`  ${bold}Score     :${reset} ${bold}${scoreColor}${score}/100${reset} (${scoreRating})`);
   console.log(`  ${gray}Deds      : Temp: -${details.penalties?.temp ?? 0} | Wind: -${details.penalties?.wind ?? 0} | Rain: -${details.penalties?.rain ?? 0} | WMO: -${details.penalties?.wmo ?? 0}${reset}`);
-  console.log(`  ${bold}Commute   :${reset} Dep: ${depTimeText} -> Arr: ${arrTimeText} (${duration} mins, ${(details.distance ?? 0).toFixed(1)} km)`);
-  console.log(`  ${bold}Speed     :${reset} Avg: ${speed.toFixed(1)} km/h | Base: ${baseSpeed.toFixed(1)} km/h`);
-  
-  const tempF = Math.round((details.temp ?? 20) * 1.8 + 32);
-  console.log(`  ${bold}Weather   :${reset} ${details.wmoDesc ?? "Clear"} | Temp: ${(details.temp ?? 20).toFixed(1)}°C (${tempF}°F) | Rain: ${details.rainProb ?? 0}% (${(details.precip ?? 0).toFixed(1)}mm)`);
-  
-  console.log(`  ${bold}Wind      :${reset} Speed: ${(details.windSpeed ?? 0).toFixed(1)} km/h | Impact: ${details.windImpact ?? "None"}`);
-  console.log(`                 Headwind: ${(details.headwind ?? 0).toFixed(1)} km/h | Crosswind: ${(details.crosswind ?? 0).toFixed(1)} km/h | Gusts: ${(details.gusts ?? 0).toFixed(1)} km/h`);
+  console.log(`  ${bold}Commute   :${reset} Dep: ${depTimeText} -> Arr: ${arrTimeText} (${duration} mins, ${displayDist})`);
+  console.log(`  ${bold}Speed     :${reset} Avg: ${displaySpeedAvg} | Base: ${displaySpeedBase}`);
+  console.log(`  ${bold}Weather   :${reset} ${details.wmoDesc ?? "Clear"} | Temp: ${displayTemp} | Rain: ${details.rainProb ?? 0}% (${displayPrecip})`);
+  console.log(`  ${bold}Wind      :${reset} Speed: ${displayWindSpeed} | Impact: ${details.windImpact ?? "None"}`);
+  console.log(`                 Headwind: ${displayHeadwind} | Crosswind: ${displayCrosswind} | Gusts: ${displayGusts}`);
 }
 
 // Run calculations

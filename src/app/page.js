@@ -313,7 +313,13 @@ export default function Home() {
   const [isRiderConfigOpen, setIsRiderConfigOpen] = useState(false);
 
   // Adaptive Unit Toggle (📐 Metric / Imperial)
-  const [unitSystem, setUnitSystem] = useState("metric");
+  const [unitSystem, setUnitSystem] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("hud_unit_system");
+      if (saved) return saved;
+    }
+    return (process.env.NEXT_PUBLIC_IMPERIAL === "true" || process.env.IMPERIAL === "true") ? "imperial" : "metric";
+  });
 
   // Tagged Locations (Home, Work, Custom tags)
   const [taggedLocations, setTaggedLocations] = useState([]);
@@ -2060,13 +2066,14 @@ export default function Home() {
           },
           isOutbound: !isReturnTripMode,
           targetTimeStr: new Date(targetDate.setHours(hourIdx % 24, 0, 0, 0)).toISOString(),
-          baseSpeed: activeRouteData.speed
+          baseSpeed: activeRouteData.speed,
+          unitSystem
         })
       }).catch(() => {});
     }, 400);
 
     return () => clearTimeout(logTimer);
-  }, [activeForecast, activeRouteData, selectedDayOffset, selectedHour, hudState, isReturnTripMode]);
+  }, [activeForecast, activeRouteData, selectedDayOffset, selectedHour, hudState, isReturnTripMode, unitSystem]);
 
   const selectedDayDate = new Date();
   selectedDayDate.setDate(selectedDayDate.getDate() + selectedDayOffset);
