@@ -227,10 +227,10 @@ function CustomTimeInput({ value, onChange, unitSystem, isBulk = false }) {
           value={period}
           onChange={(e) => handlePeriodChange(e.target.value)}
           className={selectClass}
-          style={{ marginLeft: "2px", width: "auto" }}
+          style={{ marginLeft: "2px", width: "auto", background: "var(--hud-bg-translucent)", color: "var(--hud-text-primary)", border: "1px solid var(--hud-border)", borderRadius: "4px" }}
         >
-          <option value="AM" style={{ background: "#0f172a", color: "#f8fafc" }}>AM</option>
-          <option value="PM" style={{ background: "#0f172a", color: "#f8fafc" }}>PM</option>
+          <option value="AM" style={{ background: "hsl(var(--hud-bg-raw))", color: "var(--hud-text-primary)" }}>AM</option>
+          <option value="PM" style={{ background: "hsl(var(--hud-bg-raw))", color: "var(--hud-text-primary)" }}>PM</option>
         </select>
       </div>
     );
@@ -2873,7 +2873,7 @@ export default function Home() {
                             className="hud-input"
                             value={bulkRouteId}
                             onChange={(e) => setBulkRouteId(e.target.value)}
-                            style={{ background: "#111827", border: "1px solid var(--hud-border)", fontSize: "0.72rem", padding: "6px" }}
+                            style={{ background: "var(--hud-bg-translucent)", border: "1px solid var(--hud-border)", color: "var(--hud-text-primary)", fontSize: "0.72rem", padding: "6px" }}
                           >
                             {savedRoutes.length === 0 ? (
                               <option value="" disabled>No saved routes. Save a route first!</option>
@@ -3204,7 +3204,7 @@ export default function Home() {
                     setIsRiderConfigOpen(false);
                     setIsSavedHubOpen(!isSavedHubOpen);
                   }}
-                  style={{ border: isSavedHubOpen ? "1px solid var(--color-emerald)" : "1px solid rgba(255, 255, 255, 0.08)", width: "100%", textAlign: "left" }}
+                  style={{ border: isSavedHubOpen ? "1px solid var(--color-emerald)" : "1px solid var(--hud-btn-border)", width: "100%", textAlign: "left" }}
                 >
                   <span style={{ fontSize: "1.1rem" }}>🔖</span> Saved Routes Library
                 </button>
@@ -3218,7 +3218,7 @@ export default function Home() {
                     setIsRiderConfigOpen(false);
                     setIsSavedHubOpen(false);
                   }}
-                  style={{ border: isWeeklyPlannerOpen ? "1px solid var(--color-emerald)" : "1px solid rgba(255, 255, 255, 0.08)", width: "100%", textAlign: "left" }}
+                  style={{ border: isWeeklyPlannerOpen ? "1px solid var(--color-emerald)" : "1px solid var(--hud-btn-border)", width: "100%", textAlign: "left" }}
                 >
                   <span style={{ fontSize: "1.1rem" }}>📅</span> Weekly Commute Planner
                 </button>
@@ -3232,7 +3232,7 @@ export default function Home() {
                     setIsRiderConfigOpen(!isRiderConfigOpen);
                     setIsSavedHubOpen(false);
                   }}
-                  style={{ border: isRiderConfigOpen ? "1px solid var(--color-emerald)" : "1px solid rgba(255, 255, 255, 0.08)", width: "100%", textAlign: "left" }}
+                  style={{ border: isRiderConfigOpen ? "1px solid var(--color-emerald)" : "1px solid var(--hud-btn-border)", width: "100%", textAlign: "left" }}
                 >
                   <span style={{ fontSize: "1.1rem" }}>🚴</span> Rider Configurator
                 </button>
@@ -3243,7 +3243,7 @@ export default function Home() {
                   onClick={() => {
                     setIsLightMode(!isLightMode);
                   }}
-                  style={{ width: "100%", textAlign: "left", border: "1px solid rgba(255, 255, 255, 0.08)" }}
+                  style={{ width: "100%", textAlign: "left", border: "1px solid var(--hud-btn-border)" }}
                 >
                   <span style={{ fontSize: "1.1rem" }}>{isLightMode ? "☀️" : "🌙"}</span> Theme: <strong>{isLightMode ? "LIGHT" : "DARK"}</strong>
                 </button>
@@ -3253,7 +3253,7 @@ export default function Home() {
                   onClick={() => {
                     setUnitSystem(unitSystem === "metric" ? "imperial" : "metric");
                   }}
-                  style={{ width: "100%", textAlign: "left", border: "1px solid rgba(255, 255, 255, 0.08)" }}
+                  style={{ width: "100%", textAlign: "left", border: "1px solid var(--hud-btn-border)" }}
                 >
                   <span style={{ fontSize: "1.1rem" }}>📐</span> Units: <strong>{unitSystem === "metric" ? "METRIC" : "IMPERIAL"}</strong>
                 </button>
@@ -3782,7 +3782,7 @@ export default function Home() {
                   {Array.from({ length: 7 }).map((_, offset) => {
                     const label = getDayLabel(offset);
                     return (
-                      <option key={offset} value={offset} style={{ background: "#0f172a", color: "#f8fafc" }}>
+                      <option key={offset} value={offset} style={{ background: "hsl(var(--hud-bg-raw))", color: "var(--hud-text-primary)" }}>
                         {label}
                       </option>
                     );
@@ -3841,15 +3841,15 @@ export default function Home() {
                         width: "auto",
                       }}
                     >
-                      <option value="AM" style={{ background: "#0f172a", color: "#f8fafc" }}>AM</option>
-                      <option value="PM" style={{ background: "#0f172a", color: "#f8fafc" }}>PM</option>
+                      <option value="AM" style={{ background: "hsl(var(--hud-bg-raw))", color: "var(--hud-text-primary)" }}>AM</option>
+                      <option value="PM" style={{ background: "hsl(var(--hud-bg-raw))", color: "var(--hud-text-primary)" }}>PM</option>
                     </select>
                   )}
                 </div>
               </div>
 
               {/* Telemetry info */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px", borderTop: "1px solid rgba(255, 255, 255, 0.08)", paddingTop: "8px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px", borderTop: "1px solid var(--hud-border)", paddingTop: "8px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <span>⏱️</span>
                   <span><strong>Ride</strong>: {getLeaveNowOverlayData().duration} mins ({getLeaveNowOverlayData().distance})</span>
