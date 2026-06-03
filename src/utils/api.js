@@ -499,6 +499,11 @@ export async function reverseGeocode(lat, lon) {
   const BOROUGHS = ["Manhattan", "Brooklyn", "Queens", "Bronx", "Staten Island"];
   const cacheKey = `${Number(lat).toFixed(4)},${Number(lon).toFixed(4)}`;
 
+  const getCleanArea = (area) => {
+    if (!area) return "";
+    return area.replace(/^(Village of|Town of|City of) /i, "").trim();
+  };
+
   // Check cache first
   const cached = getCachedData(REV_GEOCODE_CACHE_PREFIX, cacheKey);
   if (cached) {
@@ -522,27 +527,38 @@ export async function reverseGeocode(lat, lon) {
       const data = await response.json();
       const addr = data.address || {};
       
-      // Select the most specific location label
-      const specificFields = [
-        addr.neighbourhood,
-        addr.quarter,
-        addr.park,
-        addr.leisure,
-        addr.tourism,
-        addr.village,
-        addr.town
-      ];
-      
-      let placeName = specificFields.find(val => val && !BOROUGHS.includes(val));
-      
-      if (!placeName && addr.suburb && !BOROUGHS.includes(addr.suburb)) {
-        placeName = addr.suburb;
-      }
-      if (!placeName && addr.city_district && !BOROUGHS.includes(addr.city_district)) {
-        placeName = addr.city_district;
-      }
-      if (!placeName) {
-        placeName = addr.road || addr.suburb || addr.city_district || addr.city;
+      let placeName = null;
+      if (addr.road) {
+        const houseNum = addr.house_number ? `${addr.house_number} ` : "";
+        const rawArea = addr.village || addr.town || addr.suburb || addr.city_district || addr.city;
+        const area = getCleanArea(rawArea);
+        placeName = `${houseNum}${addr.road}${area ? `, ${area}` : ""}`;
+      } else {
+        // Select the most specific location label
+        const specificFields = [
+          addr.neighbourhood,
+          addr.quarter,
+          addr.park,
+          addr.leisure,
+          addr.tourism,
+          addr.village,
+          addr.town
+        ];
+        
+        let specificName = specificFields.find(val => val && !BOROUGHS.includes(val));
+        
+        if (!specificName && addr.suburb && !BOROUGHS.includes(addr.suburb)) {
+          specificName = addr.suburb;
+        }
+        if (!specificName && addr.city_district && !BOROUGHS.includes(addr.city_district)) {
+          specificName = addr.city_district;
+        }
+        
+        if (specificName) {
+          placeName = getCleanArea(specificName);
+        } else {
+          placeName = addr.road || addr.suburb || addr.city_district || addr.city;
+        }
       }
       
       if (placeName) {
@@ -551,9 +567,11 @@ export async function reverseGeocode(lat, lon) {
       }
       const fallbackName = data.display_name?.split(",")[0] || null;
       if (fallbackName) {
-        setCachedData(REV_GEOCODE_CACHE_PREFIX, cacheKey, fallbackName);
+        const cleanedFallback = getCleanArea(fallbackName);
+        setCachedData(REV_GEOCODE_CACHE_PREFIX, cacheKey, cleanedFallback);
+        return cleanedFallback;
       }
-      return fallbackName;
+      return null;
     }
   } catch (error) {
     console.warn("Nominatim reverse geocode failed: ", error.message);
@@ -570,14 +588,22 @@ export async function reverseGeocode(lat, lon) {
         const prop = feat.properties || {};
         
         let placeName = null;
-        if (prop.locality && !BOROUGHS.includes(prop.locality)) {
-          placeName = prop.locality;
-        }
-        if (!placeName && prop.district && !BOROUGHS.includes(prop.district)) {
-          placeName = prop.district;
-        }
-        if (!placeName) {
-          placeName = prop.name || prop.street || prop.locality || prop.district;
+        if (prop.street) {
+          const houseNum = prop.housenumber ? `${prop.housenumber} ` : "";
+          const rawArea = prop.city || prop.locality || prop.district;
+          const area = getCleanArea(rawArea);
+          placeName = `${houseNum}${prop.street}${area ? `, ${area}` : ""}`;
+        } else {
+          if (prop.locality && !BOROUGHS.includes(prop.locality)) {
+            placeName = getCleanArea(prop.locality);
+          }
+          if (!placeName && prop.district && !BOROUGHS.includes(prop.district)) {
+            placeName = getCleanArea(prop.district);
+          }
+          if (!placeName) {
+            const rawFallback = prop.name || prop.street || prop.locality || prop.district;
+            placeName = getCleanArea(rawFallback);
+          }
         }
         
         if (placeName) {

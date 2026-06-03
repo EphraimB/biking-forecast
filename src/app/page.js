@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 import { fetchBicycleRoute, fetchRouteWeather, geocodeAddress, reverseGeocode } from "@/utils/api";
-import { decodePolyline6, calculateRouteSegments, sampleCoordinates } from "@/utils/routeUtils";
+import { decodePolyline6, calculateRouteSegments, sampleCoordinates, getDistance } from "@/utils/routeUtils";
 import { calculateCommuteScore, calculateDepartureTimeForArrival, WMO_MAP } from "@/utils/weatherScoring";
 import styles from "./page.module.css";
 
@@ -315,6 +315,92 @@ export default function Home() {
   // Adaptive Unit Toggle (📐 Metric / Imperial)
   const [unitSystem, setUnitSystem] = useState("metric");
 
+  // Tagged Locations (Home, Work, Custom tags)
+  const [taggedLocations, setTaggedLocations] = useState([]);
+  const [isEditingCustomStart, setIsEditingCustomStart] = useState(false);
+  const [isEditingCustomEnd, setIsEditingCustomEnd] = useState(false);
+
+  const getDisplayNameForLocation = useCallback((loc) => {
+    if (!loc) return "";
+    if (taggedLocations.length > 0 && loc.lat !== undefined && loc.lon !== undefined) {
+      const match = taggedLocations.find(tl => getDistance(tl.lat, tl.lon, loc.lat, loc.lon) < 0.05); // 50m
+      if (match) {
+        const emojis = { home: "🏠 Home", work: "💼 Work" };
+        return emojis[match.tag.toLowerCase()] || `🏷️ ${match.tag}`;
+      }
+    }
+    const label = loc.label || "";
+    if (label.startsWith("🏠") || label.startsWith("💼") || label.startsWith("🏷️") || label.startsWith("🎓")) {
+      return label.split(" (")[0];
+    }
+    if (label.startsWith("(") && label.endsWith(")")) return label;
+    return label.split(",")[0];
+  }, [taggedLocations]);
+
+  const getLabelWithTag = useCallback((loc, taggedLocs = taggedLocations) => {
+    if (!loc) return "";
+    if (taggedLocs.length > 0 && loc.lat !== undefined && loc.lon !== undefined) {
+      const match = taggedLocs.find(tl => getDistance(tl.lat, tl.lon, loc.lat, loc.lon) < 0.05);
+      if (match) {
+        const emojis = { home: "🏠 Home", work: "💼 Work" };
+        const displayTag = emojis[match.tag.toLowerCase()] || `🏷️ ${match.tag}`;
+        const cleanLabel = loc.label ? loc.label.split(",")[0] : "";
+        return `${displayTag} (${cleanLabel})`;
+      }
+    }
+    return loc.label || "";
+  }, [taggedLocations]);
+
+  const saveTaggedLocation = (lat, lon, tag, label) => {
+    setTaggedLocations(prev => {
+      const filtered = prev.filter(tl => getDistance(tl.lat, tl.lon, lat, lon) >= 0.05);
+      let updated;
+      if (tag) {
+        updated = [...filtered, { lat, lon, tag, label }];
+      } else {
+        updated = filtered;
+      }
+      localStorage.setItem("hud_tagged_locations", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const getRouteDisplayName = useCallback((route) => {
+    if (!route) return "";
+    const startName = getDisplayNameForLocation(route.start);
+    const endName = getDisplayNameForLocation(route.end);
+    if (!route.name || route.name.includes(" ⇆ ")) {
+      return `${startName} ⇆ ${endName}`;
+    }
+    return route.name;
+  }, [getDisplayNameForLocation]);
+
+  const handleToggleTag = (loc, tag, isStart) => {
+    if (!loc) return;
+    saveTaggedLocation(loc.lat, loc.lon, tag, loc.label);
+    
+    // Proactively update query string for the input
+    const emojis = { home: "🏠 Home", work: "💼 Work" };
+    const displayTag = tag ? (emojis[tag.toLowerCase()] || `🏷️ ${tag}`) : null;
+    const cleanLabel = loc.label.split(",")[0];
+    const newQueryVal = displayTag ? `${displayTag} (${cleanLabel})` : loc.label;
+    
+    if (isStart) {
+      setStartQuery(newQueryVal);
+    } else {
+      setEndQuery(newQueryVal);
+    }
+  };
+
+  const getActiveTag = useCallback((loc) => {
+    if (!loc || !loc.lat || !loc.lon) return null;
+    const match = taggedLocations.find(tl => getDistance(tl.lat, tl.lon, loc.lat, loc.lon) < 0.05);
+    return match ? match.tag : null;
+  }, [taggedLocations]);
+
+  const startTag = getActiveTag(draftStart);
+  const endTag = getActiveTag(draftEnd);
+
   // Custom Departure overlay time input states
   const [prevSelectedHour, setPrevSelectedHour] = useState(selectedHour);
   const [prevSelectedMinute, setPrevSelectedMinute] = useState(selectedMinute);
@@ -405,7 +491,7 @@ export default function Home() {
   // Derived state: weatherLocationName represents active route's starting city or fallback base location
   const activeStartLoc = (hudState === 2 || hudState === 3) ? confirmedStart : draftStart;
   const weatherLocationName = (activeStartLoc && activeStartLoc.label && baseWeatherLocationName !== "Map Viewport")
-    ? (activeStartLoc.label.split(",")[0] || "Route Start")
+    ? (getDisplayNameForLocation(activeStartLoc) || "Route Start")
     : baseWeatherLocationName;
 
   const formatCooldown = (seconds) => {
@@ -782,6 +868,17 @@ export default function Home() {
         }
       }
 
+      const savedTagged = localStorage.getItem("hud_tagged_locations");
+      let loadedTags = [];
+      if (savedTagged) {
+        try {
+          loadedTags = JSON.parse(savedTagged);
+          setTaggedLocations(loadedTags);
+        } catch (e) {
+          console.error("Error loading tagged locations:", e);
+        }
+      }
+
       // Restore independent preferences next (rider profile and unit system)
       const savedBikeType = localStorage.getItem("hud_rider_profile_bike_type");
       if (savedBikeType) setNewBikeType(savedBikeType);
@@ -822,8 +919,8 @@ export default function Home() {
             setConfirmedEnd(endLoc);
             setDraftStart(startLoc);
             setDraftEnd(endLoc);
-            setStartQuery(startLoc.label);
-            setEndQuery(endLoc.label);
+            setStartQuery(getLabelWithTag(startLoc, loadedTags));
+            setEndQuery(getLabelWithTag(endLoc, loadedTags));
             
             // Re-trigger background fetches, maintaining correct visual state
             loadRouteDetails(
@@ -883,7 +980,7 @@ export default function Home() {
     }, 0);
 
     return () => clearTimeout(handle);
-  }, [fetchAmbientWeather, loadRouteDetails]);
+  }, [fetchAmbientWeather, loadRouteDetails, getLabelWithTag]);
 
   // 2. Global View State Cache Synchronizer (Guarded)
   useEffect(() => {
@@ -1015,8 +1112,8 @@ export default function Home() {
     // Physically swap search query values and draft locations
     setDraftStart(oldEnd);
     setDraftEnd(oldStart);
-    setStartQuery(oldEnd.label || "");
-    setEndQuery(oldStart.label || "");
+    setStartQuery(getLabelWithTag(oldEnd) || "");
+    setEndQuery(getLabelWithTag(oldStart) || "");
 
     // Physically swap confirmed endpoints
     setConfirmedStart(oldEnd);
@@ -1138,8 +1235,8 @@ export default function Home() {
       setHudState(2);
       setDraftStart(confirmedStart);
       setDraftEnd(confirmedEnd);
-      setStartQuery(confirmedStart.label || "");
-      setEndQuery(confirmedEnd.label || "");
+      setStartQuery(getLabelWithTag(confirmedStart) || "");
+      setEndQuery(getLabelWithTag(confirmedEnd) || "");
     } else {
       setHudState(0);
       setConfirmedStart(null);
@@ -1158,8 +1255,8 @@ export default function Home() {
     setDraftEnd(route.end);
     setConfirmedStart(route.start);
     setConfirmedEnd(route.end);
-    setStartQuery(route.start.label || "");
-    setEndQuery(route.end.label || "");
+    setStartQuery(getLabelWithTag(route.start) || "");
+    setEndQuery(getLabelWithTag(route.end) || "");
     if (route.bikeType) setNewBikeType(route.bikeType);
     if (route.speed) setNewSpeed(route.speed);
     
@@ -1989,10 +2086,9 @@ export default function Home() {
 
       let destinationName = "Destination";
       if (boundRoute) {
-        destinationName = boundRoute.end.label.split(",")[0] || "Destination";
+        destinationName = getDisplayNameForLocation(boundRoute.end) || "Destination";
       } else if (confirmedEnd || draftEnd) {
-        const destLoc = confirmedEnd || draftEnd;
-        destinationName = destLoc.label.split(",")[0] || "Destination";
+        destinationName = getDisplayNameForLocation(confirmedEnd || draftEnd) || "Destination";
       }
 
       if (boundRoute && boundWeatherEntry) {
@@ -2158,12 +2254,14 @@ export default function Home() {
             try {
               const resolved = await reverseGeocode(coord.lat, coord.lon);
               if (resolved) {
+                const resolvedLoc = { ...coord, label: resolved };
+                const taggedLabel = getLabelWithTag(resolvedLoc);
                 if (isStart) {
-                  setDraftStart(prev => prev ? { ...prev, label: resolved } : null);
-                  setStartQuery(resolved);
+                  setDraftStart(resolvedLoc);
+                  setStartQuery(taggedLabel);
                 } else {
-                  setDraftEnd(prev => prev ? { ...prev, label: resolved } : null);
-                  setEndQuery(resolved);
+                  setDraftEnd(resolvedLoc);
+                  setEndQuery(taggedLabel);
                 }
               }
             } catch (err) {
@@ -2388,7 +2486,7 @@ export default function Home() {
                           className={`hud-btn ${styles.savedRouteItem}`} 
                           onClick={() => handleLoadSavedRoute(route)}
                         >
-                          <span className={styles.savedRouteText}>{route.name}</span>
+                          <span className={styles.savedRouteText}>{getRouteDisplayName(route)}</span>
                           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                             <button 
                               onClick={(e) => {
@@ -2683,7 +2781,7 @@ export default function Home() {
                         className={`hud-btn ${styles.setupDropItem}`} 
                         onClick={() => {
                           setDraftStart(loc);
-                          setStartQuery(loc.label);
+                          setStartQuery(getLabelWithTag(loc));
                           setStartResults([]);
                           if (startGeocodeTimeoutRef.current) {
                             clearTimeout(startGeocodeTimeoutRef.current);
@@ -2695,6 +2793,66 @@ export default function Home() {
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{loc.label}</span>
                       </div>
                     ))}
+                  </div>
+                )}
+                {draftStart && (
+                  <div className={styles.tagSelector}>
+                    <span className={styles.tagLabel}>Tag start:</span>
+                    <button
+                      className={`${styles.tagButton} ${startTag === 'home' ? styles.tagButtonActive : ''}`}
+                      onClick={() => handleToggleTag(draftStart, 'home', true)}
+                    >
+                      🏠 Home
+                    </button>
+                    <button
+                      className={`${styles.tagButton} ${startTag === 'work' ? styles.tagButtonActive : ''}`}
+                      onClick={() => handleToggleTag(draftStart, 'work', true)}
+                    >
+                      💼 Work
+                    </button>
+                    {isEditingCustomStart ? (
+                      <div className={styles.customTagInputWrapper}>
+                        <input
+                          type="text"
+                          className={styles.customTagInput}
+                          placeholder="Tag..."
+                          defaultValue={startTag && startTag !== 'home' && startTag !== 'work' ? startTag : ''}
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const val = e.target.value.trim();
+                              handleToggleTag(draftStart, val, true);
+                              setIsEditingCustomStart(false);
+                            } else if (e.key === 'Escape') {
+                              setIsEditingCustomStart(false);
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const val = e.target.value.trim();
+                            if (val) {
+                              handleToggleTag(draftStart, val, true);
+                            }
+                            setIsEditingCustomStart(false);
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        className={`${styles.tagButton} ${startTag && startTag !== 'home' && startTag !== 'work' ? styles.tagButtonActive : ''}`}
+                        onClick={() => setIsEditingCustomStart(true)}
+                      >
+                        🏷️ {startTag && startTag !== 'home' && startTag !== 'work' ? startTag : 'Custom'}
+                      </button>
+                    )}
+                    {startTag && (
+                      <button
+                        className={styles.tagClearButton}
+                        onClick={() => handleToggleTag(draftStart, null, true)}
+                        title="Clear Tag"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -2723,7 +2881,7 @@ export default function Home() {
                         className={`hud-btn ${styles.setupDropItem}`} 
                         onClick={() => {
                           setDraftEnd(loc);
-                          setEndQuery(loc.label);
+                          setEndQuery(getLabelWithTag(loc));
                           setEndResults([]);
                           if (endGeocodeTimeoutRef.current) {
                             clearTimeout(endGeocodeTimeoutRef.current);
@@ -2735,6 +2893,66 @@ export default function Home() {
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{loc.label}</span>
                       </div>
                     ))}
+                  </div>
+                )}
+                {draftEnd && (
+                  <div className={styles.tagSelector}>
+                    <span className={styles.tagLabel}>Tag dest:</span>
+                    <button
+                      className={`${styles.tagButton} ${endTag === 'home' ? styles.tagButtonActive : ''}`}
+                      onClick={() => handleToggleTag(draftEnd, 'home', false)}
+                    >
+                      🏠 Home
+                    </button>
+                    <button
+                      className={`${styles.tagButton} ${endTag === 'work' ? styles.tagButtonActive : ''}`}
+                      onClick={() => handleToggleTag(draftEnd, 'work', false)}
+                    >
+                      💼 Work
+                    </button>
+                    {isEditingCustomEnd ? (
+                      <div className={styles.customTagInputWrapper}>
+                        <input
+                          type="text"
+                          className={styles.customTagInput}
+                          placeholder="Tag..."
+                          defaultValue={endTag && endTag !== 'home' && endTag !== 'work' ? endTag : ''}
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const val = e.target.value.trim();
+                              handleToggleTag(draftEnd, val, false);
+                              setIsEditingCustomEnd(false);
+                            } else if (e.key === 'Escape') {
+                              setIsEditingCustomEnd(false);
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const val = e.target.value.trim();
+                            if (val) {
+                              handleToggleTag(draftEnd, val, false);
+                            }
+                            setIsEditingCustomEnd(false);
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        className={`${styles.tagButton} ${endTag && endTag !== 'home' && endTag !== 'work' ? styles.tagButtonActive : ''}`}
+                        onClick={() => setIsEditingCustomEnd(true)}
+                      >
+                        🏷️ {endTag && endTag !== 'home' && endTag !== 'work' ? endTag : 'Custom'}
+                      </button>
+                    )}
+                    {endTag && (
+                      <button
+                        className={styles.tagClearButton}
+                        onClick={() => handleToggleTag(draftEnd, null, false)}
+                        title="Clear Tag"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -3392,7 +3610,7 @@ export default function Home() {
               >
                 <option value="">🗺️ Follow Active / Default Route</option>
                 {savedRoutes.map(r => (
-                  <option key={r.id} value={r.id}>🔖 {r.name}</option>
+                  <option key={r.id} value={r.id}>🔖 {getRouteDisplayName(r)}</option>
                 ))}
               </select>
             </div>
@@ -3494,7 +3712,10 @@ export default function Home() {
                   <div key={index} className={styles.scheduledCommuteCard}>
                     <div className={styles.scheduledHeader}>
                       <span className={styles.scheduledRouteName}>
-                        {group.routeName}
+                        {(() => {
+                          const route = savedRoutes.find(r => r.id === group.routeId);
+                          return route ? getRouteDisplayName(route) : group.routeName;
+                        })()}
                       </span>
                       <button
                         onClick={() => deleteGroupSchedule(group.days)}

@@ -1154,3 +1154,80 @@
   align-items: center;
   gap: 4px;
 }
+
+.tagSelector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+  padding: 2px 4px;
+}
+
+.tagLabel {
+  font-size: 0.68rem;
+  color: var(--hud-text-secondary);
+  font-weight: 700;
+  margin-right: 2px;
+}
+
+.tagButton {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--hud-border);
+  border-radius: 6px;
+  color: var(--hud-text-primary);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.tagButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.tagButtonActive {
+  background: rgba(16, 185, 129, 0.15) !important;
+  border-color: var(--color-emerald) !important;
+  color: var(--color-emerald) !important;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.2);
+}
+
+.customTagInputWrapper {
+  display: flex;
+  align-items: center;
+}
+
+.customTagInput {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid var(--color-emerald);
+  border-radius: 6px;
+  color: var(--hud-text-primary);
+  font-size: 0.68rem;
+  padding: 3px 6px;
+  width: 90px;
+  outline: none;
+}
+
+.tagClearButton {
+  background: none;
+  border: none;
+  color: var(--hud-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.tagClearButton:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-ruby);
+}
