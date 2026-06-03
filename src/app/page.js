@@ -323,8 +323,30 @@ export default function Home() {
   const [taggedLocations, setTaggedLocations] = useState([]);
   const [isEditingCustomStart, setIsEditingCustomStart] = useState(false);
   const [isEditingCustomEnd, setIsEditingCustomEnd] = useState(false);
+  const [isStartFocused, setIsStartFocused] = useState(false);
+  const [isEndFocused, setIsEndFocused] = useState(false);
+
+
+  const filteredStartTags = useMemo(() => {
+    if (!startQuery.trim()) return taggedLocations;
+    const q = startQuery.toLowerCase();
+    return taggedLocations.filter(tl => 
+      tl.tag.toLowerCase().includes(q) || 
+      (tl.label && tl.label.toLowerCase().includes(q))
+    );
+  }, [startQuery, taggedLocations]);
+
+  const filteredEndTags = useMemo(() => {
+    if (!endQuery.trim()) return taggedLocations;
+    const q = endQuery.toLowerCase();
+    return taggedLocations.filter(tl => 
+      tl.tag.toLowerCase().includes(q) || 
+      (tl.label && tl.label.toLowerCase().includes(q))
+    );
+  }, [endQuery, taggedLocations]);
 
   const getDisplayNameForLocation = useCallback((loc) => {
+
     if (!loc) return "";
     if (taggedLocations.length > 0 && loc.lat !== undefined && loc.lon !== undefined) {
       const match = taggedLocations.find(tl => getDistance(tl.lat, tl.lon, loc.lat, loc.lon) < 0.05); // 50m
@@ -796,9 +818,11 @@ export default function Home() {
     const handleClickOutside = (event) => {
       if (startInputRef.current && !startInputRef.current.contains(event.target)) {
         setStartResults([]);
+        setIsStartFocused(false);
       }
       if (endInputRef.current && !endInputRef.current.contains(event.target)) {
         setEndResults([]);
+        setIsEndFocused(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -808,6 +832,7 @@ export default function Home() {
       document.removeEventListener("touchstart", handleClickOutside);
     };
   }, []);
+
 
   // Auto-hide toast notification after 6 seconds (if not persistent)
   useEffect(() => {
@@ -1270,6 +1295,8 @@ export default function Home() {
   };
 
   const handleCloseRouteSetup = () => {
+    setIsStartFocused(false);
+    setIsEndFocused(false);
     if (routeCoordinates.length > 0 && confirmedStart && confirmedEnd) {
       setHudState(2);
       setDraftStart(confirmedStart);
@@ -1288,6 +1315,7 @@ export default function Home() {
       setIsReturnTripMode(false);
     }
   };
+
 
   const handleLoadSavedRoute = (route) => {
     setDraftStart(route.start);
@@ -2908,6 +2936,7 @@ export default function Home() {
                   className="hud-input" 
                   placeholder="🏡 Enter Start Address..." 
                   value={startQuery}
+                  onFocus={() => setIsStartFocused(true)}
                   onChange={(e) => {
                     const val = e.target.value;
                     setStartQuery(val);
@@ -2917,43 +2946,48 @@ export default function Home() {
                     triggerGeocode(val, true);
                   }}
                 />
-                {taggedLocations.length > 0 && (
-                  <div className={styles.quickTagsContainer}>
-                    {taggedLocations.map((tl, idx) => {
-                      const displayTag = tl.tag.toLowerCase() === 'home' ? '🏠 Home' : tl.tag.toLowerCase() === 'work' ? '💼 Work' : `🏷️ ${tl.tag}`;
-                      const isActive = draftStart && draftStart.lat !== undefined && draftStart.lon !== undefined && getDistance(tl.lat, tl.lon, draftStart.lat, draftStart.lon) < 0.05;
+                {isStartFocused && (filteredStartTags.length > 0 || startResults.length > 0) && (
+                  <div className={`${styles.setupDropBox} hud-card`}>
+                    {/* Render saved tags first */}
+                    {filteredStartTags.map((tl, idx) => {
+                      const cleanLabel = tl.label ? tl.label.split(",")[0] : "";
                       return (
-                        <button
-                          key={idx}
-                          type="button"
-                          className={`${styles.quickTagBtn} ${isActive ? styles.quickTagBtnActive : ''}`}
+                        <div 
+                          key={`tag-${idx}`} 
+                          className={`hud-btn ${styles.setupDropItem}`} 
                           onClick={() => {
                             const resolvedLoc = { lat: tl.lat, lon: tl.lon, label: tl.label };
                             setDraftStart(resolvedLoc);
                             setStartQuery(getLabelWithTag(resolvedLoc, taggedLocations));
                             setStartResults([]);
+                            setIsStartFocused(false);
                             if (startGeocodeTimeoutRef.current) {
                               clearTimeout(startGeocodeTimeoutRef.current);
                               startGeocodeTimeoutRef.current = null;
                             }
                           }}
                         >
-                          {displayTag}
-                        </button>
+                          <span style={{ fontSize: "0.9rem", flexShrink: 0 }}>
+                            {tl.tag.toLowerCase() === 'home' ? '🏠' : tl.tag.toLowerCase() === 'work' ? '💼' : '🏷️'}
+                          </span>
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <strong>{tl.tag}</strong> {cleanLabel ? `(${cleanLabel})` : ""}
+                          </span>
+                          <span className={styles.savedBadge}>Saved</span>
+                        </div>
                       );
                     })}
-                  </div>
-                )}
-                {startResults.length > 0 && (
-                  <div className={`${styles.setupDropBox} hud-card`}>
+                    
+                    {/* Render geocoded results */}
                     {startResults.map((loc, idx) => (
                       <div 
-                        key={idx} 
+                        key={`result-${idx}`} 
                         className={`hud-btn ${styles.setupDropItem}`} 
                         onClick={() => {
                           setDraftStart(loc);
                           setStartQuery(getLabelWithTag(loc));
                           setStartResults([]);
+                          setIsStartFocused(false);
                           if (startGeocodeTimeoutRef.current) {
                             clearTimeout(startGeocodeTimeoutRef.current);
                             startGeocodeTimeoutRef.current = null;
@@ -3035,6 +3069,7 @@ export default function Home() {
                   className="hud-input" 
                   placeholder="🏢 Enter Destination..." 
                   value={endQuery}
+                  onFocus={() => setIsEndFocused(true)}
                   onChange={(e) => {
                     const val = e.target.value;
                     setEndQuery(val);
@@ -3044,43 +3079,48 @@ export default function Home() {
                     triggerGeocode(val, false);
                   }}
                 />
-                {taggedLocations.length > 0 && (
-                  <div className={styles.quickTagsContainer}>
-                    {taggedLocations.map((tl, idx) => {
-                      const displayTag = tl.tag.toLowerCase() === 'home' ? '🏠 Home' : tl.tag.toLowerCase() === 'work' ? '💼 Work' : `🏷️ ${tl.tag}`;
-                      const isActive = draftEnd && draftEnd.lat !== undefined && draftEnd.lon !== undefined && getDistance(tl.lat, tl.lon, draftEnd.lat, draftEnd.lon) < 0.05;
+                {isEndFocused && (filteredEndTags.length > 0 || endResults.length > 0) && (
+                  <div className={`${styles.setupDropBox} hud-card`}>
+                    {/* Render saved tags first */}
+                    {filteredEndTags.map((tl, idx) => {
+                      const cleanLabel = tl.label ? tl.label.split(",")[0] : "";
                       return (
-                        <button
-                          key={idx}
-                          type="button"
-                          className={`${styles.quickTagBtn} ${isActive ? styles.quickTagBtnActive : ''}`}
+                        <div 
+                          key={`tag-${idx}`} 
+                          className={`hud-btn ${styles.setupDropItem}`} 
                           onClick={() => {
                             const resolvedLoc = { lat: tl.lat, lon: tl.lon, label: tl.label };
                             setDraftEnd(resolvedLoc);
                             setEndQuery(getLabelWithTag(resolvedLoc, taggedLocations));
                             setEndResults([]);
+                            setIsEndFocused(false);
                             if (endGeocodeTimeoutRef.current) {
                               clearTimeout(endGeocodeTimeoutRef.current);
                               endGeocodeTimeoutRef.current = null;
                             }
                           }}
                         >
-                          {displayTag}
-                        </button>
+                          <span style={{ fontSize: "0.9rem", flexShrink: 0 }}>
+                            {tl.tag.toLowerCase() === 'home' ? '🏠' : tl.tag.toLowerCase() === 'work' ? '💼' : '🏷️'}
+                          </span>
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <strong>{tl.tag}</strong> {cleanLabel ? `(${cleanLabel})` : ""}
+                          </span>
+                          <span className={styles.savedBadge}>Saved</span>
+                        </div>
                       );
                     })}
-                  </div>
-                )}
-                {endResults.length > 0 && (
-                  <div className={`${styles.setupDropBox} hud-card`}>
+                    
+                    {/* Render geocoded results */}
                     {endResults.map((loc, idx) => (
                       <div 
-                        key={idx} 
+                        key={`result-${idx}`} 
                         className={`hud-btn ${styles.setupDropItem}`} 
                         onClick={() => {
                           setDraftEnd(loc);
                           setEndQuery(getLabelWithTag(loc));
                           setEndResults([]);
+                          setIsEndFocused(false);
                           if (endGeocodeTimeoutRef.current) {
                             clearTimeout(endGeocodeTimeoutRef.current);
                             endGeocodeTimeoutRef.current = null;
