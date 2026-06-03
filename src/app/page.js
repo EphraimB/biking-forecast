@@ -1706,12 +1706,16 @@ export default function Home() {
       hourIdx = currentHourIdx;
     }
     
-    return calculateCommuteScore(
+    const scoreObj = calculateCommuteScore(
       hourIdx, 
       activeRouteData.segments, 
       activeRouteData.speed, 
       activeRouteData.weatherResults
     );
+    return {
+      ...scoreObj,
+      departureHourIdx: hourIdx
+    };
   };
 
   const getDayLabel = (offset) => {
@@ -2361,6 +2365,7 @@ export default function Home() {
           customSpeed={activeRouteData.speed}
           isDrawingMode={hudState === 1}
           hudState={hudState}
+          activeHourIdx={activeForecast ? activeForecast.departureHourIdx : null}
           onMapClick={async (coord) => {
             const tempLabel = `(${coord.lat.toFixed(4)}, ${coord.lon.toFixed(4)})`;
             const isStart = !draftStart;
