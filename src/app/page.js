@@ -2906,10 +2906,7 @@ export default function Home() {
                             });
                             const daysLabel = sortedDays.map(d => WEEKDAYS_SHORT[d]).join(", ");
                             
-                            // Calculate suggested times for a representative day in this group
-                            const targetDay = group.days[0];
-                            const outboundDep = getSuggestedDeparture(group.routeId, targetDay, group.outbound, false);
-                            const returnArr = getSuggestedArrival(group.routeId, targetDay, group.return);
+
                             
                             return (
                               <div key={index} className={styles.scheduledCommuteCard}>
@@ -2934,24 +2931,14 @@ export default function Home() {
                                   🗓️ {daysLabel}
                                 </span>
 
-                                {/* Outbound & Return AM/PM Arrive by vs. Suggested Leave-by Times */}
+                                {/* Outbound & Return Target Times */}
                                 <div className={styles.scheduledDetailsWrapper}>
-                                  <div className={styles.scheduledDetailsRow}>
-                                    <span style={{ fontSize: "0.7rem", color: "var(--hud-text-secondary)" }}>
-                                      🌅 Arrive by: <strong>{formatTimeToAMPM(group.outbound)}</strong>
-                                    </span>
-                                    <span style={{ fontSize: "0.7rem", color: "var(--hud-text-primary)", paddingLeft: "14px" }}>
-                                      👉 Leave by: <strong style={{ color: "var(--color-emerald)" }}>{formatTimeToAMPM(outboundDep.timeStr)}</strong> ({outboundDep.duration} min commute)
-                                    </span>
-                                  </div>
-                                  <div className={styles.scheduledDetailsRow}>
-                                    <span style={{ fontSize: "0.7rem", color: "var(--hud-text-secondary)" }}>
-                                      🌇 Leave at: <strong>{formatTimeToAMPM(group.return)}</strong>
-                                    </span>
-                                    <span style={{ fontSize: "0.7rem", color: "var(--hud-text-primary)", paddingLeft: "14px" }}>
-                                      👉 Arrive home: <strong style={{ color: "var(--color-emerald)" }}>{formatTimeToAMPM(returnArr.timeStr)}</strong> ({returnArr.duration} min return, tailwind-aware)
-                                    </span>
-                                  </div>
+                                  <span style={{ fontSize: "0.7rem", color: "var(--hud-text-secondary)" }}>
+                                    🌅 Arrive by: <strong style={{ color: "var(--hud-text-primary)" }}>{formatTimeToAMPM(group.outbound)}</strong>
+                                  </span>
+                                  <span style={{ fontSize: "0.7rem", color: "var(--hud-text-secondary)" }}>
+                                    🌇 Leave at: <strong style={{ color: "var(--hud-text-primary)" }}>{formatTimeToAMPM(group.return)}</strong>
+                                  </span>
                                 </div>
                               </div>
                             );
