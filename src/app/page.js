@@ -325,6 +325,8 @@ export default function Home() {
   const [isEditingCustomEnd, setIsEditingCustomEnd] = useState(false);
   const [isStartFocused, setIsStartFocused] = useState(false);
   const [isEndFocused, setIsEndFocused] = useState(false);
+  const [resolvingCurrentLocField, setResolvingCurrentLocField] = useState(null); // 'start', 'end', or null
+
 
 
   const filteredStartTags = useMemo(() => {
@@ -791,6 +793,63 @@ export default function Home() {
       }
     }
   }, []);
+
+
+  const handleSelectCurrentLocation = useCallback(async (isStart) => {
+    const field = isStart ? 'start' : 'end';
+    setResolvingCurrentLocField(field);
+    
+    const useCoords = async (lat, lon) => {
+      let resolvedAddress = "Current Location";
+      try {
+        const resolved = await reverseGeocode(lat, lon);
+        if (resolved) {
+          resolvedAddress = resolved;
+        }
+      } catch (err) {
+        console.error("Reverse geocoding current location failed:", err);
+      }
+      
+      const resolvedLoc = { lat, lon, label: resolvedAddress };
+      if (isStart) {
+        setDraftStart(resolvedLoc);
+        setStartQuery(getLabelWithTag(resolvedLoc, taggedLocations));
+        setIsStartFocused(false);
+      } else {
+        setDraftEnd(resolvedLoc);
+        setEndQuery(getLabelWithTag(resolvedLoc, taggedLocations));
+        setIsEndFocused(false);
+      }
+      setResolvingCurrentLocField(null);
+    };
+
+    if (userLocation) {
+      await useCoords(userLocation.lat, userLocation.lon);
+    } else if (typeof window !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          setUserLocation({ lat, lon });
+          await useCoords(lat, lon);
+        },
+        async (err) => {
+          console.error("Geolocation failed:", err);
+          // Fallback to Central Park
+          const fallbackLat = 40.7851;
+          const fallbackLon = -73.9682;
+          setUserLocation({ lat: fallbackLat, lon: fallbackLon });
+          await useCoords(fallbackLat, fallbackLon);
+        }
+      );
+    } else {
+      // Fallback
+      const fallbackLat = 40.7851;
+      const fallbackLon = -73.9682;
+      await useCoords(fallbackLat, fallbackLon);
+    }
+  }, [userLocation, taggedLocations, getLabelWithTag]);
+
 
 
   // Click outside to close autosuggestions dropdowns
@@ -2943,8 +3002,23 @@ export default function Home() {
                     <Search size={14} />
                   )}
                 </button>
-                {isStartFocused && (filteredStartTags.length > 0 || startResults.length > 0) && (
+                {isStartFocused && (
                   <div className={`${styles.setupDropBox} hud-card`}>
+                    {/* Render Use Current Location option */}
+                    <div 
+                      className={`hud-btn ${styles.setupDropItem}`} 
+                      style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", borderRadius: 0, paddingBottom: "10px", marginBottom: "4px" }}
+                      onClick={() => handleSelectCurrentLocation(true)}
+                    >
+                      <span style={{ fontSize: "0.9rem", flexShrink: 0 }}>📍</span>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: "600" }}>
+                        {resolvingCurrentLocField === 'start' ? "Resolving location..." : "Use Current Location"}
+                      </span>
+                      {resolvingCurrentLocField === 'start' && (
+                        <RefreshCw size={12} style={{ animation: "spin 1s linear infinite", marginLeft: "auto" }} />
+                      )}
+                    </div>
+
                     {/* Render saved tags first */}
                     {filteredStartTags.map((tl, idx) => {
                       const cleanLabel = tl.label ? tl.label.split(",")[0] : "";
@@ -3085,8 +3159,23 @@ export default function Home() {
                     <Search size={14} />
                   )}
                 </button>
-                {isEndFocused && (filteredEndTags.length > 0 || endResults.length > 0) && (
+                {isEndFocused && (
                   <div className={`${styles.setupDropBox} hud-card`}>
+                    {/* Render Use Current Location option */}
+                    <div 
+                      className={`hud-btn ${styles.setupDropItem}`} 
+                      style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", borderRadius: 0, paddingBottom: "10px", marginBottom: "4px" }}
+                      onClick={() => handleSelectCurrentLocation(false)}
+                    >
+                      <span style={{ fontSize: "0.9rem", flexShrink: 0 }}>📍</span>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: "600" }}>
+                        {resolvingCurrentLocField === 'end' ? "Resolving location..." : "Use Current Location"}
+                      </span>
+                      {resolvingCurrentLocField === 'end' && (
+                        <RefreshCw size={12} style={{ animation: "spin 1s linear infinite", marginLeft: "auto" }} />
+                      )}
+                    </div>
+
                     {/* Render saved tags first */}
                     {filteredEndTags.map((tl, idx) => {
                       const cleanLabel = tl.label ? tl.label.split(",")[0] : "";
@@ -3131,6 +3220,7 @@ export default function Home() {
                     ))}
                   </div>
                 )}
+
                 {draftEnd && (
                   <div className={styles.tagSelector}>
                     <span className={styles.tagLabel}>Tag dest:</span>
