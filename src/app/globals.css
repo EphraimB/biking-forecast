@@ -52,6 +52,12 @@
   --svg-dial-label: rgba(255, 255, 255, 0.4);
   --svg-dial-arrow: rgba(255, 255, 255, 0.6);
 
+  /* HUD Button Variables */
+  --hud-btn-bg: hsla(0, 0%, 100%, 0.08);
+  --hud-btn-border: rgba(255, 255, 255, 0.06);
+  --hud-btn-hover-bg: hsla(0, 0%, 100%, 0.16);
+  --hud-btn-hover-border: rgba(255, 255, 255, 0.15);
+
   /* Atmospheric Tints */
   --color-wind: hsl(196, 60%, 80%);
   --color-rain: hsl(212, 100%, 48%);
@@ -87,6 +93,12 @@
   --svg-dial-ring: rgba(0, 0, 0, 0.15);
   --svg-dial-label: rgba(0, 0, 0, 0.5);
   --svg-dial-arrow: rgba(0, 0, 0, 0.6);
+
+  /* HUD Button Variables for Light Theme */
+  --hud-btn-bg: rgba(0, 0, 0, 0.05);
+  --hud-btn-border: rgba(0, 0, 0, 0.08);
+  --hud-btn-hover-bg: rgba(0, 0, 0, 0.10);
+  --hud-btn-hover-border: rgba(0, 0, 0, 0.15);
 
   /* Darken wind flow lines in light mode so they are visible on a light map */
   --color-wind: hsl(200, 70%, 45%);
@@ -177,8 +189,8 @@ html, body {
 
 /* Tactile HUD Glass Buttons */
 .hud-btn {
-  background: hsla(0, 0%, 100%, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--hud-btn-bg);
+  border: 1px solid var(--hud-btn-border);
   color: var(--hud-text-primary);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -197,8 +209,8 @@ html, body {
 }
 
 .hud-btn:hover {
-  background: hsla(0, 0%, 100%, 0.16);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: var(--hud-btn-hover-bg);
+  border-color: var(--hud-btn-hover-border);
 }
 
 .hud-btn.active {
