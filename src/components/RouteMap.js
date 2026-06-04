@@ -182,7 +182,7 @@ export default function RouteMap({
           }
         });
 
-        map.on("moveend", () => {
+        map.on("dragend", () => {
           const center = map.getCenter();
           if (onMapMoveRef.current) {
             onMapMoveRef.current({ lat: center.lat, lon: center.lng });
