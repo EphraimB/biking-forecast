@@ -1,11 +1,29 @@
 import { sampleCoordinates, getDistance } from "./routeUtils";
 
 async function sendServerApiLog(apiName, action, params, durationMs = null, extra = null) {
-  // NOOP: Telemetry logging is disabled for pure static exports
+  if (process.env.NODE_ENV !== "development") return;
+  try {
+    await fetch("/api/log-api-activity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiName, action, params, durationMs, extra })
+    });
+  } catch (e) {
+    // Ignore logging errors silently in the UI
+  }
 }
 
 export async function sendServerCommuteLog(payload) {
-  // NOOP: Telemetry logging is disabled for pure static exports
+  if (process.env.NODE_ENV !== "development") return;
+  try {
+    await fetch("/api/log-commute", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+  } catch (e) {
+    // Ignore logging errors silently in the UI
+  }
 }
 
 /**
