@@ -1,37 +1,11 @@
 import { sampleCoordinates, getDistance } from "./routeUtils";
 
-let apiLogsSupported = true;
-
 async function sendServerApiLog(apiName, action, params, durationMs = null, extra = null) {
-  if (!apiLogsSupported) return;
-  try {
-    const response = await fetch("/api/log-api-activity", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ apiName, action, params, durationMs, extra })
-    });
-    if (response.status === 404 || response.status === 405) {
-      apiLogsSupported = false;
-    }
-  } catch (e) {
-    // Ignore logging errors silently in the UI
-  }
+  // NOOP: Telemetry logging is disabled for pure static exports
 }
 
 export async function sendServerCommuteLog(payload) {
-  if (!apiLogsSupported) return;
-  try {
-    const response = await fetch("/api/log-commute", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    if (response.status === 404 || response.status === 405) {
-      apiLogsSupported = false;
-    }
-  } catch (e) {
-    // Ignore logging errors silently in the UI
-  }
+  // NOOP: Telemetry logging is disabled for pure static exports
 }
 
 /**
