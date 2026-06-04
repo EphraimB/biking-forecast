@@ -798,16 +798,57 @@
 }
 
 .scrubberContainer {
-  padding: 10px 16px;
+  padding: 14px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 680px;
+  align-self: center;
+  pointer-events: auto;
+}
+
+.scrubberHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.scrubberSliderRow {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   width: 100%;
-  background: var(--hud-bg-card);
+  flex-wrap: wrap;
+}
+
+.scrubberDetailsGrid {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  width: 100%;
   border-top: 1px solid var(--hud-border);
-  box-shadow: var(--hud-shadow);
-  pointer-events: auto;
+  padding-top: 10px;
+}
+
+.scrubberTelemetry {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: var(--hud-text-primary);
+  flex: 1;
+}
+
+.scrubberSchedule {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  border-left: 1px solid var(--hud-border);
+  padding-left: 20px;
 }
 
 .quickSnapperToggle {
@@ -844,8 +885,8 @@
 }
 
 .exitScrubBtn {
-  padding: 4px 10px;
-  margin-left: 10px;
+  padding: 6px 16px;
+  align-self: flex-end;
 }
 
 .weeklyPlannerPanel {
@@ -979,6 +1020,23 @@
 }
 
 @media (max-width: 768px) {
+  .hideOnMobileScrub {
+    display: none !important;
+  }
+
+  .scrubberDetailsGrid {
+    flex-direction: column !important;
+    gap: 12px !important;
+    align-items: stretch !important;
+  }
+
+  .scrubberSchedule {
+    border-left: none !important;
+    padding-left: 0 !important;
+    border-top: 1px solid var(--hud-border) !important;
+    padding-top: 10px !important;
+  }
+
   .weeklyPlannerPanel {
     left: 10px !important;
     transform: none !important;
