@@ -9,7 +9,7 @@ import {
   Bookmark, Sliders, SunDim, Award, Info, Menu, Edit2, RefreshCw
 } from "lucide-react";
 
-import { fetchBicycleRoute, fetchRouteWeather, geocodeAddress, reverseGeocode } from "@/utils/api";
+import { fetchBicycleRoute, fetchRouteWeather, geocodeAddress, reverseGeocode, sendServerCommuteLog } from "@/utils/api";
 import { decodePolyline6, calculateRouteSegments, sampleCoordinates, getDistance } from "@/utils/routeUtils";
 import { calculateCommuteScore, calculateDepartureTimeForArrival, WMO_MAP } from "@/utils/weatherScoring";
 import styles from "./page.module.css";
@@ -2320,23 +2320,19 @@ export default function Home() {
     // Debounced automatic terminal logging via server POST route
     const logTimer = setTimeout(() => {
       lastLoggedRef.current = logKey;
-      fetch("/api/log-commute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: `ACTIVE ROUTE FORECAST - ${activeRouteData.name || "Custom Route"}`,
-          result: {
-            score: activeForecast.score,
-            duration: activeForecast.duration,
-            speed: activeForecast.speed,
-            hourDetails: activeForecast
-          },
-          isOutbound: !isReturnTripMode,
-          targetTimeStr,
-          baseSpeed: activeRouteData.speed,
-          unitSystem
-        })
-      }).catch(() => {});
+      sendServerCommuteLog({
+        title: `ACTIVE ROUTE FORECAST - ${activeRouteData.name || "Custom Route"}`,
+        result: {
+          score: activeForecast.score,
+          duration: activeForecast.duration,
+          speed: activeForecast.speed,
+          hourDetails: activeForecast
+        },
+        isOutbound: !isReturnTripMode,
+        targetTimeStr,
+        baseSpeed: activeRouteData.speed,
+        unitSystem
+      });
     }, 400);
 
     return () => clearTimeout(logTimer);
