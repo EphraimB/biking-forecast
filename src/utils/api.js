@@ -425,6 +425,8 @@ async function throttleFetch() {
   lastFetchTime = Date.now();
 }
 
+const inflightWeatherRequests = new Map();
+
 /**
  * Fetches hourly weather forecasts from Open-Meteo for coordinates along a route.
  * Selects 2 to 5 points depending on the route's total distance.
@@ -468,126 +470,143 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance, forceRe
     }
   }
 
-  sendServerApiLog("Weather", "cache_miss", { totalDistance, numSamples }, null, { key: `sampled key: ${cacheKey.substring(0, 30)}...` });
-
-  // Check if a 429 rate limit cooldown is active in localStorage
-  if (typeof window !== "undefined") {
-    const cooldownUntil = localStorage.getItem("weather_429_cooldown_until");
-    if (cooldownUntil && Number(cooldownUntil) > Date.now()) {
-      const remainingSec = Math.ceil((Number(cooldownUntil) - Date.now()) / 1000);
-      console.log("🛑 [Weather API] Cooldown active. Skipping network fetch and serving offline forecast.");
-      sendServerApiLog("Weather", "cooldown_active", { totalDistance }, null, { remaining: `${remainingSec}s` });
-      const mockData = sampledPoints.map(p => generateMockWeather(p[0], p[1]));
-      mockData.isOfflineForecast = true;
-      mockData.errorType = "429";
-      mockData.cooldownUntil = Number(cooldownUntil);
-      mockData.errorMessage = "API Rate Limit Cooldown Active";
-      return mockData;
-    }
+  // Check if there is an active in-flight request for these exact coordinates
+  if (!forceRefresh && inflightWeatherRequests.has(cacheKey)) {
+    console.log(`♻️ [Weather Request Deduplication] Reusing in-flight request for key: ${cacheKey.substring(0, 30)}...`);
+    return inflightWeatherRequests.get(cacheKey);
   }
-  
-  try {
-    // Throttling actual network calls to limit requests to Open-Meteo
-    await throttleFetch();
 
-    const lats = sampledPoints.map(p => p[0]).join(",");
-    const lons = sampledPoints.map(p => p[1]).join(",");
-    
-    // Request WMO weather codes, temp, humidity, precipitation probability, wind speed, wind direction, wind gusts
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&hourly=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index&timezone=auto`;
-    
-    console.log(`🌐 [Open-Meteo API] Fetching weather forecast for ${numSamples} coordinates:`, sampledPoints);
-    console.log(`🔗 [Open-Meteo API] Request URL: ${url}`);
+  const promise = (async () => {
+    sendServerApiLog("Weather", "cache_miss", { totalDistance, numSamples }, null, { key: `sampled key: ${cacheKey.substring(0, 30)}...` });
 
-    sendServerApiLog("Weather", "network_request", { totalDistance, numSamples }, null, { target: "Open-Meteo", url });
-
-    const startTime = Date.now();
-    const response = await fetch(url);
-    const duration = Date.now() - startTime;
-    
-    if (!response.ok) {
-      if (response.status === 429) {
-        sendServerApiLog("Weather", "rate_limited", { totalDistance, numSamples }, duration, { target: "Open-Meteo", status: 429 });
-      } else {
-        sendServerApiLog("Weather", "network_failure", { totalDistance, numSamples }, duration, { target: "Open-Meteo", status: response.status, message: "Response status not OK" });
+    // Check if a 429 rate limit cooldown is active in localStorage
+    if (typeof window !== "undefined") {
+      const cooldownUntil = localStorage.getItem("weather_429_cooldown_until");
+      if (cooldownUntil && Number(cooldownUntil) > Date.now()) {
+        const remainingSec = Math.ceil((Number(cooldownUntil) - Date.now()) / 1000);
+        console.log("🛑 [Weather API] Cooldown active. Skipping network fetch and serving offline forecast.");
+        sendServerApiLog("Weather", "cooldown_active", { totalDistance }, null, { remaining: `${remainingSec}s` });
+        const mockData = sampledPoints.map(p => generateMockWeather(p[0], p[1]));
+        mockData.isOfflineForecast = true;
+        mockData.errorType = "429";
+        mockData.cooldownUntil = Number(cooldownUntil);
+        mockData.errorMessage = "API Rate Limit Cooldown Active";
+        return mockData;
       }
-      throw new Error(`Open-Meteo error: ${response.status} - ${response.statusText}`);
     }
     
-    const data = await response.json();
-    
-    // Ensure it's returned as an array, as Open-Meteo returns a single object if there's only 1 coordinate requested
-    // but an array of objects if multiple points are requested.
-    const weatherArray = Array.isArray(data) ? data : [data];
-    
-    // Cache the response
-    setCachedWeatherData(cacheKey, weatherArray);
+    try {
+      // Throttling actual network calls to limit requests to Open-Meteo
+      await throttleFetch();
 
-    // Dynamically match the current hour to print relevant console log metrics
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = (now.getMonth() + 1).toString().padStart(2, "0");
-    const date = now.getDate().toString().padStart(2, "0");
-    const hour = now.getHours().toString().padStart(2, "0");
-    const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
-    
-    let currentHourIdx = weatherArray[0]?.hourly?.time?.indexOf(currentHourStr);
-    if (currentHourIdx === -1 || currentHourIdx === undefined) {
-      currentHourIdx = now.getHours(); // Fallback to current local hour index
-    }
-    
-    const tempDisp = `${weatherArray[0]?.hourly?.temperature_2m?.[currentHourIdx]}°C`;
-    console.log(`✅ [Open-Meteo API] Successfully retrieved weather data for ${weatherArray.length} point(s). Sampled current hour (${currentHourStr}) metrics:`, {
-      temp: tempDisp,
-      humidity: `${weatherArray[0]?.hourly?.relative_humidity_2m?.[currentHourIdx]}%`,
-      windSpeed: `${weatherArray[0]?.hourly?.wind_speed_10m?.[currentHourIdx]} km/h`,
-      windDir: `${weatherArray[0]?.hourly?.wind_direction_10m?.[currentHourIdx]}°`
-    });
+      const lats = sampledPoints.map(p => p[0]).join(",");
+      const lons = sampledPoints.map(p => p[1]).join(",");
+      
+      // Request WMO weather codes, temp, humidity, precipitation probability, wind speed, wind direction, wind gusts
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&hourly=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index&timezone=auto`;
+      
+      console.log(`🌐 [Open-Meteo API] Fetching weather forecast for ${numSamples} coordinates:`, sampledPoints);
+      console.log(`🔗 [Open-Meteo API] Request URL: ${url}`);
 
-    sendServerApiLog("Weather", "network_success", { totalDistance, numSamples }, duration, { target: "Open-Meteo", status: response.status, info: `${weatherArray.length} point(s), current temp: ${tempDisp}` });
+      sendServerApiLog("Weather", "network_request", { totalDistance, numSamples }, null, { target: "Open-Meteo", url });
 
-    return weatherArray;
-  } catch (error) {
-    const isRateLimit = error.message?.includes("429") || error.message?.includes("Too Many Requests");
-    console.warn(`Open-Meteo weather fetch failed: ${error.message || error}. Serving dynamic offline mathematical forecast.`);
-    // Return high-fidelity mock forecast fallback
-    const mockData = sampledPoints.map(p => generateMockWeather(p[0], p[1]));
-    
-    // Attach error states to array object
-    mockData.isOfflineForecast = true;
-    mockData.errorType = isRateLimit ? "429" : "general";
-    mockData.errorMessage = error.message || "Network request failed";
+      const startTime = Date.now();
+      const response = await fetch(url);
+      const duration = Date.now() - startTime;
+      
+      if (!response.ok) {
+        if (response.status === 429) {
+          sendServerApiLog("Weather", "rate_limited", { totalDistance, numSamples }, duration, { target: "Open-Meteo", status: 429 });
+        } else {
+          sendServerApiLog("Weather", "network_failure", { totalDistance, numSamples }, duration, { target: "Open-Meteo", status: response.status, message: "Response status not OK" });
+        }
+        throw new Error(`Open-Meteo error: ${response.status} - ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Ensure it's returned as an array, as Open-Meteo returns a single object if there's only 1 coordinate requested
+      // but an array of objects if multiple points are requested.
+      const weatherArray = Array.isArray(data) ? data : [data];
+      
+      // Cache the response
+      setCachedWeatherData(cacheKey, weatherArray);
 
-    let cooldownUntilText = "";
-    if (mockData.errorType === "429") {
+      // Dynamically match the current hour to print relevant console log metrics
       const now = new Date();
-      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
-      mockData.cooldownUntil = midnight.getTime(); // Lock until local midnight
-      cooldownUntilText = `Cooldown locked until midnight.`;
+      const year = now.getFullYear();
+      const month = (now.getMonth() + 1).toString().padStart(2, "0");
+      const date = now.getDate().toString().padStart(2, "0");
+      const hour = now.getHours().toString().padStart(2, "0");
+      const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
+      
+      let currentHourIdx = weatherArray[0]?.hourly?.time?.indexOf(currentHourStr);
+      if (currentHourIdx === -1 || currentHourIdx === undefined) {
+        currentHourIdx = now.getHours(); // Fallback to current local hour index
+      }
+      
+      const tempDisp = `${weatherArray[0]?.hourly?.temperature_2m?.[currentHourIdx]}°C`;
+      console.log(`✅ [Open-Meteo API] Successfully retrieved weather data for ${weatherArray.length} point(s). Sampled current hour (${currentHourStr}) metrics:`, {
+        temp: tempDisp,
+        humidity: `${weatherArray[0]?.hourly?.relative_humidity_2m?.[currentHourIdx]}%`,
+        windSpeed: `${weatherArray[0]?.hourly?.wind_speed_10m?.[currentHourIdx]} km/h`,
+        windDir: `${weatherArray[0]?.hourly?.wind_direction_10m?.[currentHourIdx]}°`
+      });
+
+      sendServerApiLog("Weather", "network_success", { totalDistance, numSamples }, duration, { target: "Open-Meteo", status: response.status, info: `${weatherArray.length} point(s), current temp: ${tempDisp}` });
+
+      return weatherArray;
+    } catch (error) {
+      const isRateLimit = error.message?.includes("429") || error.message?.includes("Too Many Requests");
+      console.warn(`Open-Meteo weather fetch failed: ${error.message || error}. Serving dynamic offline mathematical forecast.`);
+      // Return high-fidelity mock forecast fallback
+      const mockData = sampledPoints.map(p => generateMockWeather(p[0], p[1]));
+      
+      // Attach error states to array object
+      mockData.isOfflineForecast = true;
+      mockData.errorType = isRateLimit ? "429" : "general";
+      mockData.errorMessage = error.message || "Network request failed";
+
+      let cooldownUntilText = "";
+      if (mockData.errorType === "429") {
+        const now = new Date();
+        const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+        mockData.cooldownUntil = midnight.getTime(); // Lock until local midnight
+        cooldownUntilText = `Cooldown locked until midnight.`;
+      }
+
+      sendServerApiLog("Weather", "simulated_fallback", { totalDistance, numSamples }, null, { reason: `${error.message || "Fetch failed"}. ${cooldownUntilText}` });
+
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = (now.getMonth() + 1).toString().padStart(2, "0");
+      const date = now.getDate().toString().padStart(2, "0");
+      const hour = now.getHours().toString().padStart(2, "0");
+      const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
+      
+      let currentHourIdx = mockData[0]?.hourly?.time?.indexOf(currentHourStr);
+      if (currentHourIdx === -1 || currentHourIdx === undefined) {
+        currentHourIdx = now.getHours(); // Fallback
+      }
+
+      console.log(`⚠️ [Open-Meteo API] Fetch failed. Serving dynamic mock data for ${mockData.length} point(s). Sampled current hour (${currentHourStr}) metrics:`, {
+        temp: `${mockData[0]?.hourly?.temperature_2m?.[currentHourIdx]}°C`,
+        windSpeed: `${mockData[0]?.hourly?.wind_speed_10m?.[currentHourIdx]} km/h`,
+        windDir: `${mockData[0]?.hourly?.wind_direction_10m?.[currentHourIdx]}°`
+      });
+
+      return mockData;
+    } finally {
+      // Clean up the active in-flight request tracking
+      inflightWeatherRequests.delete(cacheKey);
     }
+  })();
 
-    sendServerApiLog("Weather", "simulated_fallback", { totalDistance, numSamples }, null, { reason: `${error.message || "Fetch failed"}. ${cooldownUntilText}` });
-
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = (now.getMonth() + 1).toString().padStart(2, "0");
-    const date = now.getDate().toString().padStart(2, "0");
-    const hour = now.getHours().toString().padStart(2, "0");
-    const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
-    
-    let currentHourIdx = mockData[0]?.hourly?.time?.indexOf(currentHourStr);
-    if (currentHourIdx === -1 || currentHourIdx === undefined) {
-      currentHourIdx = now.getHours(); // Fallback
-    }
-
-    console.log(`⚠️ [Open-Meteo API] Fetch failed. Serving dynamic mock data for ${mockData.length} point(s). Sampled current hour (${currentHourStr}) metrics:`, {
-      temp: `${mockData[0]?.hourly?.temperature_2m?.[currentHourIdx]}°C`,
-      windSpeed: `${mockData[0]?.hourly?.wind_speed_10m?.[currentHourIdx]} km/h`,
-      windDir: `${mockData[0]?.hourly?.wind_direction_10m?.[currentHourIdx]}°`
-    });
-
-    return mockData;
+  if (!forceRefresh) {
+    inflightWeatherRequests.set(cacheKey, promise);
   }
+
+  return promise;
 }
 
 export async function reverseGeocode(lat, lon) {
