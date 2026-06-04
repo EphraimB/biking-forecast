@@ -1121,8 +1121,9 @@ export default function Home() {
 
   // Persist Weekly Schedule Changes
   useEffect(() => {
+    if (!isRestored) return;
     localStorage.setItem("hud_weekly_schedule", JSON.stringify(weeklySchedule));
-  }, [weeklySchedule]);
+  }, [weeklySchedule, isRestored]);
 
   // Update ambient weather dynamically when the planned route's start location changes
   useEffect(() => {
@@ -1820,7 +1821,8 @@ export default function Home() {
     
     let hourIdx;
     if (hudState === 3 || isDepartureTimeCustom) {
-      if (timeMode === "arrive") {
+      const effectiveTimeMode = hudState === 3 ? (isReturnTripMode ? "leave" : "arrive") : timeMode;
+      if (effectiveTimeMode === "arrive") {
         const totalDist = activeRouteData.segments.reduce((sum, seg) => sum + seg.distance, 0);
         const baseSpeed = activeRouteData.speed || 18;
         const durationMins = (totalDist / baseSpeed) * 60;
@@ -1895,12 +1897,13 @@ export default function Home() {
   const getLeaveNowOverlayData = () => {
     if (!activeForecast) return null;
     
+    const effectiveTimeMode = hudState === 3 ? (isReturnTripMode ? "leave" : "arrive") : timeMode;
     const duration = activeForecast.duration;
     
     let depDate;
     let label;
     if (hudState === 3 || isDepartureTimeCustom) {
-      if (timeMode === "arrive") {
+      if (effectiveTimeMode === "arrive") {
         const arrDate = new Date();
         arrDate.setDate(arrDate.getDate() + selectedDayOffset);
         arrDate.setHours(selectedHour, selectedMinute, 0, 0);
@@ -1960,7 +1963,7 @@ export default function Home() {
       selectedHour,
       selectedMinute,
       isDepartureTimeCustom,
-      timeMode,
+      timeMode: effectiveTimeMode,
       isSaved
     };
   };
@@ -3630,7 +3633,7 @@ export default function Home() {
         STATE 2 & 3: CUSTOM DEPARTURE/ARRIVALS SIDEBAR OVERLAY
         ------------------------------------------------------------- 
       */}
-      {(hudState === 2 || hudState === 3) && getLeaveNowOverlayData() && (
+      {hudState === 2 && getLeaveNowOverlayData() && (
         <div className={styles.setupCover}>
           <div className={`${styles.departureContainer} hud-slide-top`}>
             <div 
@@ -3878,14 +3881,14 @@ export default function Home() {
       {/* 7-Day Biking Commute Forecast Ribbon (Always Visible in States 0, 2, 3) */}
       {(hudState === 0 || hudState === 2 || hudState === 3) && ribbonDaysData.length > 0 && (
         <div className={styles.ribbonOuter}>
-          <div className={styles.ribbonHeaderRow}>
+          <div className={`${styles.ribbonHeaderRow} ${hudState === 3 ? styles.hideOnMobileScrub : ""}`}>
             <span className={styles.ribbonTitle}>
               🚴 7-Day Commuter Biking Forecast
             </span>
           </div>
 
           <div 
-            className={`${styles.ribbonBox} hud-card`}
+            className={`${styles.ribbonBox} hud-card ${hudState === 3 ? styles.hideOnMobileScrub : ""}`}
             onMouseDown={(e) => e.stopPropagation()}
             onMouseUp={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
@@ -3911,8 +3914,9 @@ export default function Home() {
                       targetDate.setDate(targetDate.getDate() + day.offset);
                       const dayOfWeek = targetDate.getDay();
                       const daySched = weeklySchedule[dayOfWeek] || { outbound: "08:00", return: "17:30" };
-                      const outboundHour = parseInt(daySched.outbound.split(":")[0]);
-                      setSelectedHour(outboundHour);
+                      const [hStr, mStr] = daySched.outbound.split(":");
+                      setSelectedHour(parseInt(hStr, 10));
+                      setSelectedMinute(parseInt(mStr, 10));
                       setIsReturnTripMode(false);
                       setIsDepartureTimeCustom(true);
                     } else {
@@ -3943,8 +3947,9 @@ export default function Home() {
                           targetDate.setDate(targetDate.getDate() + day.offset);
                           const dayOfWeek = targetDate.getDay();
                           const daySched = weeklySchedule[dayOfWeek] || { outbound: "08:00", return: "17:30" };
-                          const outboundHour = parseInt(daySched.outbound.split(":")[0]);
-                          setSelectedHour(outboundHour);
+                          const [hStr, mStr] = daySched.outbound.split(":");
+                          setSelectedHour(parseInt(hStr, 10));
+                          setSelectedMinute(parseInt(mStr, 10));
                           setIsReturnTripMode(false);
                           setIsDepartureTimeCustom(true);
                         } else {
@@ -3997,8 +4002,9 @@ export default function Home() {
                           targetDate.setDate(targetDate.getDate() + day.offset);
                           const dayOfWeek = targetDate.getDay();
                           const daySched = weeklySchedule[dayOfWeek] || { outbound: "08:00", return: "17:30" };
-                          const returnHour = parseInt(daySched.return.split(":")[0]);
-                          setSelectedHour(returnHour);
+                          const [hStr, mStr] = daySched.return.split(":");
+                          setSelectedHour(parseInt(hStr, 10));
+                          setSelectedMinute(parseInt(mStr, 10));
                           setIsReturnTripMode(true);
                           setIsDepartureTimeCustom(true);
                         } else {
@@ -4060,14 +4066,42 @@ export default function Home() {
               onTouchMove={(e) => e.stopPropagation()}
               onTouchEnd={(e) => e.stopPropagation()}
             >
-              {/* Timeline Scrubber */}
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, flexWrap: "wrap" }}>
+              {/* Header: Score & Weather Conditions */}
+              {activeForecast && (
+                <div className={styles.scrubberHeader}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div 
+                      className={`${styles.pulseDot} ${activeForecast.score >= 85 ? "hud-pulse-emerald" : activeForecast.score >= 50 ? "hud-pulse-amber" : "hud-pulse-ruby"}`}
+                      style={{
+                        background: activeForecast.score >= 85 ? "var(--color-emerald)" : activeForecast.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)",
+                        boxShadow: `0 0 10px ${activeForecast.score >= 85 ? "var(--color-emerald-glow)" : activeForecast.score >= 50 ? "var(--color-amber-glow)" : "var(--color-ruby-glow)"}`,
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "50%",
+                        flexShrink: 0
+                      }} 
+                    />
+                    <span style={{ fontSize: "0.85rem", fontWeight: "700", display: "flex", alignItems: "center", gap: "4px" }}>
+                      Score: {activeForecast.score}% • {activeForecast.wmoEmoji} {activeForecast.wmoDesc}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Slider & Quick Snappers Row */}
+              <div className={styles.scrubberSliderRow}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
                   <Clock size={14} style={{ color: "var(--hud-text-secondary)" }} />
-                  <span style={{ fontSize: "0.78rem", fontWeight: "700", width: "64px" }}>
-                    {unitSystem === "metric" 
-                      ? `${selectedHour.toString().padStart(2, "0")}:00` 
-                      : `${selectedHour % 12 === 0 ? 12 : selectedHour % 12}:00 ${selectedHour >= 12 ? "PM" : "AM"}`}
+                  <span style={{ fontSize: "0.78rem", fontWeight: "700" }}>
+                    {getLeaveNowOverlayData() ? (
+                      isReturnTripMode 
+                        ? `Depart: ${getLeaveNowOverlayData().depTimeStr}` 
+                        : `Arrive: ${getLeaveNowOverlayData().arrivalTimeStr}`
+                    ) : (
+                      unitSystem === "metric" 
+                        ? `${selectedHour.toString().padStart(2, "0")}:${selectedMinute.toString().padStart(2, "0")}` 
+                        : `${selectedHour % 12 === 0 ? 12 : selectedHour % 12}:${selectedMinute.toString().padStart(2, "0")} ${selectedHour >= 12 ? "PM" : "AM"}`
+                    )}
                   </span>
                 </div>
 
@@ -4076,8 +4110,9 @@ export default function Home() {
                   <button 
                     onClick={() => {
                       const daySched = weeklySchedule[currentDayOfWeek] || { outbound: "08:00", return: "17:30" };
-                      const outboundHour = parseInt(daySched.outbound.split(":")[0]);
-                      setSelectedHour(outboundHour);
+                      const [hStr, mStr] = daySched.outbound.split(":");
+                      setSelectedHour(parseInt(hStr, 10));
+                      setSelectedMinute(parseInt(mStr, 10));
                       setIsReturnTripMode(false);
                       setIsDepartureTimeCustom(true);
                     }}
@@ -4101,8 +4136,9 @@ export default function Home() {
                   <button 
                     onClick={() => {
                       const daySched = weeklySchedule[currentDayOfWeek] || { outbound: "08:00", return: "17:30" };
-                      const returnHour = parseInt(daySched.return.split(":")[0]);
-                      setSelectedHour(returnHour);
+                      const [hStr, mStr] = daySched.return.split(":");
+                      setSelectedHour(parseInt(hStr, 10));
+                      setSelectedMinute(parseInt(mStr, 10));
                       setIsReturnTripMode(true);
                       setIsDepartureTimeCustom(true);
                     }}
@@ -4133,29 +4169,54 @@ export default function Home() {
                   value={selectedHour}
                   onChange={(e) => {
                     setSelectedHour(parseInt(e.target.value));
+                    setSelectedMinute(0);
                     setIsDepartureTimeCustom(true);
                   }}
                   className={styles.rangeScrubber}
                 />
               </div>
 
-              {/* Independent Day Schedule Config Inputs */}
-              <div className={`${styles.timeInputsGroup} time-inputs-group`}>
-                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Outbound:</span>
-                  <CustomTimeInput 
-                    value={weeklySchedule[currentDayOfWeek]?.outbound || "08:00"}
-                    onChange={(val) => updateDailySchedule(selectedDayOffset, 'outbound', val)}
-                    unitSystem={unitSystem}
-                  />
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Return:</span>
-                  <CustomTimeInput 
-                    value={weeklySchedule[currentDayOfWeek]?.return || "17:30"}
-                    onChange={(val) => updateDailySchedule(selectedDayOffset, 'return', val)}
-                    unitSystem={unitSystem}
-                  />
+              {/* Stacked Telemetry & Weekly Target Input Columns */}
+              <div className={styles.scrubberDetailsGrid}>
+                {/* Column 1: Stacked Ride Telemetry */}
+                {getLeaveNowOverlayData() && (
+                  <div className={styles.scrubberTelemetry}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>⏱️</span>
+                      <span><strong>Ride</strong>: {getLeaveNowOverlayData().duration} mins ({getLeaveNowOverlayData().distance})</span>
+                    </div>
+                    {isReturnTripMode ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span>🛬</span>
+                        <span><strong>Arrive</strong>: {getLeaveNowOverlayData().arrivalTimeStr}</span>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span>🛫</span>
+                        <span><strong>Depart</strong>: {getLeaveNowOverlayData().depTimeStr}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Column 2: Weekly target times */}
+                <div className={`${styles.scrubberSchedule} time-inputs-group`}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", justifyContent: "space-between", width: "100%" }}>
+                    <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Weekly Outbound:</span>
+                    <CustomTimeInput 
+                      value={weeklySchedule[currentDayOfWeek]?.outbound || "08:00"}
+                      onChange={(val) => updateDailySchedule(selectedDayOffset, 'outbound', val)}
+                      unitSystem={unitSystem}
+                    />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", justifyContent: "space-between", width: "100%" }}>
+                    <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Weekly Return:</span>
+                    <CustomTimeInput 
+                      value={weeklySchedule[currentDayOfWeek]?.return || "17:30"}
+                      onChange={(val) => updateDailySchedule(selectedDayOffset, 'return', val)}
+                      unitSystem={unitSystem}
+                    />
+                  </div>
                 </div>
               </div>
 
