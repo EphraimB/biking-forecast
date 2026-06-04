@@ -3878,14 +3878,14 @@ export default function Home() {
       {/* 7-Day Biking Commute Forecast Ribbon (Always Visible in States 0, 2, 3) */}
       {(hudState === 0 || hudState === 2 || hudState === 3) && ribbonDaysData.length > 0 && (
         <div className={styles.ribbonOuter}>
-          <div className={styles.ribbonHeaderRow}>
+          <div className={`${styles.ribbonHeaderRow} ${hudState === 3 ? styles.hideOnMobileScrub : ""}`}>
             <span className={styles.ribbonTitle}>
               🚴 7-Day Commuter Biking Forecast
             </span>
           </div>
 
           <div 
-            className={`${styles.ribbonBox} hud-card`}
+            className={`${styles.ribbonBox} hud-card ${hudState === 3 ? styles.hideOnMobileScrub : ""}`}
             onMouseDown={(e) => e.stopPropagation()}
             onMouseUp={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}

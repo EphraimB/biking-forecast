@@ -979,6 +979,10 @@
 }
 
 @media (max-width: 768px) {
+  .hideOnMobileScrub {
+    display: none !important;
+  }
+
   .weeklyPlannerPanel {
     left: 10px !important;
     transform: none !important;
