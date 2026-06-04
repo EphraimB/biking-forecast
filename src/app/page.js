@@ -517,6 +517,7 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
   const [isRefreshingWeather, setIsRefreshingWeather] = useState(false);
+  const [isWeatherOffline, setIsWeatherOffline] = useState(false);
   const [cooldownTime, setCooldownTime] = useState(() => {
     if (typeof window !== "undefined") {
       const cached = localStorage.getItem("weather_429_cooldown_until");
@@ -563,6 +564,7 @@ export default function Home() {
   const handleWeatherResponse = useCallback((weatherData) => {
     if (weatherData && weatherData.isOfflineForecast) {
       const isRateLimit = weatherData.errorType === "429" || (weatherData.errorMessage && String(weatherData.errorMessage).includes("429"));
+      setIsWeatherOffline(!isRateLimit && process.env.MOCK !== "true");
       
       let cdTime = 0;
       if (isRateLimit) {
@@ -595,6 +597,8 @@ export default function Home() {
           isPersistent: false
         };
       });
+    } else {
+      setIsWeatherOffline(false);
     }
     return weatherData;
   }, []);
@@ -602,16 +606,26 @@ export default function Home() {
   const handleShowSimulatedInfo = useCallback((e) => {
     e.stopPropagation();
     const isSimulatedMode = process.env.MOCK === "true";
-    const msg = isSimulatedMode 
-      ? "Simulated weather mode active (MOCK=true)." 
-      : "Daily weather limit reached. Simulated forecast active for the rest of today.";
+    let msg = "";
+    let type = "info";
+    
+    if (isSimulatedMode) {
+      msg = "Simulated weather mode active (MOCK=true).";
+    } else if (isWeatherOffline) {
+      msg = "The weather service (Open-Meteo) is currently offline or down. Serving a simulated forecast for your route.";
+      type = "warning";
+    } else {
+      msg = "Daily weather limit reached. Simulated forecast active for the rest of today.";
+      type = "warning";
+    }
+    
     setToast({
       id: "toast-simulated-info",
-      type: isSimulatedMode ? "info" : "warning",
+      type: type,
       message: msg,
       isPersistent: false
     });
-  }, []);
+  }, [isWeatherOffline]);
 
   const handleRefreshWeather = useCallback(async () => {
     if (isRefreshingWeather) return;
@@ -3123,14 +3137,16 @@ export default function Home() {
 
           {dynamicAmbientWeather && (() => {
             const isSimulatedMode = process.env.MOCK === "true";
-            const isSimulatedBadgeVisible = cooldownRemaining > 0 || isSimulatedMode;
-            const isRefreshDisabled = isRefreshingWeather || cooldownRemaining > 0 || isSimulatedMode;
+            const isSimulatedBadgeVisible = cooldownRemaining > 0 || isSimulatedMode || isWeatherOffline;
+            const isRefreshDisabled = isRefreshingWeather || cooldownRemaining > 0 || isSimulatedMode || isWeatherOffline;
             
             let refreshTitle = "Refresh Weather";
             if (cooldownRemaining > 0) {
               refreshTitle = "Daily weather limit reached. Simulated forecast active for the rest of today.";
             } else if (isSimulatedMode) {
               refreshTitle = "Simulated weather mode active (MOCK=true).";
+            } else if (isWeatherOffline) {
+              refreshTitle = "Weather API currently offline. Simulated forecast active.";
             }
             
             return (
@@ -3147,9 +3163,21 @@ export default function Home() {
                       className={styles.cooldownBadge} 
                       onClick={handleShowSimulatedInfo}
                       style={{ cursor: "pointer" }}
-                      title={isSimulatedMode ? "Simulated weather mode active (MOCK=true). Tap for more info." : "Daily weather limit reached. Simulated forecast active for the rest of today. Tap for more info."}
+                      title={
+                        isSimulatedMode 
+                          ? "Simulated weather mode active (MOCK=true). Tap for more info." 
+                          : isWeatherOffline 
+                            ? "Weather API currently offline/down. Simulated forecast active. Tap for more info." 
+                            : "Daily weather limit reached. Simulated forecast active for the rest of today. Tap for more info."
+                      }
                     >
-                      ⚠️ SIMULATED {isSimulatedMode ? "" : <span className="mobile-hide">(Daily Limit)</span>}
+                      ⚠️ SIMULATED {
+                        isSimulatedMode 
+                          ? "" 
+                          : isWeatherOffline 
+                            ? <span className="mobile-hide">(API Down)</span> 
+                            : <span className="mobile-hide">(Daily Limit)</span>
+                      }
                     </span>
                   )}
                 </span>
