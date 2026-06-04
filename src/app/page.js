@@ -3630,7 +3630,7 @@ export default function Home() {
         STATE 2 & 3: CUSTOM DEPARTURE/ARRIVALS SIDEBAR OVERLAY
         ------------------------------------------------------------- 
       */}
-      {(hudState === 2 || hudState === 3) && getLeaveNowOverlayData() && (
+      {hudState === 2 && getLeaveNowOverlayData() && (
         <div className={styles.setupCover}>
           <div className={`${styles.departureContainer} hud-slide-top`}>
             <div 
@@ -4060,8 +4060,30 @@ export default function Home() {
               onTouchMove={(e) => e.stopPropagation()}
               onTouchEnd={(e) => e.stopPropagation()}
             >
-              {/* Timeline Scrubber */}
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, flexWrap: "wrap" }}>
+              {/* Header: Score & Weather Conditions */}
+              {activeForecast && (
+                <div className={styles.scrubberHeader}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div 
+                      className={`${styles.pulseDot} ${activeForecast.score >= 85 ? "hud-pulse-emerald" : activeForecast.score >= 50 ? "hud-pulse-amber" : "hud-pulse-ruby"}`}
+                      style={{
+                        background: activeForecast.score >= 85 ? "var(--color-emerald)" : activeForecast.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)",
+                        boxShadow: `0 0 10px ${activeForecast.score >= 85 ? "var(--color-emerald-glow)" : activeForecast.score >= 50 ? "var(--color-amber-glow)" : "var(--color-ruby-glow)"}`,
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "50%",
+                        flexShrink: 0
+                      }} 
+                    />
+                    <span style={{ fontSize: "0.85rem", fontWeight: "700", display: "flex", alignItems: "center", gap: "4px" }}>
+                      Score: {activeForecast.score}% • {activeForecast.wmoEmoji} {activeForecast.wmoDesc}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Slider & Quick Snappers Row */}
+              <div className={styles.scrubberSliderRow}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
                   <Clock size={14} style={{ color: "var(--hud-text-secondary)" }} />
                   <span style={{ fontSize: "0.78rem", fontWeight: "700", width: "64px" }}>
@@ -4139,23 +4161,44 @@ export default function Home() {
                 />
               </div>
 
-              {/* Independent Day Schedule Config Inputs */}
-              <div className={`${styles.timeInputsGroup} time-inputs-group`}>
-                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Outbound:</span>
-                  <CustomTimeInput 
-                    value={weeklySchedule[currentDayOfWeek]?.outbound || "08:00"}
-                    onChange={(val) => updateDailySchedule(selectedDayOffset, 'outbound', val)}
-                    unitSystem={unitSystem}
-                  />
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Return:</span>
-                  <CustomTimeInput 
-                    value={weeklySchedule[currentDayOfWeek]?.return || "17:30"}
-                    onChange={(val) => updateDailySchedule(selectedDayOffset, 'return', val)}
-                    unitSystem={unitSystem}
-                  />
+              {/* Stacked Telemetry & Weekly Target Input Columns */}
+              <div className={styles.scrubberDetailsGrid}>
+                {/* Column 1: Stacked Ride Telemetry */}
+                {getLeaveNowOverlayData() && (
+                  <div className={styles.scrubberTelemetry}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>⏱️</span>
+                      <span><strong>Ride</strong>: {getLeaveNowOverlayData().duration} mins ({getLeaveNowOverlayData().distance})</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>🛫</span>
+                      <span><strong>Depart</strong>: {getLeaveNowOverlayData().depTimeStr}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>🛬</span>
+                      <span><strong>Arrive</strong>: {getLeaveNowOverlayData().arrivalTimeStr}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Column 2: Weekly target times */}
+                <div className={`${styles.scrubberSchedule} time-inputs-group`}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", justifyContent: "space-between", width: "100%" }}>
+                    <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Weekly Outbound:</span>
+                    <CustomTimeInput 
+                      value={weeklySchedule[currentDayOfWeek]?.outbound || "08:00"}
+                      onChange={(val) => updateDailySchedule(selectedDayOffset, 'outbound', val)}
+                      unitSystem={unitSystem}
+                    />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", justifyContent: "space-between", width: "100%" }}>
+                    <span style={{ fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>Weekly Return:</span>
+                    <CustomTimeInput 
+                      value={weeklySchedule[currentDayOfWeek]?.return || "17:30"}
+                      onChange={(val) => updateDailySchedule(selectedDayOffset, 'return', val)}
+                      unitSystem={unitSystem}
+                    />
+                  </div>
                 </div>
               </div>
 
