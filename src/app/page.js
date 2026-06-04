@@ -1820,7 +1820,8 @@ export default function Home() {
     
     let hourIdx;
     if (hudState === 3 || isDepartureTimeCustom) {
-      if (timeMode === "arrive") {
+      const effectiveTimeMode = hudState === 3 ? (isReturnTripMode ? "leave" : "arrive") : timeMode;
+      if (effectiveTimeMode === "arrive") {
         const totalDist = activeRouteData.segments.reduce((sum, seg) => sum + seg.distance, 0);
         const baseSpeed = activeRouteData.speed || 18;
         const durationMins = (totalDist / baseSpeed) * 60;
@@ -1895,12 +1896,13 @@ export default function Home() {
   const getLeaveNowOverlayData = () => {
     if (!activeForecast) return null;
     
+    const effectiveTimeMode = hudState === 3 ? (isReturnTripMode ? "leave" : "arrive") : timeMode;
     const duration = activeForecast.duration;
     
     let depDate;
     let label;
     if (hudState === 3 || isDepartureTimeCustom) {
-      if (timeMode === "arrive") {
+      if (effectiveTimeMode === "arrive") {
         const arrDate = new Date();
         arrDate.setDate(arrDate.getDate() + selectedDayOffset);
         arrDate.setHours(selectedHour, selectedMinute, 0, 0);
@@ -1960,7 +1962,7 @@ export default function Home() {
       selectedHour,
       selectedMinute,
       isDepartureTimeCustom,
-      timeMode,
+      timeMode: effectiveTimeMode,
       isSaved
     };
   };
@@ -3911,8 +3913,9 @@ export default function Home() {
                       targetDate.setDate(targetDate.getDate() + day.offset);
                       const dayOfWeek = targetDate.getDay();
                       const daySched = weeklySchedule[dayOfWeek] || { outbound: "08:00", return: "17:30" };
-                      const outboundHour = parseInt(daySched.outbound.split(":")[0]);
-                      setSelectedHour(outboundHour);
+                      const [hStr, mStr] = daySched.outbound.split(":");
+                      setSelectedHour(parseInt(hStr, 10));
+                      setSelectedMinute(parseInt(mStr, 10));
                       setIsReturnTripMode(false);
                       setIsDepartureTimeCustom(true);
                     } else {
@@ -3943,8 +3946,9 @@ export default function Home() {
                           targetDate.setDate(targetDate.getDate() + day.offset);
                           const dayOfWeek = targetDate.getDay();
                           const daySched = weeklySchedule[dayOfWeek] || { outbound: "08:00", return: "17:30" };
-                          const outboundHour = parseInt(daySched.outbound.split(":")[0]);
-                          setSelectedHour(outboundHour);
+                          const [hStr, mStr] = daySched.outbound.split(":");
+                          setSelectedHour(parseInt(hStr, 10));
+                          setSelectedMinute(parseInt(mStr, 10));
                           setIsReturnTripMode(false);
                           setIsDepartureTimeCustom(true);
                         } else {
@@ -3997,8 +4001,9 @@ export default function Home() {
                           targetDate.setDate(targetDate.getDate() + day.offset);
                           const dayOfWeek = targetDate.getDay();
                           const daySched = weeklySchedule[dayOfWeek] || { outbound: "08:00", return: "17:30" };
-                          const returnHour = parseInt(daySched.return.split(":")[0]);
-                          setSelectedHour(returnHour);
+                          const [hStr, mStr] = daySched.return.split(":");
+                          setSelectedHour(parseInt(hStr, 10));
+                          setSelectedMinute(parseInt(mStr, 10));
                           setIsReturnTripMode(true);
                           setIsDepartureTimeCustom(true);
                         } else {
@@ -4086,10 +4091,16 @@ export default function Home() {
               <div className={styles.scrubberSliderRow}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
                   <Clock size={14} style={{ color: "var(--hud-text-secondary)" }} />
-                  <span style={{ fontSize: "0.78rem", fontWeight: "700", width: "64px" }}>
-                    {unitSystem === "metric" 
-                      ? `${selectedHour.toString().padStart(2, "0")}:00` 
-                      : `${selectedHour % 12 === 0 ? 12 : selectedHour % 12}:00 ${selectedHour >= 12 ? "PM" : "AM"}`}
+                  <span style={{ fontSize: "0.78rem", fontWeight: "700" }}>
+                    {getLeaveNowOverlayData() ? (
+                      isReturnTripMode 
+                        ? `Depart: ${getLeaveNowOverlayData().depTimeStr}` 
+                        : `Arrive: ${getLeaveNowOverlayData().arrivalTimeStr}`
+                    ) : (
+                      unitSystem === "metric" 
+                        ? `${selectedHour.toString().padStart(2, "0")}:${selectedMinute.toString().padStart(2, "0")}` 
+                        : `${selectedHour % 12 === 0 ? 12 : selectedHour % 12}:${selectedMinute.toString().padStart(2, "0")} ${selectedHour >= 12 ? "PM" : "AM"}`
+                    )}
                   </span>
                 </div>
 
@@ -4098,8 +4109,9 @@ export default function Home() {
                   <button 
                     onClick={() => {
                       const daySched = weeklySchedule[currentDayOfWeek] || { outbound: "08:00", return: "17:30" };
-                      const outboundHour = parseInt(daySched.outbound.split(":")[0]);
-                      setSelectedHour(outboundHour);
+                      const [hStr, mStr] = daySched.outbound.split(":");
+                      setSelectedHour(parseInt(hStr, 10));
+                      setSelectedMinute(parseInt(mStr, 10));
                       setIsReturnTripMode(false);
                       setIsDepartureTimeCustom(true);
                     }}
@@ -4123,8 +4135,9 @@ export default function Home() {
                   <button 
                     onClick={() => {
                       const daySched = weeklySchedule[currentDayOfWeek] || { outbound: "08:00", return: "17:30" };
-                      const returnHour = parseInt(daySched.return.split(":")[0]);
-                      setSelectedHour(returnHour);
+                      const [hStr, mStr] = daySched.return.split(":");
+                      setSelectedHour(parseInt(hStr, 10));
+                      setSelectedMinute(parseInt(mStr, 10));
                       setIsReturnTripMode(true);
                       setIsDepartureTimeCustom(true);
                     }}
@@ -4155,6 +4168,7 @@ export default function Home() {
                   value={selectedHour}
                   onChange={(e) => {
                     setSelectedHour(parseInt(e.target.value));
+                    setSelectedMinute(0);
                     setIsDepartureTimeCustom(true);
                   }}
                   className={styles.rangeScrubber}
@@ -4170,14 +4184,17 @@ export default function Home() {
                       <span>⏱️</span>
                       <span><strong>Ride</strong>: {getLeaveNowOverlayData().duration} mins ({getLeaveNowOverlayData().distance})</span>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <span>🛫</span>
-                      <span><strong>Depart</strong>: {getLeaveNowOverlayData().depTimeStr}</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <span>🛬</span>
-                      <span><strong>Arrive</strong>: {getLeaveNowOverlayData().arrivalTimeStr}</span>
-                    </div>
+                    {isReturnTripMode ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span>🛬</span>
+                        <span><strong>Arrive</strong>: {getLeaveNowOverlayData().arrivalTimeStr}</span>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span>🛫</span>
+                        <span><strong>Depart</strong>: {getLeaveNowOverlayData().depTimeStr}</span>
+                      </div>
+                    )}
                   </div>
                 )}
 
