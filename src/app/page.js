@@ -1802,6 +1802,9 @@ export default function Home() {
   const handleMapMove = useCallback((coord) => {
     if (isLoading) return;
 
+    // Guard: do not fetch ambient weather if a route is currently loaded
+    if (routeCoordinates && routeCoordinates.length > 0) return;
+
     if (mapMoveTimeoutRef.current) {
       clearTimeout(mapMoveTimeoutRef.current);
     }
@@ -1811,7 +1814,7 @@ export default function Home() {
       fetchAmbientWeather(coord.lat, coord.lon);
       mapMoveTimeoutRef.current = null;
     }, 500); // 500ms panning debounce
-  }, [fetchAmbientWeather, isLoading]);
+  }, [fetchAmbientWeather, isLoading, routeCoordinates]);
 
 
 
