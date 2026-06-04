@@ -1132,11 +1132,11 @@
   max-width: 460px;
   padding: 10px 14px;
   border-radius: 10px;
-  background: rgba(15, 23, 42, 0.85);
+  background: var(--hud-bg-card);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  border: 1px solid var(--hud-border);
+  box-shadow: var(--hud-shadow);
   pointer-events: auto;
   transition: opacity 0.3s ease, border-left 0.3s ease;
   animation: slideInToast 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -1219,7 +1219,7 @@
 }
 
 .toastCloseBtn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--hud-btn-hover-bg);
   color: var(--hud-text-primary);
 }
 
@@ -1240,7 +1240,7 @@
 }
 
 .weatherRefreshBtn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--hud-btn-hover-bg);
   color: var(--color-emerald);
 }
 
