@@ -1121,8 +1121,9 @@ export default function Home() {
 
   // Persist Weekly Schedule Changes
   useEffect(() => {
+    if (!isRestored) return;
     localStorage.setItem("hud_weekly_schedule", JSON.stringify(weeklySchedule));
-  }, [weeklySchedule]);
+  }, [weeklySchedule, isRestored]);
 
   // Update ambient weather dynamically when the planned route's start location changes
   useEffect(() => {
