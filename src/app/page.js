@@ -2490,6 +2490,7 @@ export default function Home() {
   };
 
   const ribbonDaysData = get7DayCommuteData();
+  const activeDayData = ribbonDaysData.find(d => d.offset === selectedDayOffset);
 
   const getGroupedSchedules = () => {
     const groups = [];
@@ -2533,7 +2534,7 @@ export default function Home() {
   const groupedSchedules = getGroupedSchedules();
 
   return (
-    <div className={styles.rootPage}>
+    <div className={styles.rootPage} data-hud-state={hudState}>
       
       {/* 
         -------------------------------------------------------------
@@ -3908,16 +3909,19 @@ export default function Home() {
       {/* 7-Day Biking Commute Forecast Ribbon (Always Visible in States 0, 2, 3) */}
       {(hudState === 0 || hudState === 2 || hudState === 3) && ribbonDaysData.length > 0 && (
         <div className={styles.ribbonOuter}>
-          <div className={`${styles.ribbonHeaderRow} ${hudState === 3 ? styles.hideOnMobileScrub : ""}`}>
-            <span className={styles.ribbonTitle}>
-              🚴 7-Day Commuter Biking Forecast
-            </span>
-          </div>
+          {hudState !== 3 && (
+            <div className={styles.ribbonHeaderRow}>
+              <span className={styles.ribbonTitle}>
+                🚴 7-Day Commuter Biking Forecast
+              </span>
+            </div>
+          )}
 
-          <div 
-            className={`${styles.ribbonBox} hud-card ${hudState === 3 ? styles.hideOnMobileScrub : ""}`}
-            onMouseDown={(e) => e.stopPropagation()}
-            onMouseUp={(e) => e.stopPropagation()}
+          {hudState !== 3 && (
+            <div 
+              className={`${styles.ribbonBox} hud-card`}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
             onTouchMove={(e) => e.stopPropagation()}
             onTouchEnd={(e) => e.stopPropagation()}
@@ -4078,6 +4082,7 @@ export default function Home() {
               );
             })}
           </div>
+          )}
 
           {/* 
             -------------------------------------------------------------
@@ -4093,6 +4098,98 @@ export default function Home() {
               onTouchMove={(e) => e.stopPropagation()}
               onTouchEnd={(e) => e.stopPropagation()}
             >
+              {/* Integrated Forecast Day Card */}
+              {activeDayData && (
+                <div className={styles.scrubberForecastHeader}>
+                  <div className={styles.scrubberForecastDayLabel}>
+                    {(() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + selectedDayOffset);
+                      if (selectedDayOffset === 0) return `Today (${d.toLocaleDateString("en-US", { weekday: "long" })})`;
+                      if (selectedDayOffset === 1) return `Tomorrow (${d.toLocaleDateString("en-US", { weekday: "long" })})`;
+                      return d.toLocaleDateString("en-US", { weekday: "long" });
+                    })()}
+                  </div>
+                  <div className={styles.scrubberForecastTracksRow}>
+                    {/* Outbound commute track summary */}
+                    <div className={styles.scrubberForecastTrackCard}>
+                      <div className={styles.scrubberForecastTrackHeader}>
+                        <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.68rem", fontWeight: "700" }}>🌅 Outbound</span>
+                        {activeDayData.outbound && activeDayData.outbound.score !== null ? (
+                          <span 
+                            className={styles.scoreBadge}
+                            style={{ 
+                              background: activeDayData.outbound.score >= 85 ? "rgba(16,185,129,0.15)" : activeDayData.outbound.score >= 50 ? "rgba(245,158,11,0.15)" : "rgba(239,68,68,0.15)",
+                              color: activeDayData.outbound.score >= 85 ? "var(--color-emerald)" : activeDayData.outbound.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)",
+                              padding: "1px 5px",
+                              borderRadius: "5px",
+                              fontSize: "0.64rem",
+                              fontWeight: "800"
+                            }}
+                          >
+                            {activeDayData.outbound.score}%
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.68rem" }}>--</span>
+                        )}
+                      </div>
+                      {activeDayData.outbound && activeDayData.outbound.departure !== null ? (
+                        <div style={{ marginTop: "4px" }}>
+                          <div style={{ fontSize: "0.74rem", fontWeight: "700", color: "var(--hud-text-primary)" }}>
+                            {activeDayData.outbound.departure.replace(" AM", "a").replace(" PM", "p")} → {activeDayData.outbound.arrival.replace(" AM", "a").replace(" PM", "p")}
+                          </div>
+                          <div style={{ fontSize: "0.64rem", color: "var(--hud-text-secondary)", marginTop: "2px" }}>
+                            {activeDayData.outbound.duration} min ride
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: "0.64rem", color: "var(--hud-text-secondary)", fontStyle: "italic", marginTop: "4px" }}>
+                          {activeDayData.routeId ? "Loading..." : "No Route"}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Inbound commute track summary */}
+                    <div className={styles.scrubberForecastTrackCard}>
+                      <div className={styles.scrubberForecastTrackHeader}>
+                        <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.68rem", fontWeight: "700" }}>🌇 Inbound</span>
+                        {activeDayData.return && activeDayData.return.score !== null ? (
+                          <span 
+                            className={styles.scoreBadge}
+                            style={{ 
+                              background: activeDayData.return.score >= 85 ? "rgba(16,185,129,0.15)" : activeDayData.return.score >= 50 ? "rgba(245,158,11,0.15)" : "rgba(239,68,68,0.15)",
+                              color: activeDayData.return.score >= 85 ? "var(--color-emerald)" : activeDayData.return.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)",
+                              padding: "1px 5px",
+                              borderRadius: "5px",
+                              fontSize: "0.64rem",
+                              fontWeight: "800"
+                            }}
+                          >
+                            {activeDayData.return.score}%
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--hud-text-secondary)", fontSize: "0.68rem" }}>--</span>
+                        )}
+                      </div>
+                      {activeDayData.return && activeDayData.return.departure !== null ? (
+                        <div style={{ marginTop: "4px" }}>
+                          <div style={{ fontSize: "0.74rem", fontWeight: "700", color: "var(--hud-text-primary)" }}>
+                            {activeDayData.return.departure.replace(" AM", "a").replace(" PM", "p")} → {activeDayData.return.arrival.replace(" AM", "a").replace(" PM", "p")}
+                          </div>
+                          <div style={{ fontSize: "0.64rem", color: "var(--hud-text-secondary)", marginTop: "2px" }}>
+                            {activeDayData.return.duration} min ride
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: "0.64rem", color: "var(--hud-text-secondary)", fontStyle: "italic", marginTop: "4px" }}>
+                          {activeDayData.routeId ? "Loading..." : "No Route"}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Header: Score & Weather Conditions */}
               {activeForecast && (
                 <div className={styles.scrubberHeader}>
