@@ -13,8 +13,17 @@ export default function RouteMapTooltip({
   windDir,
   displayWind,
   windCompass,
-  displayHeadwind
+  displayHeadwind,
+  grade
 }) {
+  const displayGrade = grade !== undefined
+    ? (grade > 0.005 ? `+${(grade * 100).toFixed(1)}% (uphill)` : grade < -0.005 ? `${(grade * 100).toFixed(1)}% (downhill)` : "Flat")
+    : "N/A";
+
+  const gradeColor = grade !== undefined
+    ? (grade > 0.005 ? "var(--rose)" : grade < -0.005 ? "var(--emerald)" : "var(--slate-400)")
+    : "var(--slate-400)";
+
   return (
     <div style={{ minWidth: "220px", color: "var(--hud-text-primary)", padding: "4px" }}>
       <div style={{ borderBottom: "1px solid var(--hud-border)", paddingBottom: "6px", marginBottom: "8px" }}>
@@ -50,6 +59,10 @@ export default function RouteMapTooltip({
       
       <div className="tooltip-divider">
         🚴 Resistance: <strong style={{ color: color }}>{displayHeadwind}</strong>
+      </div>
+
+      <div className="tooltip-divider" style={{ borderTop: "1px solid var(--hud-border)", paddingTop: "4px", marginTop: "4px" }}>
+        ⛰️ Slope/Grade: <strong style={{ color: gradeColor }}>{displayGrade}</strong>
       </div>
     </div>
   );

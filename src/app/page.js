@@ -9,8 +9,8 @@ import {
   Bookmark, Sliders, SunDim, Award, Info, Menu, Edit2, RefreshCw
 } from "lucide-react";
 
-import { fetchBicycleRoute, fetchRouteWeather, geocodeAddress, reverseGeocode, sendServerCommuteLog } from "@/utils/api";
-import { decodePolyline6, calculateRouteSegments, sampleCoordinates, getDistance } from "@/utils/routeUtils";
+import { fetchBicycleRoute, fetchRouteWeather, fetchRouteElevation, geocodeAddress, reverseGeocode, sendServerCommuteLog } from "@/utils/api";
+import { decodePolyline6, calculateRouteSegments, sampleCoordinates, getDistance, attachElevationToRoute } from "@/utils/routeUtils";
 import { calculateCommuteScore, calculateDepartureTimeForArrival, WMO_MAP } from "@/utils/weatherScoring";
 import styles from "./page.module.css";
 
@@ -47,6 +47,43 @@ function getWindCompassDirection(degrees) {
   ];
   const index = Math.floor((degrees / 22.5) + 0.5) % 16;
   return directions[index];
+}
+
+function ElevationProfileChart({ profile }) {
+  if (!profile || profile.length < 2) return null;
+
+  const width = 280;
+  const height = 40;
+  const padding = 1;
+
+  const minX = 0;
+  const maxX = profile[profile.length - 1].distance;
+  const elevations = profile.map(p => p.elevation);
+  const minY = Math.min(...elevations);
+  const maxY = Math.max(...elevations);
+  const rangeY = maxY - minY || 1;
+
+  const points = profile.map(p => {
+    const x = padding + ((p.distance - minX) / (maxX - minX)) * (width - 2 * padding);
+    const y = padding + (1 - (p.elevation - minY) / rangeY) * (height - 2 * padding);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+
+  const pathD = `M ${points[0]} L ${points.join(" L ")}`;
+  const areaD = `${pathD} L ${padding + (width - 2 * padding)},${height - padding} L ${padding},${height - padding} Z`;
+
+  return (
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: "visible", display: "block" }}>
+      <defs>
+        <linearGradient id="elevationGradScrubber" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--color-emerald, #10b981)" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="var(--color-emerald, #10b981)" stopOpacity="0.0" />
+        </linearGradient>
+      </defs>
+      <path d={areaD} fill="url(#elevationGradScrubber)" />
+      <path d={pathD} fill="none" stroke="var(--color-emerald, #10b981)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 function CustomTimeInput({ value, onChange, unitSystem, isBulk = false }) {
@@ -271,6 +308,7 @@ export default function Home() {
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [routeSegments, setRouteSegments] = useState([]);
   const [weatherResults, setWeatherResults] = useState([]);
+  const [elevationData, setElevationData] = useState(null);
   
   // HUD Config Settings (State 1)
   const [newBikeType, setNewBikeType] = useState("Hybrid");
@@ -778,6 +816,18 @@ export default function Home() {
       ]));
       setWeatherResults(weatherData);
 
+      setLoadingStatus("Retrieving elevation data...");
+      const elevationPromise = fetchRouteElevation(decodedCoords);
+      const elevationRaw = await Promise.race([
+        elevationPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout: Elevation request took too long")), 15000))
+      ]);
+
+      setLoadingStatus("Enriching route details...");
+      const enrichedElevation = attachElevationToRoute(decodedCoords, segments, elevationRaw);
+      setElevationData(enrichedElevation);
+      setRouteSegments(enrichedElevation.segments);
+
       setConfirmedStart(start);
       setConfirmedEnd(end);
       setHudState(overrideState !== null ? overrideState : 2);
@@ -799,8 +849,9 @@ export default function Home() {
           bikeType,
           speed,
           coordinates: decodedCoords,
-          segments: segments,
-          distance: routeData.distance
+          segments: enrichedElevation.segments,
+          distance: routeData.distance,
+          elevationData: enrichedElevation
         };
         setSavedRoutes(prev => {
           const updated = [...prev, newRoute];
@@ -1547,7 +1598,10 @@ export default function Home() {
       lon1: seg.lon2,
       lat2: seg.lat1,
       lon2: seg.lon1,
-      bearing: (seg.bearing + 180) % 360
+      bearing: (seg.bearing + 180) % 360,
+      ele1: seg.ele2,
+      ele2: seg.ele1,
+      grade: seg.grade !== undefined ? -seg.grade : undefined
     }));
   };
 
@@ -1693,12 +1747,20 @@ export default function Home() {
               segments = calculateRouteSegments(coords);
             }
             
+            let eleData = route.elevationData;
+            if (!eleData) {
+              const elevationRaw = await fetchRouteElevation(coords);
+              eleData = attachElevationToRoute(coords, segments, elevationRaw);
+              segments = eleData.segments;
+            }
+
             const wData = handleWeatherResponse(await fetchRouteWeather(coords, dist));
             fetchedResults[rid] = {
               weather: wData,
               coordinates: coords,
               segments: segments,
-              distance: dist
+              distance: dist,
+              elevationData: eleData
             };
             updated = true;
           } catch (e) {
@@ -1729,7 +1791,24 @@ export default function Home() {
     const boundRoute = savedRoutes.find(r => r.id === boundRouteId);
     const boundWeatherEntry = scheduledRoutesWeather[boundRouteId];
 
+    const getReturnElevationProfile = (profile) => {
+      if (!profile || profile.length === 0) return [];
+      const totalDist = profile[profile.length - 1].distance;
+      return [...profile].reverse().map(p => ({
+        distance: Math.round((totalDist - p.distance) * 100) / 100,
+        elevation: p.elevation
+      }));
+    };
+
     if (hudState === 3 && boundRoute && boundWeatherEntry) {
+      const forwardEle = boundWeatherEntry.elevationData;
+      const returnEle = forwardEle ? {
+        ...forwardEle,
+        elevationProfile: getReturnElevationProfile(forwardEle.elevationProfile),
+        elevationGain: forwardEle.elevationLoss,
+        elevationLoss: forwardEle.elevationGain
+      } : null;
+
       if (isReturnTripMode) {
         return {
           coordinates: [...boundWeatherEntry.coordinates].reverse(),
@@ -1738,7 +1817,8 @@ export default function Home() {
           startLocation: boundRoute.end,
           endLocation: boundRoute.start,
           speed: newSpeed,
-          name: `${boundRoute.name} (Return)`
+          name: `${boundRoute.name} (Return)`,
+          elevationData: returnEle
         };
       }
       return {
@@ -1748,7 +1828,8 @@ export default function Home() {
         startLocation: boundRoute.start,
         endLocation: boundRoute.end,
         speed: newSpeed,
-        name: boundRoute.name
+        name: boundRoute.name,
+        elevationData: forwardEle
       };
     }
 
@@ -1766,6 +1847,14 @@ export default function Home() {
       ? matchingSaved.name 
       : (startName && endName ? `${startName} ⇆ ${endName}` : "Active Route");
 
+    const activeElevation = elevationData;
+    const returnElevation = activeElevation ? {
+      ...activeElevation,
+      elevationProfile: getReturnElevationProfile(activeElevation.elevationProfile),
+      elevationGain: activeElevation.elevationLoss,
+      elevationLoss: activeElevation.elevationGain
+    } : null;
+
     if (hudState === 3 && isReturnTripMode && routeCoordinates && routeCoordinates.length > 0) {
       return {
         coordinates: [...routeCoordinates].reverse(),
@@ -1776,7 +1865,8 @@ export default function Home() {
         speed: newSpeed,
         name: matchingSaved 
           ? `${matchingSaved.name} (Return)` 
-          : (startName && endName ? `${endName} ⇆ ${startName} (Return)` : "Active Route (Return)")
+          : (startName && endName ? `${endName} ⇆ ${startName} (Return)` : "Active Route (Return)"),
+        elevationData: returnElevation
       };
     }
 
@@ -1787,7 +1877,8 @@ export default function Home() {
       startLocation: confirmedStart || draftStart,
       endLocation: confirmedEnd || draftEnd,
       speed: newSpeed,
-      name: baseRouteName
+      name: baseRouteName,
+      elevationData: activeElevation
     };
   };
 
@@ -1808,7 +1899,8 @@ export default function Home() {
     confirmedEnd,
     draftStart,
     draftEnd,
-    newSpeed
+    newSpeed,
+    elevationData
   ]);
 
   // Keep "Leave Now" / "Arrive Now" time synced to the current system clock if not in custom mode
@@ -3905,6 +3997,22 @@ export default function Home() {
                 )}
               </div>
 
+              {elevationData && (
+                <div style={{ marginTop: "8px", borderTop: "1px solid var(--hud-border)", paddingTop: "8px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px", fontSize: "10px", color: "var(--hud-text-secondary)" }}>
+                    <span style={{ fontWeight: "700" }}>⛰️ Elevation Profile</span>
+                    <span>
+                      +{unitSystem === "imperial" ? `${Math.round(elevationData.elevationGain * 3.28084)} ft` : `${Math.round(elevationData.elevationGain)} m`} | 
+                      -{unitSystem === "imperial" ? `${Math.round(elevationData.elevationLoss * 3.28084)} ft` : `${Math.round(elevationData.elevationLoss)} m`} | 
+                      Max {elevationData.maxGrade}%
+                    </span>
+                  </div>
+                  <div style={{ background: "rgba(15, 23, 42, 0.2)", borderRadius: "4px", padding: "4px 6px" }}>
+                    <ElevationProfileChart profile={elevationData.elevationProfile} />
+                  </div>
+                </div>
+              )}
+
               {/* Actions Row */}
               <div style={{ borderTop: "1px solid var(--hud-border)", paddingTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
                 {getLeaveNowOverlayData().isSaved ? (
@@ -4376,6 +4484,22 @@ export default function Home() {
                   </div>
                 </div>
               </div>
+
+              {activeRouteData.elevationData && (
+                <div style={{ marginTop: "10px", borderTop: "1px solid var(--hud-border)", paddingTop: "8px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px", fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>
+                    <span style={{ fontWeight: "700" }}>⛰️ Elevation Profile</span>
+                    <span>
+                      Ascent: <strong style={{ color: "var(--color-emerald)" }}>{unitSystem === "imperial" ? `${Math.round(activeRouteData.elevationData.elevationGain * 3.28084)} ft` : `${Math.round(activeRouteData.elevationData.elevationGain)} m`}</strong> • 
+                      Descent: <strong style={{ color: "var(--color-ruby)" }}>{unitSystem === "imperial" ? `${Math.round(activeRouteData.elevationData.elevationLoss * 3.28084)} ft` : `${Math.round(activeRouteData.elevationData.elevationLoss)} m`}</strong> • 
+                      Max Slope: <strong>{activeRouteData.elevationData.maxGrade}%</strong>
+                    </span>
+                  </div>
+                  <div style={{ background: "rgba(15, 23, 42, 0.2)", borderRadius: "4px", padding: "4px 6px" }}>
+                    <ElevationProfileChart profile={activeRouteData.elevationData.elevationProfile} />
+                  </div>
+                </div>
+              )}
 
               {/* Exit day focus button */}
               <button 

@@ -358,6 +358,7 @@ export default function RouteMap({
               displayWind={displayWind}
               windCompass={getWindCompass(windDir)}
               displayHeadwind={displayHeadwind}
+              grade={seg.grade}
             />
           );
 

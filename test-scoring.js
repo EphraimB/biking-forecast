@@ -50,7 +50,10 @@ function getReturnSegments(segs) {
     lon1: seg.lon2,
     lat2: seg.lat1,
     lon2: seg.lon1,
-    bearing: (seg.bearing + 180) % 360
+    bearing: (seg.bearing + 180) % 360,
+    ele1: seg.ele2,
+    ele2: seg.ele1,
+    grade: seg.grade !== undefined ? -seg.grade : undefined
   }));
 }
 
@@ -166,4 +169,31 @@ if (isVerbose) {
 
 formatTerminalReportLineByLine("OUTBOUND COMMUTE (AM)", outboundResult, true, targetArrivalDate.toISOString());
 formatTerminalReportLineByLine("INBOUND COMMUTE (PM)", returnResult, false, "2026-06-03T17:30:00.000Z");
+
+// Hill calculations verification check
+const hillSegments = segments.map((seg, idx) => ({
+  ...seg,
+  ele1: idx * 50, // climb 50m per segment (total 250m climb)
+  ele2: (idx + 1) * 50,
+  grade: 50 / 2000 // 2.5% grade (rise of 50m / run of 2000m)
+}));
+
+const hillOutboundResult = calculateDepartureTimeForArrival(
+  targetArrivalDate,
+  hillSegments,
+  baseSpeed,
+  weatherData
+);
+
+console.log("\n\x1b[1m\x1b[36m--- HILL/ELEVATION VERIFICATION CHECK ---\x1b[0m");
+console.log(`  Flat route duration : ${outboundResult.duration} mins (Avg speed: ${outboundResult.speed} km/h)`);
+console.log(`  Hilly route duration: ${hillOutboundResult.duration} mins (Avg speed: ${hillOutboundResult.speed} km/h)`);
+console.log(`  Flat route score    : ${outboundResult.score}/100`);
+console.log(`  Hilly route score   : ${hillOutboundResult.score}/100 (Hills Penalty: -${hillOutboundResult.hourDetails?.penalties?.hills || 0} pts)`);
+
+if (hillOutboundResult.duration > outboundResult.duration && hillOutboundResult.score < outboundResult.score) {
+  console.log("  \x1b[32m✔ Success: Hilly route correctly slows down speed and reduces commute score suitability!\x1b[0m");
+} else {
+  console.log("  \x1b[31m✘ Failure: Hilly route duration did not increase or score penalty did not apply!\x1b[0m");
+}
 console.log();
