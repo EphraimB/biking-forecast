@@ -1598,7 +1598,10 @@ export default function Home() {
       lon1: seg.lon2,
       lat2: seg.lat1,
       lon2: seg.lon1,
-      bearing: (seg.bearing + 180) % 360
+      bearing: (seg.bearing + 180) % 360,
+      ele1: seg.ele2,
+      ele2: seg.ele1,
+      grade: seg.grade !== undefined ? -seg.grade : undefined
     }));
   };
 
