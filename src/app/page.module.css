@@ -797,6 +797,52 @@
   margin-top: 2px;
 }
 
+.scrubberForecastHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid var(--hud-border);
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  width: 100%;
+}
+
+.scrubberForecastDayLabel {
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--hud-text-primary);
+  text-align: center;
+}
+
+.scrubberForecastTracksRow {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.scrubberForecastTrackCard {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+:global([data-theme="light"]) .scrubberForecastTrackCard {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+.scrubberForecastTrackHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
 .scrubberContainer {
   padding: 14px 20px;
   display: flex;
