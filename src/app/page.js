@@ -4102,7 +4102,13 @@ export default function Home() {
               {activeDayData && (
                 <div className={styles.scrubberForecastHeader}>
                   <div className={styles.scrubberForecastDayLabel}>
-                    {activeDayData.label}
+                    {(() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + selectedDayOffset);
+                      if (selectedDayOffset === 0) return `Today (${d.toLocaleDateString("en-US", { weekday: "long" })})`;
+                      if (selectedDayOffset === 1) return `Tomorrow (${d.toLocaleDateString("en-US", { weekday: "long" })})`;
+                      return d.toLocaleDateString("en-US", { weekday: "long" });
+                    })()}
                   </div>
                   <div className={styles.scrubberForecastTracksRow}>
                     {/* Outbound commute track summary */}
