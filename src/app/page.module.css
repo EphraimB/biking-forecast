@@ -1172,6 +1172,31 @@
     width: auto;
     max-width: none;
   }
+
+  .rootPage[data-hud-state="2"] .ribbonOuter {
+    display: none !important;
+  }
+
+  .rootPage[data-hud-state="2"] .departureContainer {
+    top: auto !important;
+    bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+    max-width: none !important;
+    animation: slideInHUDMobile 0.55s var(--ease-premium) forwards !important;
+  }
+}
+
+@keyframes slideInHUDMobile {
+  from {
+    transform: translateY(120px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 /* Premium Glassmorphic Toast Notification Container */

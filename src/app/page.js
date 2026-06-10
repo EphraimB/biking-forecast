@@ -2533,7 +2533,7 @@ export default function Home() {
   const groupedSchedules = getGroupedSchedules();
 
   return (
-    <div className={styles.rootPage}>
+    <div className={styles.rootPage} data-hud-state={hudState}>
       
       {/* 
         -------------------------------------------------------------
