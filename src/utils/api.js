@@ -56,6 +56,7 @@ const FALLBACK_LOCATIONS = [
 const ROUTE_CACHE_PREFIX = "biking_route_cache_";
 const GEOCODE_CACHE_PREFIX = "biking_geocode_cache_";
 const REV_GEOCODE_CACHE_PREFIX = "biking_revgeocode_cache_";
+const ELEVATION_CACHE_PREFIX = "biking_elevation_cache_";
 
 function getCachedData(prefix, key, maxAgeMs = 60 * 60 * 1000) {
   if (typeof window === "undefined") return null;
@@ -638,6 +639,131 @@ export async function fetchRouteWeather(routeCoordinates, totalDistance, forceRe
 
   if (!forceRefresh) {
     inflightWeatherRequests.set(cacheKey, promise);
+  }
+
+  return promise;
+}
+
+const inflightElevationRequests = new Map();
+
+/**
+ * Generates a realistic undulating mock elevation profile for routes.
+ */
+function generateMockElevations(points) {
+  return points.map((p, idx) => {
+    const angle = (idx / points.length) * Math.PI * 4;
+    // Base elevation around 40m, wave amplitude of 30m, plus some minor noise
+    const base = 40 + 25 * Math.sin(angle) + 10 * Math.cos(angle * 2.3);
+    return Math.round(Math.max(2, base));
+  });
+}
+
+/**
+ * Fetches elevation data from Open-Meteo Elevation API for sampled coordinates.
+ * Selects up to 100 points along the route.
+ * @param {Array<[number, number]>} routeCoordinates - Array of [lat, lon] route coordinates
+ * @param {boolean} forceRefresh - If true, bypasses the cache
+ * @returns {Promise<{elevations: Array<number>, sampledPoints: Array<[number, number]>}>} Array of elevation values in meters and sampled points
+ */
+export async function fetchRouteElevation(routeCoordinates, forceRefresh = false) {
+  if (!routeCoordinates || routeCoordinates.length === 0) return { elevations: [], sampledPoints: [] };
+
+  const numSamples = Math.min(routeCoordinates.length, 100);
+  const sampledPoints = sampleCoordinates(routeCoordinates, numSamples);
+  const cacheKey = sampledPoints.map(p => `${Number(p[0]).toFixed(4)},${Number(p[1]).toFixed(4)}`).join("|");
+
+  // Check cache first (cache for 24 hours)
+  if (!forceRefresh) {
+    const cached = getCachedData(ELEVATION_CACHE_PREFIX, cacheKey, 24 * 60 * 60 * 1000);
+    if (cached) {
+      console.log(`📦 [Elevation Cache] Cache hit for key: ${cacheKey.substring(0, 30)}...`);
+      sendServerApiLog("Elevation", "cache_hit", { numSamples }, null, { key: `sampled key: ${cacheKey.substring(0, 30)}...` });
+      return cached;
+    }
+  }
+
+  // Deduplicate in-flight requests
+  if (!forceRefresh && inflightElevationRequests.has(cacheKey)) {
+    console.log(`♻️ [Elevation Request Deduplication] Reusing in-flight request for key: ${cacheKey.substring(0, 30)}...`);
+    return inflightElevationRequests.get(cacheKey);
+  }
+
+  const promise = (async () => {
+    sendServerApiLog("Elevation", "cache_miss", { numSamples }, null, { key: `sampled key: ${cacheKey.substring(0, 30)}...` });
+
+    if (process.env.MOCK === "true") {
+      console.log("Mock data mode enabled via env var. Serving offline elevation profile.");
+      sendServerApiLog("Elevation", "simulated_mode", { numSamples }, null, { reason: "MOCK=true" });
+      const elevations = generateMockElevations(sampledPoints);
+      const result = { elevations, sampledPoints, isOffline: true };
+      setCachedData(ELEVATION_CACHE_PREFIX, cacheKey, result);
+      return result;
+    }
+
+    try {
+      await throttleFetch();
+
+      const lats = sampledPoints.map(p => p[0]).join(",");
+      const lons = sampledPoints.map(p => p[1]).join(",");
+      const url = `https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lons}`;
+
+      console.log(`🌐 [Open-Meteo API] Fetching elevation for ${numSamples} coordinates...`);
+      sendServerApiLog("Elevation", "network_request", { numSamples }, null, { target: "Open-Meteo", url });
+
+      const startTime = Date.now();
+      let response;
+      try {
+        response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Direct elevation fetch returned HTTP ${response.status}`);
+        }
+      } catch (directError) {
+        console.log("ℹ️ [Elevation Service] Direct fetch to Open-Meteo failed. Swapping to public CORS proxy...");
+        try {
+          const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(url)}`;
+          response = await fetch(proxyUrl);
+          if (!response.ok) {
+            throw new Error(`Proxy returned HTTP ${response.status}`);
+          }
+        } catch (proxyError) {
+          console.warn("⚠️ [Elevation Proxy] Proxy fetch failed.");
+          throw directError;
+        }
+      }
+
+      const duration = Date.now() - startTime;
+      const data = await response.json();
+
+      if (!data.elevation || !Array.isArray(data.elevation)) {
+        throw new Error("Invalid elevation response format");
+      }
+
+      const result = {
+        elevations: data.elevation,
+        sampledPoints
+      };
+
+      setCachedData(ELEVATION_CACHE_PREFIX, cacheKey, result);
+      sendServerApiLog("Elevation", "network_success", { numSamples }, duration, { target: "Open-Meteo", status: response.status });
+      return result;
+    } catch (error) {
+      console.warn("⚠️ [Elevation Service] Open-Meteo elevation service failed. Serving simulated fallback.");
+      const elevations = generateMockElevations(sampledPoints);
+      const result = {
+        elevations,
+        sampledPoints,
+        isOfflineElevation: true,
+        errorMessage: error.message || "Network request failed"
+      };
+      sendServerApiLog("Elevation", "simulated_fallback", { numSamples }, null, { reason: error.message });
+      return result;
+    } finally {
+      inflightElevationRequests.delete(cacheKey);
+    }
+  })();
+
+  if (!forceRefresh) {
+    inflightElevationRequests.set(cacheKey, promise);
   }
 
   return promise;

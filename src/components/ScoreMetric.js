@@ -5,6 +5,43 @@ import { AlertTriangle, ShieldAlert, Sparkles } from "lucide-react";
 import styles from "./ScoreMetric.module.css";
 import RadialGauge from "./svgs/RadialGauge";
 
+function ElevationProfileChart({ profile }) {
+  if (!profile || profile.length < 2) return null;
+
+  const width = 300;
+  const height = 50;
+  const padding = 2;
+
+  const minX = 0;
+  const maxX = profile[profile.length - 1].distance;
+  const elevations = profile.map(p => p.elevation);
+  const minY = Math.min(...elevations);
+  const maxY = Math.max(...elevations);
+  const rangeY = maxY - minY || 1;
+
+  const points = profile.map(p => {
+    const x = padding + ((p.distance - minX) / (maxX - minX)) * (width - 2 * padding);
+    const y = padding + (1 - (p.elevation - minY) / rangeY) * (height - 2 * padding);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+
+  const pathD = `M ${points[0]} L ${points.join(" L ")}`;
+  const areaD = `${pathD} L ${padding + (width - 2 * padding)},${height - padding} L ${padding},${height - padding} Z`;
+
+  return (
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: "visible", display: "block" }}>
+      <defs>
+        <linearGradient id="elevationGradMetric" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--color-emerald, #10b981)" stopOpacity="0.4" />
+          <stop offset="100%" stopColor="var(--color-emerald, #10b981)" stopOpacity="0.0" />
+        </linearGradient>
+      </defs>
+      <path d={areaD} fill="url(#elevationGradMetric)" />
+      <path d={pathD} fill="none" stroke="var(--color-emerald, #10b981)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export default function ScoreMetric({ forecast, unitSystem = "metric" }) {
   if (!forecast) return null;
 
@@ -23,7 +60,11 @@ export default function ScoreMetric({ forecast, unitSystem = "metric" }) {
     wmoDesc,
     wmoEmoji,
     penalties,
-    windImpact
+    windImpact,
+    elevationGain,
+    elevationLoss,
+    maxGrade,
+    elevationProfile
   } = forecast;
 
   const isImperial = unitSystem === "imperial";
@@ -44,6 +85,10 @@ export default function ScoreMetric({ forecast, unitSystem = "metric" }) {
   const dispCrosswind = isImperial ? `${(crosswind * 0.621371).toFixed(1)}` : `${crosswind}`;
   const dispGusts = isImperial ? `${(gusts * 0.621371).toFixed(1)}` : `${gusts}`;
 
+  const dispAscent = elevationGain !== undefined
+    ? (isImperial ? `${Math.round(elevationGain * 3.28084)} ft` : `${Math.round(elevationGain)} m`)
+    : null;
+
   // Determine score color theme
   let themeColor = "var(--rose)";
   let scoreText = "Poor Conditions";
@@ -63,7 +108,7 @@ export default function ScoreMetric({ forecast, unitSystem = "metric" }) {
       </h3>
 
       <div className={styles.statsOuterContainer}>
-        {/* Stunning Radial Gauge extracted into its own component */}
+        {/* Radial Gauge */}
         <RadialGauge 
           score={score} 
           themeColor={themeColor} 
@@ -101,12 +146,21 @@ export default function ScoreMetric({ forecast, unitSystem = "metric" }) {
                 {dispSpeed} <span style={{ fontSize: "0.7rem", color: "var(--slate-500)", fontWeight: "normal" }}>{dispSpeedUnit}</span>
               </div>
             </div>
-            <div className={`glass-card ${styles.statCard}`}>
-              <div className={styles.statLabel}>WIND FLOW</div>
-              <div className={styles.windFlowVal}>
-                {windImpact}
+            {dispAscent ? (
+              <div className={`glass-card ${styles.statCard}`}>
+                <div className={styles.statLabel}>CLIMBING</div>
+                <div className={styles.statVal} style={{ fontSize: "0.82rem" }}>
+                  {dispAscent}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className={`glass-card ${styles.statCard}`}>
+                <div className={styles.statLabel}>WIND FLOW</div>
+                <div className={styles.windFlowVal}>
+                  {windImpact}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -141,8 +195,25 @@ export default function ScoreMetric({ forecast, unitSystem = "metric" }) {
         </div>
       </div>
 
+      {/* Elevation profile panel */}
+      {elevationProfile && elevationProfile.length > 0 && (
+        <div className={`glass-card ${styles.windBreakdownCard}`} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h4 className={styles.windBreakdownTitle}>
+              Elevation Profile
+            </h4>
+            <span style={{ fontSize: "0.6rem", color: "var(--slate-400)", fontWeight: "700" }}>
+              Gain: +{dispAscent} | Loss: -{isImperial ? `${Math.round(elevationLoss * 3.28084)} ft` : `${Math.round(elevationLoss)} m`} | Max Slope: {maxGrade}%
+            </span>
+          </div>
+          <div style={{ marginTop: "4px", background: "rgba(15, 23, 42, 0.2)", borderRadius: "4px", padding: "6px 8px" }}>
+            <ElevationProfileChart profile={elevationProfile} />
+          </div>
+        </div>
+      )}
+
       {/* Penalties breakdown panel */}
-      {(penalties.temp > 0 || penalties.rain > 0 || penalties.wind > 0 || penalties.wmo > 0) && (
+      {(penalties.temp > 0 || penalties.rain > 0 || penalties.wind > 0 || penalties.wmo > 0 || penalties.hills > 0) && (
         <div className={styles.penaltiesContainer}>
           <h4 className={styles.penaltiesTitle}>
             <AlertTriangle size={12} style={{ color: "var(--amber)" }} /> Score Reductions
@@ -164,6 +235,12 @@ export default function ScoreMetric({ forecast, unitSystem = "metric" }) {
               <div className={styles.penaltyRow}>
                 <span className={styles.penaltyLabel}>💨 Excessive winds or gusty crosswinds</span>
                 <span className={styles.penaltyVal} style={{ color: "var(--rose)" }}>-{penalties.wind} pts</span>
+              </div>
+            )}
+            {penalties.hills > 0 && (
+              <div className={styles.penaltyRow}>
+                <span className={styles.penaltyLabel}>⛰️ Significant climbing / steep slope penalty</span>
+                <span className={styles.penaltyVal} style={{ color: "var(--amber)" }}>-{penalties.hills} pts</span>
               </div>
             )}
             {penalties.wmo > 0 && penalties.wmo < 100 && (
