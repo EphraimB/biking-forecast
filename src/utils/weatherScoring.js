@@ -57,10 +57,21 @@ export function calculateSegmentSpeed(segment, windSpeed, windDir, baseSpeed) {
       adjustedSpeed = maxSpeed;
     }
   }
+
+  // Uphill/Downhill grade speed adjustments
+  if (segment.grade !== undefined) {
+    if (segment.grade > 0) {
+      // Uphill: progressive speed reduction
+      adjustedSpeed -= segment.grade * 90; // 5% grade = -4.5 km/h, 10% grade = -9 km/h
+    } else {
+      // Downhill: progressive speed gain
+      adjustedSpeed -= segment.grade * 40; // 5% descent = +2.0 km/h, 10% descent = +4.0 km/h
+    }
+  }
   
-  // Clamp absolute speed between 6 km/h (steep hills/winds) and baseSpeed + 10 km/h
-  const minSpeed = 6;
-  const maxAbsSpeed = baseSpeed + 10;
+  // Clamp absolute speed between 5 km/h (steep hills/winds) and baseSpeed + 15 km/h
+  const minSpeed = 5;
+  const maxAbsSpeed = baseSpeed + 15;
   adjustedSpeed = Math.max(minSpeed, Math.min(maxAbsSpeed, adjustedSpeed));
   
   // Duration in hours: t = d / v
@@ -238,8 +249,35 @@ export function calculateCommuteScore(hourIndex, routeSegments, baseSpeed, weath
   // Weather Code Penalty
   const wmoPenalty = wmoInfo.penalty;
   
+  // Calculate Elevation Totals and Penalties
+  let elevationGain = 0;
+  let elevationLoss = 0;
+  let maxGrade = 0;
+
+  for (let i = 0; i < S; i++) {
+    const seg = routeSegments[i];
+    if (seg.grade !== undefined) {
+      const rise = (seg.ele2 || 0) - (seg.ele1 || 0);
+      if (rise > 0) elevationGain += rise;
+      else elevationLoss += Math.abs(rise);
+      
+      if (seg.grade > maxGrade) {
+        maxGrade = seg.grade;
+      }
+    }
+  }
+
+  let hillPenalty = 0;
+  if (elevationGain > 100) {
+    hillPenalty += (elevationGain - 100) / 20; // 1 pt per 20m above 100m
+  }
+  if (maxGrade > 0.06) {
+    hillPenalty += (maxGrade - 0.06) * 100 * 2.5; // Progressive penalty for steep climbs >6%
+  }
+  hillPenalty = Math.min(20, Math.round(hillPenalty));
+
   // Calculate final score
-  let finalScore = 100 - (tempPenalty + rainPenalty + windPenalty + wmoPenalty);
+  let finalScore = 100 - (tempPenalty + rainPenalty + windPenalty + wmoPenalty + hillPenalty);
   finalScore = Math.max(0, Math.min(100, Math.round(finalScore)));
   
   // If there's a thunderstorm, make the score 0 (unsafe)
@@ -283,9 +321,13 @@ export function calculateCommuteScore(hourIndex, routeSegments, baseSpeed, weath
       temp: Math.round(tempPenalty),
       rain: Math.round(rainPenalty),
       wind: Math.round(windPenalty),
-      wmo: wmoPenalty
+      wmo: wmoPenalty,
+      hills: hillPenalty
     },
-    windImpact
+    windImpact,
+    elevationGain: Math.round(elevationGain),
+    elevationLoss: Math.round(elevationLoss),
+    maxGrade: Math.round(maxGrade * 1000) / 10
   };
 }
 
