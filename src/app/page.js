@@ -515,6 +515,7 @@ export default function Home() {
   const [ambientWeatherForecast, setAmbientWeatherForecast] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [loadingStatus, setLoadingStatus] = useState("");
   const [toast, setToast] = useState(null);
   const [isRefreshingWeather, setIsRefreshingWeather] = useState(false);
   const [isWeatherOffline, setIsWeatherOffline] = useState(false);
@@ -752,16 +753,29 @@ export default function Home() {
 
   const loadRouteDetails = useCallback(async (start, end, bikeType, speed, overrideState = null, shouldSave = false, saveName = "") => {
     setIsLoading(true);
+    setLoadingStatus("Connecting to routing server...");
     setError(null);
     try {
-      const routeData = await fetchBicycleRoute(start.lat, start.lon, end.lat, end.lon, bikeType, speed);
+      setLoadingStatus("Calculating bicycle route...");
+      const routePromise = fetchBicycleRoute(start.lat, start.lon, end.lat, end.lon, bikeType, speed);
+      const routeData = await Promise.race([
+        routePromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout: Routing request took too long")), 15000))
+      ]);
+
+      setLoadingStatus("Decoding route coordinates...");
       const decodedCoords = decodePolyline6(routeData.shape);
       setRouteCoordinates(decodedCoords);
 
       const segments = calculateRouteSegments(decodedCoords);
       setRouteSegments(segments);
 
-      const weatherData = handleWeatherResponse(await fetchRouteWeather(decodedCoords, routeData.distance));
+      setLoadingStatus("Analyzing weather along the route...");
+      const weatherPromise = fetchRouteWeather(decodedCoords, routeData.distance);
+      const weatherData = handleWeatherResponse(await Promise.race([
+        weatherPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout: Weather request took too long")), 15000))
+      ]));
       setWeatherResults(weatherData);
 
       setConfirmedStart(start);
@@ -796,9 +810,28 @@ export default function Home() {
       }
     } catch (err) {
       console.error(err);
-      setError(err.message || "Route validation pipeline failed.");
+      let userFriendlyMessage = "An error occurred while planning the route.";
+      
+      const errMsg = err.message || "";
+      if (errMsg.includes("Timeout")) {
+        userFriendlyMessage = "Request timed out. The server took too long to respond. Please try again.";
+      } else if (errMsg.includes("Valhalla Routing Error") || errMsg.includes("No route found")) {
+        userFriendlyMessage = "Could not find a bicycle route between these coordinates. Check if the path is traversable.";
+      } else if (errMsg.includes("fetch") || errMsg.includes("NetworkError") || errMsg.includes("network") || errMsg.includes("Failed to fetch")) {
+        userFriendlyMessage = "Routing API is offline or down. Please check your network connection.";
+      } else {
+        userFriendlyMessage = `Failed to plan route: ${errMsg}`;
+      }
+
+      setError(userFriendlyMessage);
+      setToast({
+        id: Math.random(),
+        type: "error",
+        message: userFriendlyMessage
+      });
     } finally {
       setIsLoading(false);
+      setLoadingStatus("");
     }
   }, [handleWeatherResponse]);
 
@@ -4357,7 +4390,30 @@ export default function Home() {
 
         </div>
       )}
-
+      {/* Global Glassmorphic Loading/Analyzing Overlay */}
+      {isLoading && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          background: "rgba(11, 15, 25, 0.6)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 999999,
+          color: "var(--hud-text-primary)",
+        }}>
+          <div className="hud-card" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", padding: "30px", maxWidth: "320px", textAlign: "center" }}>
+            <Bike size={48} style={{ color: "var(--color-emerald)", animation: "spin 2s linear infinite" }} />
+            <span style={{ fontSize: "1rem", fontWeight: "700" }}>Analyzing Commute</span>
+            <span style={{ fontSize: "0.82rem", color: "var(--hud-text-secondary)" }}>{loadingStatus}</span>
+          </div>
+        </div>
+      )}
 
     </div>
   );
