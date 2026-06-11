@@ -357,18 +357,18 @@ export function calculateDepartureTimeForArrival(targetArrivalDate, routeSegment
   
   const forecastStart = new Date(firstHourlyTimeStr);
   const diffMs = targetArrivalDate - forecastStart;
-  const targetArrivalHourIdx = Math.max(0, Math.min(167, Math.floor(diffMs / (1000 * 60 * 60))));
+  const targetArrivalHour = diffMs / (1000 * 60 * 60);
   
   // Step 1: Initial estimated duration based on base speed (in hours)
   const initialDurationHours = totalDistance / baseSpeed;
-  let departureHourIdx = Math.max(0, Math.min(167, Math.round(targetArrivalHourIdx - initialDurationHours)));
+  let departureHourIdx = Math.max(0, Math.min(167, Math.round(targetArrivalHour - initialDurationHours)));
   
   // Step 2: Feedback loop - iteration 1
   let commuteDetails = calculateCommuteScore(departureHourIdx, routeSegments, baseSpeed, weatherResults, preferences);
   let adjustedDurationHours = commuteDetails.duration / 60;
   
   // Step 3: Feedback loop - iteration 2 (convergence)
-  departureHourIdx = Math.max(0, Math.min(167, Math.round(targetArrivalHourIdx - adjustedDurationHours)));
+  departureHourIdx = Math.max(0, Math.min(167, Math.round(targetArrivalHour - adjustedDurationHours)));
   commuteDetails = calculateCommuteScore(departureHourIdx, routeSegments, baseSpeed, weatherResults, preferences);
   
   const finalDurationMinutes = commuteDetails.duration;

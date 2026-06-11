@@ -219,7 +219,8 @@
 .riderConfigDropdown {
   position: absolute;
   top: 54px;
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
   width: 290px;
   display: flex;
   flex-direction: column;
@@ -802,8 +803,8 @@
   flex-direction: column;
   gap: 8px;
   border-bottom: 1px solid var(--hud-border);
-  padding-bottom: 12px;
-  margin-bottom: 4px;
+  padding-bottom: 8px;
+  margin-bottom: 2px;
   width: 100%;
 }
 
@@ -826,7 +827,7 @@
 .scrubberForecastTrackCard {
   flex: 1;
   background: rgba(255, 255, 255, 0.03);
-  padding: 8px 12px;
+  padding: 6px 12px;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
@@ -844,14 +845,110 @@
 }
 
 .scrubberContainer {
-  padding: 14px 20px;
+  padding: 12px 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  max-width: 680px;
+  max-width: 760px;
   align-self: center;
   pointer-events: auto;
+}
+
+.scrubberGrabHandle {
+  display: none;
+}
+
+.collapsedInfoRow {
+  display: none;
+}
+
+.collapsedScoreHeader {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.collapsedScoreBadge {
+  font-family: var(--font-body);
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.collapsedColumnsWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.collapsedLeftColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+}
+
+.collapsedDayLabel {
+  font-family: var(--font-heading);
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--hud-text-primary);
+  text-transform: capitalize;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.collapsedDirectionLabel {
+  font-family: var(--font-body);
+  font-size: 0.6rem;
+  color: var(--hud-text-secondary);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.collapsedRightColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  margin-left: auto;
+  margin-right: 12px;
+}
+
+.collapsedTimeBlock {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  line-height: 1.1;
+}
+
+.collapsedBlockLabel {
+  font-family: var(--font-body);
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--hud-text-secondary);
+  letter-spacing: 0.05em;
+  width: 46px;
+  text-align: left;
+}
+
+.collapsedBlockValue {
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--hud-text-primary);
+}
+
+.collapsedExitBtn {
+  display: none;
 }
 
 .scrubberHeader {
@@ -876,7 +973,7 @@
   gap: 20px;
   width: 100%;
   border-top: 1px solid var(--hud-border);
-  padding-top: 10px;
+  padding-top: 8px;
 }
 
 .scrubberTelemetry {
@@ -933,6 +1030,28 @@
 .exitScrubBtn {
   padding: 6px 16px;
   align-self: flex-end;
+}
+
+.headerExitBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--hud-text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color var(--duration-snap) ease, background var(--duration-snap) ease;
+}
+
+.headerExitBtn:hover {
+  color: var(--hud-text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:global([data-theme="light"]) .headerExitBtn:hover {
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .weeklyPlannerPanel {
@@ -1231,6 +1350,190 @@
     width: auto !important;
     max-width: none !important;
     animation: slideInHUDMobile 0.55s var(--ease-premium) forwards !important;
+  }
+
+  /* Mobile Collapsible Scrubber overrides */
+  .scrubberGrabHandle {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    padding: 6px 0 10px 0;
+    cursor: pointer;
+    margin-top: -6px;
+  }
+
+  .grabPill {
+    width: 40px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    transition: background 0.2s ease;
+  }
+
+  :global([data-theme="light"]) .grabPill {
+    background: rgba(0, 0, 0, 0.15);
+  }
+
+  .scrubberGrabHandle:hover .grabPill,
+  .scrubberGrabHandle:active .grabPill {
+    background: rgba(255, 255, 255, 0.4);
+  }
+
+  :global([data-theme="light"]) .scrubberGrabHandle:hover .grabPill,
+  :global([data-theme="light"]) .scrubberGrabHandle:active .grabPill {
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  /* Mobile Collapsible Scrubber transitions */
+  .collapsedInfoRow {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100%;
+    gap: 6px !important;
+    max-height: 0 !important;
+    opacity: 0 !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    pointer-events: none !important;
+    transition: max-height 0.4s var(--ease-premium), 
+                opacity 0.25s ease, 
+                margin 0.4s var(--ease-premium), 
+                padding 0.4s var(--ease-premium);
+  }
+
+  .scrubberForecastHeader {
+    max-height: 180px;
+    opacity: 1;
+    overflow: hidden;
+    transition: max-height 0.4s var(--ease-premium), 
+                opacity 0.25s ease, 
+                margin 0.4s var(--ease-premium), 
+                padding 0.4s var(--ease-premium),
+                border 0.4s var(--ease-premium);
+  }
+
+  .scrubberHeader {
+    max-height: 40px;
+    opacity: 1;
+    overflow: hidden;
+    transition: max-height 0.4s var(--ease-premium), 
+                opacity 0.25s ease, 
+                margin 0.4s var(--ease-premium), 
+                padding 0.4s var(--ease-premium);
+  }
+
+  .scrubberSliderRow {
+    max-height: 100px;
+    opacity: 1;
+    overflow: hidden;
+    transition: max-height 0.4s var(--ease-premium), 
+                opacity 0.25s ease, 
+                margin 0.4s var(--ease-premium), 
+                padding 0.4s var(--ease-premium);
+  }
+
+  .scrubberDetailsGrid {
+    max-height: 150px;
+    opacity: 1;
+    overflow: hidden;
+    transition: max-height 0.4s var(--ease-premium), 
+                opacity 0.25s ease, 
+                margin 0.4s var(--ease-premium), 
+                padding 0.4s var(--ease-premium);
+  }
+
+  .scrubberElevationWrapper {
+    max-height: 120px;
+    opacity: 1;
+    overflow: hidden;
+    transition: max-height 0.4s var(--ease-premium), 
+                opacity 0.25s ease, 
+                margin 0.4s var(--ease-premium), 
+                padding 0.4s var(--ease-premium),
+                border 0.4s var(--ease-premium);
+  }
+
+  .exitScrubBtn {
+    max-height: 50px;
+    opacity: 1;
+    overflow: hidden;
+    transition: max-height 0.4s var(--ease-premium), 
+                opacity 0.25s ease, 
+                margin 0.4s var(--ease-premium), 
+                padding 0.4s var(--ease-premium);
+  }
+
+  /* When collapsed */
+  .scrubberContainer.collapsed {
+    padding: 6px 16px 12px 16px !important;
+    gap: 0px !important;
+  }
+
+  .scrubberContainer.collapsed .scrubberForecastHeader,
+  .scrubberContainer.collapsed .scrubberHeader,
+  .scrubberContainer.collapsed .scrubberSliderRow,
+  .scrubberContainer.collapsed .scrubberDetailsGrid,
+  .scrubberContainer.collapsed .scrubberElevationWrapper,
+  .scrubberContainer.collapsed .exitScrubBtn {
+    max-height: 0 !important;
+    opacity: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    pointer-events: none !important;
+  }
+
+  .scrubberContainer.collapsed .collapsedInfoRow {
+    max-height: 120px !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    margin-top: 4px !important;
+  }
+
+  .scrubberContainer.collapsed .collapsedExitBtn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    background: var(--hud-btn-bg);
+    border: 1px solid var(--hud-border);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    color: var(--hud-text-primary);
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+  }
+
+  .scrubberContainer.collapsed .collapsedExitBtn:hover {
+    background: var(--hud-btn-hover-bg);
+    border-color: var(--hud-btn-hover-border);
+  }
+
+  @media (max-width: 360px) {
+    .collapsedDayLabel {
+      font-size: 0.76rem !important;
+    }
+    .collapsedDirectionLabel {
+      font-size: 0.55rem !important;
+    }
+    .collapsedBlockLabel {
+      width: 40px !important;
+      font-size: 0.55rem !important;
+    }
+    .collapsedBlockValue {
+      font-size: 0.65rem !important;
+    }
+    .collapsedRightColumn {
+      margin-right: 6px !important;
+    }
+  }
+
+  .riderConfigDropdown {
+    transform: none !important;
   }
 }
 
