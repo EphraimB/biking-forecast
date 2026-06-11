@@ -862,39 +862,86 @@
   display: none;
 }
 
-.collapsedTextGroup {
+.collapsedScoreHeader {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.collapsedScoreBadge {
+  font-family: var(--font-body);
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.collapsedColumnsWrapper {
   display: flex;
   align-items: center;
-  gap: 14px;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.collapsedLeftColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
 }
 
 .collapsedDayLabel {
   font-family: var(--font-heading);
-  font-size: 0.76rem;
+  font-size: 0.82rem;
   font-weight: 800;
   color: var(--hud-text-primary);
   text-transform: capitalize;
+  line-height: 1.1;
   white-space: nowrap;
+}
+
+.collapsedDirectionLabel {
+  font-family: var(--font-body);
+  font-size: 0.6rem;
+  color: var(--hud-text-secondary);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.collapsedRightColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  margin-left: auto;
+  margin-right: 12px;
 }
 
 .collapsedTimeBlock {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   white-space: nowrap;
+  line-height: 1.1;
 }
 
 .collapsedBlockLabel {
   font-family: var(--font-body);
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 700;
   color: var(--hud-text-secondary);
   letter-spacing: 0.05em;
+  width: 46px;
+  text-align: left;
 }
 
 .collapsedBlockValue {
   font-family: var(--font-body);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 800;
   color: var(--hud-text-primary);
 }
@@ -1332,10 +1379,9 @@
 
   .scrubberContainer.collapsed .collapsedInfoRow {
     display: flex !important;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column !important;
     width: 100%;
-    gap: 12px;
+    gap: 6px !important;
   }
 
   .scrubberContainer.collapsed .collapsedExitBtn {
@@ -1359,8 +1405,21 @@
   }
 
   @media (max-width: 360px) {
-    .collapsedTextGroup {
-      gap: 8px !important;
+    .collapsedDayLabel {
+      font-size: 0.76rem !important;
+    }
+    .collapsedDirectionLabel {
+      font-size: 0.55rem !important;
+    }
+    .collapsedBlockLabel {
+      width: 40px !important;
+      font-size: 0.55rem !important;
+    }
+    .collapsedBlockValue {
+      font-size: 0.65rem !important;
+    }
+    .collapsedRightColumn {
+      margin-right: 6px !important;
     }
   }
 }

@@ -4283,32 +4283,55 @@ export default function Home() {
               {/* Compact collapsed info row (visible only in collapsed mode on mobile) */}
               {getLeaveNowOverlayData() && (
                 <div className={styles.collapsedInfoRow}>
-                  <div className={styles.collapsedTextGroup}>
-                    <strong className={styles.collapsedDayLabel}>
-                      {(() => {
-                        const d = new Date();
-                        d.setDate(d.getDate() + selectedDayOffset);
-                        if (selectedDayOffset === 0) return "Today";
-                        if (selectedDayOffset === 1) return "Tomorrow";
-                        return d.toLocaleDateString("en-US", { weekday: "long" });
-                      })()}
-                    </strong>
-                    <div className={styles.collapsedTimeBlock}>
-                      <span className={styles.collapsedBlockLabel}>DEPART</span>
-                      <strong className={styles.collapsedBlockValue}>{getLeaveNowOverlayData().depTimeStr}</strong>
+                  {activeForecast && (
+                    <div className={styles.collapsedScoreHeader}>
+                      <span 
+                        className={styles.collapsedScoreBadge}
+                        style={{ 
+                          background: activeForecast.score >= 85 ? "rgba(16,185,129,0.12)" : activeForecast.score >= 50 ? "rgba(245,158,11,0.12)" : "rgba(239,68,68,0.12)",
+                          color: activeForecast.score >= 85 ? "var(--color-emerald)" : activeForecast.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)"
+                        }}
+                      >
+                        Score: {activeForecast.score}%
+                      </span>
                     </div>
-                    <div className={styles.collapsedTimeBlock}>
-                      <span className={styles.collapsedBlockLabel}>ARRIVE</span>
-                      <strong className={styles.collapsedBlockValue}>{getLeaveNowOverlayData().arrivalTimeStr}</strong>
+                  )}
+                  
+                  <div className={styles.collapsedColumnsWrapper}>
+                    <div className={styles.collapsedLeftColumn}>
+                      <strong className={styles.collapsedDayLabel}>
+                        {(() => {
+                          const d = new Date();
+                          d.setDate(d.getDate() + selectedDayOffset);
+                          if (selectedDayOffset === 0) return "Today";
+                          if (selectedDayOffset === 1) return "Tomorrow";
+                          return d.toLocaleDateString("en-US", { weekday: "long" });
+                        })()}
+                      </strong>
+                      <span className={styles.collapsedDirectionLabel}>
+                        {isReturnTripMode ? "Inbound" : "Outbound"}
+                      </span>
                     </div>
+
+                    <div className={styles.collapsedRightColumn}>
+                      <div className={styles.collapsedTimeBlock}>
+                        <span className={styles.collapsedBlockLabel}>DEPART</span>
+                        <strong className={styles.collapsedBlockValue}>{getLeaveNowOverlayData().depTimeStr}</strong>
+                      </div>
+                      <div className={styles.collapsedTimeBlock}>
+                        <span className={styles.collapsedBlockLabel}>ARRIVE</span>
+                        <strong className={styles.collapsedBlockValue}>{getLeaveNowOverlayData().arrivalTimeStr}</strong>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setHudState(routeCoordinates.length > 0 ? 2 : 0)}
+                      className={styles.collapsedExitBtn}
+                      title="Exit Scrub"
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setHudState(routeCoordinates.length > 0 ? 2 : 0)}
-                    className={styles.collapsedExitBtn}
-                    title="Exit Scrub"
-                  >
-                    <X size={14} />
-                  </button>
                 </div>
               )}
 
