@@ -291,6 +291,8 @@ export default function Home() {
   // 3: Single-Day Focus & Scrubber
   // 4: Segment Details Card
   const [hudState, setHudState] = useState(0);
+  const [isScrubberCollapsed, setIsScrubberCollapsed] = useState(false);
+  const touchStartY = useRef(null);
 
   // Core Search & Autocomplete
   const [startQuery, setStartQuery] = useState("");
@@ -382,6 +384,31 @@ export default function Home() {
       localStorage.setItem("theme", "dark");
     }
   }, [isLightMode]);
+
+  // Reset scrubber collapse state when HUD state changes
+  useEffect(() => {
+    setIsScrubberCollapsed(false);
+  }, [hudState]);
+
+  const handleTouchStart = (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') {
+      touchStartY.current = null;
+      return;
+    }
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e) => {
+    if (touchStartY.current === null) return;
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaY = touchEndY - touchStartY.current;
+    if (deltaY > 50) {
+      setIsScrubberCollapsed(true);
+    } else if (deltaY < -50) {
+      setIsScrubberCollapsed(false);
+    }
+    touchStartY.current = null;
+  };
 
   // Tagged Locations (Home, Work, Custom tags)
   const [taggedLocations, setTaggedLocations] = useState([]);
@@ -4232,13 +4259,27 @@ export default function Home() {
           */}
           {hudState === 3 && (
             <div 
-              className={`${styles.scrubberContainer} hud-card timeline-scrubber-container`}
+              className={`${styles.scrubberContainer} hud-card timeline-scrubber-container ${isScrubberCollapsed ? styles.collapsed : ""}`}
               onMouseDown={(e) => e.stopPropagation()}
               onMouseUp={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
+              onTouchStart={(e) => {
+                e.stopPropagation();
+                handleTouchStart(e);
+              }}
               onTouchMove={(e) => e.stopPropagation()}
-              onTouchEnd={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => {
+                e.stopPropagation();
+                handleTouchEnd(e);
+              }}
             >
+              {/* Grab handle for collapsible behavior on mobile */}
+              <div 
+                className={styles.scrubberGrabHandle}
+                onClick={() => setIsScrubberCollapsed(prev => !prev)}
+              >
+                <div className={styles.grabPill} />
+              </div>
+
               {/* Integrated Forecast Day Card */}
               {activeDayData && (
                 <div className={styles.scrubberForecastHeader}>
@@ -4439,6 +4480,15 @@ export default function Home() {
                   }}
                   className={styles.rangeScrubber}
                 />
+
+                {/* Compact close button (visible only in collapsed mode on mobile) */}
+                <button
+                  onClick={() => setHudState(routeCoordinates.length > 0 ? 2 : 0)}
+                  className={styles.collapsedExitBtn}
+                  title="Exit Scrub"
+                >
+                  <X size={14} />
+                </button>
               </div>
 
               {/* Stacked Telemetry & Weekly Target Input Columns */}
@@ -4486,7 +4536,7 @@ export default function Home() {
               </div>
 
               {activeRouteData.elevationData && (
-                <div style={{ marginTop: "10px", borderTop: "1px solid var(--hud-border)", paddingTop: "8px" }}>
+                <div className={styles.scrubberElevationWrapper} style={{ marginTop: "10px", borderTop: "1px solid var(--hud-border)", paddingTop: "8px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px", fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>
                     <span style={{ fontWeight: "700" }}>⛰️ Elevation Profile</span>
                     <span>

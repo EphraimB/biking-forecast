@@ -854,6 +854,14 @@
   pointer-events: auto;
 }
 
+.scrubberGrabHandle {
+  display: none;
+}
+
+.collapsedExitBtn {
+  display: none;
+}
+
 .scrubberHeader {
   display: flex;
   justify-content: space-between;
@@ -1231,6 +1239,80 @@
     width: auto !important;
     max-width: none !important;
     animation: slideInHUDMobile 0.55s var(--ease-premium) forwards !important;
+  }
+
+  /* Mobile Collapsible Scrubber overrides */
+  .scrubberGrabHandle {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    padding: 6px 0 10px 0;
+    cursor: pointer;
+    margin-top: -6px;
+  }
+
+  .grabPill {
+    width: 40px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    transition: background 0.2s ease;
+  }
+
+  :global([data-theme="light"]) .grabPill {
+    background: rgba(0, 0, 0, 0.15);
+  }
+
+  .scrubberGrabHandle:hover .grabPill,
+  .scrubberGrabHandle:active .grabPill {
+    background: rgba(255, 255, 255, 0.4);
+  }
+
+  :global([data-theme="light"]) .scrubberGrabHandle:hover .grabPill,
+  :global([data-theme="light"]) .scrubberGrabHandle:active .grabPill {
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  /* When collapsed */
+  .scrubberContainer.collapsed {
+    padding: 6px 16px 12px 16px !important;
+    gap: 6px !important;
+  }
+
+  .scrubberContainer.collapsed .scrubberForecastHeader,
+  .scrubberContainer.collapsed .scrubberHeader,
+  .scrubberContainer.collapsed .quickSnapperToggle,
+  .scrubberContainer.collapsed .scrubberDetailsGrid,
+  .scrubberContainer.collapsed .scrubberElevationWrapper,
+  .scrubberContainer.collapsed .exitScrubBtn {
+    display: none !important;
+  }
+
+  .scrubberContainer.collapsed .scrubberSliderRow {
+    flex-wrap: nowrap !important;
+    gap: 10px !important;
+    align-items: center !important;
+  }
+
+  .scrubberContainer.collapsed .collapsedExitBtn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    background: var(--hud-btn-bg);
+    border: 1px solid var(--hud-border);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    color: var(--hud-text-primary);
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+  }
+
+  .scrubberContainer.collapsed .collapsedExitBtn:hover {
+    background: var(--hud-btn-hover-bg);
+    border-color: var(--hud-btn-hover-border);
   }
 }
 
