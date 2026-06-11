@@ -862,13 +862,41 @@
   display: none;
 }
 
-.collapsedStatusText {
+.collapsedTextGroup {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.collapsedDayLabel {
+  font-family: var(--font-heading);
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: var(--hud-text-primary);
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.collapsedTimeBlock {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.collapsedBlockLabel {
+  font-family: var(--font-body);
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--hud-text-secondary);
+  letter-spacing: 0.05em;
+}
+
+.collapsedBlockValue {
   font-family: var(--font-body);
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--hud-text-primary);
-  white-space: nowrap;
-  letter-spacing: 0.02em;
 }
 
 .collapsedExitBtn {
@@ -1328,6 +1356,12 @@
   .scrubberContainer.collapsed .collapsedExitBtn:hover {
     background: var(--hud-btn-hover-bg);
     border-color: var(--hud-btn-hover-border);
+  }
+
+  @media (max-width: 360px) {
+    .collapsedTextGroup {
+      gap: 8px !important;
+    }
   }
 }
 
