@@ -291,6 +291,9 @@ export default function Home() {
   // 3: Single-Day Focus & Scrubber
   // 4: Segment Details Card
   const [hudState, setHudState] = useState(0);
+  const [isScrubberCollapsed, setIsScrubberCollapsed] = useState(false);
+  const touchStartY = useRef(null);
+  const scrubberRef = useRef(null);
 
   // Core Search & Autocomplete
   const [startQuery, setStartQuery] = useState("");
@@ -382,6 +385,84 @@ export default function Home() {
       localStorage.setItem("theme", "dark");
     }
   }, [isLightMode]);
+
+  // Reset scrubber collapse state when HUD state changes
+  useEffect(() => {
+    setIsScrubberCollapsed(false);
+  }, [hudState]);
+
+  const handleTouchStart = (e) => {
+    if (
+      e.target.tagName === 'INPUT' || 
+      e.target.tagName === 'SELECT' || 
+      e.target.tagName === 'BUTTON' ||
+      e.target.closest('input[type="range"]')
+    ) {
+      touchStartY.current = null;
+      return;
+    }
+    touchStartY.current = e.touches[0].clientY;
+    if (scrubberRef.current) {
+      scrubberRef.current.style.transition = 'none';
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (touchStartY.current !== null && scrubberRef.current) {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      const currentY = e.touches[0].clientY;
+      const deltaY = currentY - touchStartY.current;
+      
+      let translateVal = 0;
+      if (isScrubberCollapsed) {
+        if (deltaY < 0) {
+          translateVal = deltaY;
+        } else {
+          translateVal = deltaY * 0.15;
+        }
+      } else {
+        if (deltaY > 0) {
+          translateVal = deltaY;
+        } else {
+          translateVal = deltaY * 0.15;
+        }
+      }
+      scrubberRef.current.style.transform = `translateY(${translateVal}px)`;
+    }
+  };
+
+  const handleTouchCancel = (e) => {
+    if (scrubberRef.current) {
+      scrubberRef.current.style.transition = '';
+      scrubberRef.current.style.transform = '';
+    }
+    touchStartY.current = null;
+  };
+
+  const handleTouchEnd = (e) => {
+    if (touchStartY.current === null) return;
+    
+    if (scrubberRef.current) {
+      scrubberRef.current.style.transition = '';
+      scrubberRef.current.style.transform = '';
+    }
+    
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaY = touchEndY - touchStartY.current;
+    
+    if (isScrubberCollapsed) {
+      if (deltaY < -60) {
+        setIsScrubberCollapsed(false);
+      }
+    } else {
+      if (deltaY > 60) {
+        setIsScrubberCollapsed(true);
+      }
+    }
+    touchStartY.current = null;
+  };
 
   // Tagged Locations (Home, Work, Custom tags)
   const [taggedLocations, setTaggedLocations] = useState([]);
@@ -1682,7 +1763,7 @@ export default function Home() {
     
     const forecastStart = new Date(boundWeatherEntry.weather[0]?.hourly?.time?.[0]);
     const diffMs = targetDate - forecastStart;
-    const hourIdx = Math.max(0, Math.min(167, Math.floor(diffMs / (1000 * 60 * 60))));
+    const hourIdx = Math.max(0, Math.min(167, Math.round(diffMs / (1000 * 60 * 60))));
     
     const commuteDetails = calculateCommuteScore(
       hourIdx,
@@ -1975,24 +2056,33 @@ export default function Home() {
 
         const depDate = new Date(arrDate.getTime() - durationMins * 60 * 1000);
         
-        const now = new Date();
-        now.setSeconds(0, 0);
-        depDate.setSeconds(0, 0);
-        
-        const diffTime = depDate.getTime() - now.getTime();
-        const diffDays = Math.floor(diffTime / (24 * 60 * 60 * 1000));
-        const depDayOffset = Math.max(0, diffDays);
-        const depHour = depDate.getHours();
-        const depMin = depDate.getMinutes();
-
-        hourIdx = depDayOffset * 24 + depHour;
-        if (depMin >= 30) {
-          hourIdx += 1;
+        const firstHourlyTimeStr = activeRouteData.weatherResults[0]?.hourly?.time?.[0];
+        if (firstHourlyTimeStr) {
+          const forecastStart = new Date(firstHourlyTimeStr);
+          const diffMs = depDate.getTime() - forecastStart.getTime();
+          hourIdx = Math.max(0, Math.min(167, Math.round(diffMs / (1000 * 60 * 60))));
+        } else {
+          const depHour = depDate.getHours();
+          const depMin = depDate.getMinutes();
+          hourIdx = selectedDayOffset * 24 + depHour;
+          if (depMin >= 30) {
+            hourIdx += 1;
+          }
         }
       } else {
-        hourIdx = selectedDayOffset * 24 + selectedHour;
-        if (selectedMinute >= 30) {
-          hourIdx += 1;
+        const firstHourlyTimeStr = activeRouteData.weatherResults[0]?.hourly?.time?.[0];
+        if (firstHourlyTimeStr) {
+          const forecastStart = new Date(firstHourlyTimeStr);
+          const depDate = new Date();
+          depDate.setDate(depDate.getDate() + selectedDayOffset);
+          depDate.setHours(selectedHour, selectedMinute, 0, 0);
+          const diffMs = depDate.getTime() - forecastStart.getTime();
+          hourIdx = Math.max(0, Math.min(167, Math.round(diffMs / (1000 * 60 * 60))));
+        } else {
+          hourIdx = selectedDayOffset * 24 + selectedHour;
+          if (selectedMinute >= 30) {
+            hourIdx += 1;
+          }
         }
       }
       hourIdx = Math.max(0, Math.min(167, hourIdx));
@@ -2568,7 +2658,7 @@ export default function Home() {
 
         const forecastStart = new Date(activeWeather[0]?.hourly?.time?.[0]);
         const diffMs = returnTargetDate - forecastStart;
-        const returnHourIdx = Math.max(0, Math.min(167, Math.floor(diffMs / (1000 * 60 * 60))));
+        const returnHourIdx = Math.max(0, Math.min(167, Math.round(diffMs / (1000 * 60 * 60))));
 
         const returnResult = calculateCommuteScore(
           returnHourIdx,
@@ -3179,68 +3269,70 @@ export default function Home() {
         <div className={`hud-top-right ${styles.topRightControls}`}>
           
           {/* Rider Configuration Bubble (Desktop-only) */}
-          <button 
-            className={`hud-bubble desktop-only ${styles.riderConfigBtn}`} 
-            onClick={toggleRiderConfig}
-            style={{ border: isRiderConfigOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)" }}
-            title="Rider Profile Configurations"
-          >
-            <span>🚴</span> <span className="mobile-hide">RIDER PROFILE</span>
-          </button>
-
-          {/* Expanded Rider Configurations Glass Card */}
-          {isRiderConfigOpen && (
-            <div 
-              className={`${styles.riderConfigDropdown} hud-card hud-card-responsive`}
-              onMouseDown={(e) => e.stopPropagation()}
-              onMouseUp={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
-              onTouchMove={(e) => e.stopPropagation()}
-              onTouchEnd={(e) => e.stopPropagation()}
+          <div className={isRiderConfigOpen ? "" : "desktop-only"} style={{ position: "relative" }}>
+            <button 
+              className={`hud-bubble desktop-only ${styles.riderConfigBtn}`} 
+              onClick={toggleRiderConfig}
+              style={{ border: isRiderConfigOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)" }}
+              title="Rider Profile Configurations"
             >
-              <div className={styles.riderHeader}>
-                <h4 className={styles.riderTitle}>
-                  🚴 Rider Configurator
-                </h4>
-                <button onClick={() => setIsRiderConfigOpen(false)} className={styles.closeBtn}><X size={14} /></button>
-              </div>
-              
-              {/* Bike Selection */}
-              <div className={styles.inputRow}>
-                <span className={styles.inputLabel}>Bicycle Profile</span>
-                <select 
-                  className={`${styles.selectOverride} hud-input`} 
-                  value={newBikeType}
-                  onChange={(e) => {
-                    setNewBikeType(e.target.value);
-                    const defaultSpeeds = { Road: 24, Hybrid: 18, Mountain: 16, E_Bike: 25 };
-                    setNewSpeed(defaultSpeeds[e.target.value] || 18);
-                  }}
-                >
-                  <option value="Road">🚴 Road Bike</option>
-                  <option value="Hybrid">🚲 Hybrid / Commuter</option>
-                  <option value="Mountain">🚵 Mountain Bike</option>
-                  <option value="E_Bike">⚡ Electric Bike</option>
-                </select>
-              </div>
+              <span>🚴</span> <span className="mobile-hide">RIDER PROFILE</span>
+            </button>
 
-              {/* Speed Slider */}
-              <div className={styles.inputRow}>
-                <div className={styles.speedSliderRow}>
-                  <span className={styles.inputLabel}>Base Speed</span>
-                  <span>{unitSystem === "imperial" ? `${Math.round(newSpeed * 0.621371)} mph` : `${newSpeed} km/h`}</span>
+            {/* Expanded Rider Configurations Glass Card */}
+            {isRiderConfigOpen && (
+              <div 
+                className={`${styles.riderConfigDropdown} hud-card hud-card-responsive`}
+                onMouseDown={(e) => e.stopPropagation()}
+                onMouseUp={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
+              >
+                <div className={styles.riderHeader}>
+                  <h4 className={styles.riderTitle}>
+                    🚴 Rider Configurator
+                  </h4>
+                  <button onClick={() => setIsRiderConfigOpen(false)} className={styles.closeBtn}><X size={14} /></button>
                 </div>
-                <input 
-                  type="range" 
-                  min="10" 
-                  max="35" 
-                  value={newSpeed}
-                  onChange={(e) => setNewSpeed(parseInt(e.target.value))}
-                  className={styles.rangeInput}
-                />
+                
+                {/* Bike Selection */}
+                <div className={styles.inputRow}>
+                  <span className={styles.inputLabel}>Bicycle Profile</span>
+                  <select 
+                    className={`${styles.selectOverride} hud-input`} 
+                    value={newBikeType}
+                    onChange={(e) => {
+                      setNewBikeType(e.target.value);
+                      const defaultSpeeds = { Road: 24, Hybrid: 18, Mountain: 16, E_Bike: 25 };
+                      setNewSpeed(defaultSpeeds[e.target.value] || 18);
+                    }}
+                  >
+                    <option value="Road">🚴 Road Bike</option>
+                    <option value="Hybrid">🚲 Hybrid / Commuter</option>
+                    <option value="Mountain">🚵 Mountain Bike</option>
+                    <option value="E_Bike">⚡ Electric Bike</option>
+                  </select>
+                </div>
+
+                {/* Speed Slider */}
+                <div className={styles.inputRow}>
+                  <div className={styles.speedSliderRow}>
+                    <span className={styles.inputLabel}>Base Speed</span>
+                    <span>{unitSystem === "imperial" ? `${Math.round(newSpeed * 0.621371)} mph` : `${newSpeed} km/h`}</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="10" 
+                    max="35" 
+                    value={newSpeed}
+                    onChange={(e) => setNewSpeed(parseInt(e.target.value))}
+                    className={styles.rangeInput}
+                  />
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Metric / Imperial Toggling Bubble (Desktop-only) */}
           <button 
@@ -4232,24 +4324,111 @@ export default function Home() {
           */}
           {hudState === 3 && (
             <div 
-              className={`${styles.scrubberContainer} hud-card timeline-scrubber-container`}
+              ref={scrubberRef}
+              className={`${styles.scrubberContainer} hud-card timeline-scrubber-container ${isScrubberCollapsed ? styles.collapsed : ""}`}
               onMouseDown={(e) => e.stopPropagation()}
               onMouseUp={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
-              onTouchMove={(e) => e.stopPropagation()}
-              onTouchEnd={(e) => e.stopPropagation()}
+              onTouchStart={(e) => {
+                e.stopPropagation();
+                handleTouchStart(e);
+              }}
+              onTouchMove={(e) => {
+                e.stopPropagation();
+                handleTouchMove(e);
+              }}
+              onTouchCancel={(e) => {
+                e.stopPropagation();
+                handleTouchCancel(e);
+              }}
+              onTouchEnd={(e) => {
+                e.stopPropagation();
+                handleTouchEnd(e);
+              }}
             >
+              {/* Grab handle for collapsible behavior on mobile */}
+              <div 
+                className={styles.scrubberGrabHandle}
+                onClick={() => setIsScrubberCollapsed(prev => !prev)}
+              >
+                <div className={styles.grabPill} />
+              </div>
+
+              {/* Compact collapsed info row (visible only in collapsed mode on mobile) */}
+              {getLeaveNowOverlayData() && (
+                <div className={styles.collapsedInfoRow}>
+                  {activeForecast && (
+                    <div className={styles.collapsedScoreHeader}>
+                      <span 
+                        className={styles.collapsedScoreBadge}
+                        style={{ 
+                          background: activeForecast.score >= 85 ? "rgba(16,185,129,0.12)" : activeForecast.score >= 50 ? "rgba(245,158,11,0.12)" : "rgba(239,68,68,0.12)",
+                          color: activeForecast.score >= 85 ? "var(--color-emerald)" : activeForecast.score >= 50 ? "var(--color-amber)" : "var(--color-ruby)"
+                        }}
+                      >
+                        Score: {activeForecast.score}%
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div className={styles.collapsedColumnsWrapper}>
+                    <div className={styles.collapsedLeftColumn}>
+                      <strong className={styles.collapsedDayLabel}>
+                        {(() => {
+                          const d = new Date();
+                          d.setDate(d.getDate() + selectedDayOffset);
+                          if (selectedDayOffset === 0) return "Today";
+                          if (selectedDayOffset === 1) return "Tomorrow";
+                          return d.toLocaleDateString("en-US", { weekday: "long" });
+                        })()}
+                      </strong>
+                      <span className={styles.collapsedDirectionLabel}>
+                        {isReturnTripMode ? "Inbound" : "Outbound"}
+                      </span>
+                    </div>
+
+                    <div className={styles.collapsedRightColumn}>
+                      <div className={styles.collapsedTimeBlock}>
+                        <span className={styles.collapsedBlockLabel}>DEPART</span>
+                        <strong className={styles.collapsedBlockValue}>{getLeaveNowOverlayData().depTimeStr}</strong>
+                      </div>
+                      <div className={styles.collapsedTimeBlock}>
+                        <span className={styles.collapsedBlockLabel}>ARRIVE</span>
+                        <strong className={styles.collapsedBlockValue}>{getLeaveNowOverlayData().arrivalTimeStr}</strong>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setHudState(routeCoordinates.length > 0 ? 2 : 0)}
+                      className={styles.collapsedExitBtn}
+                      title="Exit Scrub"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Integrated Forecast Day Card */}
               {activeDayData && (
                 <div className={styles.scrubberForecastHeader}>
-                  <div className={styles.scrubberForecastDayLabel}>
-                    {(() => {
-                      const d = new Date();
-                      d.setDate(d.getDate() + selectedDayOffset);
-                      if (selectedDayOffset === 0) return `Today (${d.toLocaleDateString("en-US", { weekday: "long" })})`;
-                      if (selectedDayOffset === 1) return `Tomorrow (${d.toLocaleDateString("en-US", { weekday: "long" })})`;
-                      return d.toLocaleDateString("en-US", { weekday: "long" });
-                    })()}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", marginBottom: "4px" }}>
+                    <div style={{ width: "24px" }} />
+                    <div className={styles.scrubberForecastDayLabel} style={{ margin: 0 }}>
+                      {(() => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + selectedDayOffset);
+                        if (selectedDayOffset === 0) return `Today (${d.toLocaleDateString("en-US", { weekday: "long" })})`;
+                        if (selectedDayOffset === 1) return `Tomorrow (${d.toLocaleDateString("en-US", { weekday: "long" })})`;
+                        return d.toLocaleDateString("en-US", { weekday: "long" });
+                      })()}
+                    </div>
+                    <button
+                      onClick={() => setHudState(routeCoordinates.length > 0 ? 2 : 0)}
+                      className={styles.headerExitBtn}
+                      title="Exit Scrub"
+                    >
+                      <X size={16} />
+                    </button>
                   </div>
                   <div className={styles.scrubberForecastTracksRow}>
                     {/* Outbound commute track summary */}
@@ -4439,6 +4618,7 @@ export default function Home() {
                   }}
                   className={styles.rangeScrubber}
                 />
+
               </div>
 
               {/* Stacked Telemetry & Weekly Target Input Columns */}
@@ -4486,7 +4666,7 @@ export default function Home() {
               </div>
 
               {activeRouteData.elevationData && (
-                <div style={{ marginTop: "10px", borderTop: "1px solid var(--hud-border)", paddingTop: "8px" }}>
+                <div className={styles.scrubberElevationWrapper} style={{ marginTop: "8px", borderTop: "1px solid var(--hud-border)", paddingTop: "6px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px", fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>
                     <span style={{ fontWeight: "700" }}>⛰️ Elevation Profile</span>
                     <span>
@@ -4501,14 +4681,7 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Exit day focus button */}
-              <button 
-                onClick={() => setHudState(routeCoordinates.length > 0 ? 2 : 0)} // Return to Week-wide ambient outlook or Ambient map
-                className={`hud-btn ${styles.exitScrubBtn}`}
-              >
-                <X size={12} />
-                <span>Exit Scrub</span>
-              </button>
+
             </div>
           )}
 
