@@ -1709,7 +1709,7 @@ export default function Home() {
     
     const forecastStart = new Date(boundWeatherEntry.weather[0]?.hourly?.time?.[0]);
     const diffMs = targetDate - forecastStart;
-    const hourIdx = Math.max(0, Math.min(167, Math.floor(diffMs / (1000 * 60 * 60))));
+    const hourIdx = Math.max(0, Math.min(167, Math.round(diffMs / (1000 * 60 * 60))));
     
     const commuteDetails = calculateCommuteScore(
       hourIdx,
@@ -2002,24 +2002,33 @@ export default function Home() {
 
         const depDate = new Date(arrDate.getTime() - durationMins * 60 * 1000);
         
-        const now = new Date();
-        now.setSeconds(0, 0);
-        depDate.setSeconds(0, 0);
-        
-        const diffTime = depDate.getTime() - now.getTime();
-        const diffDays = Math.floor(diffTime / (24 * 60 * 60 * 1000));
-        const depDayOffset = Math.max(0, diffDays);
-        const depHour = depDate.getHours();
-        const depMin = depDate.getMinutes();
-
-        hourIdx = depDayOffset * 24 + depHour;
-        if (depMin >= 30) {
-          hourIdx += 1;
+        const firstHourlyTimeStr = activeRouteData.weatherResults[0]?.hourly?.time?.[0];
+        if (firstHourlyTimeStr) {
+          const forecastStart = new Date(firstHourlyTimeStr);
+          const diffMs = depDate.getTime() - forecastStart.getTime();
+          hourIdx = Math.max(0, Math.min(167, Math.round(diffMs / (1000 * 60 * 60))));
+        } else {
+          const depHour = depDate.getHours();
+          const depMin = depDate.getMinutes();
+          hourIdx = selectedDayOffset * 24 + depHour;
+          if (depMin >= 30) {
+            hourIdx += 1;
+          }
         }
       } else {
-        hourIdx = selectedDayOffset * 24 + selectedHour;
-        if (selectedMinute >= 30) {
-          hourIdx += 1;
+        const firstHourlyTimeStr = activeRouteData.weatherResults[0]?.hourly?.time?.[0];
+        if (firstHourlyTimeStr) {
+          const forecastStart = new Date(firstHourlyTimeStr);
+          const depDate = new Date();
+          depDate.setDate(depDate.getDate() + selectedDayOffset);
+          depDate.setHours(selectedHour, selectedMinute, 0, 0);
+          const diffMs = depDate.getTime() - forecastStart.getTime();
+          hourIdx = Math.max(0, Math.min(167, Math.round(diffMs / (1000 * 60 * 60))));
+        } else {
+          hourIdx = selectedDayOffset * 24 + selectedHour;
+          if (selectedMinute >= 30) {
+            hourIdx += 1;
+          }
         }
       }
       hourIdx = Math.max(0, Math.min(167, hourIdx));
@@ -2595,7 +2604,7 @@ export default function Home() {
 
         const forecastStart = new Date(activeWeather[0]?.hourly?.time?.[0]);
         const diffMs = returnTargetDate - forecastStart;
-        const returnHourIdx = Math.max(0, Math.min(167, Math.floor(diffMs / (1000 * 60 * 60))));
+        const returnHourIdx = Math.max(0, Math.min(167, Math.round(diffMs / (1000 * 60 * 60))));
 
         const returnResult = calculateCommuteScore(
           returnHourIdx,
