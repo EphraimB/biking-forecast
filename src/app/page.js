@@ -293,6 +293,7 @@ export default function Home() {
   const [hudState, setHudState] = useState(0);
   const [isScrubberCollapsed, setIsScrubberCollapsed] = useState(false);
   const touchStartY = useRef(null);
+  const scrubberRef = useRef(null);
 
   // Core Search & Autocomplete
   const [startQuery, setStartQuery] = useState("");
@@ -391,21 +392,74 @@ export default function Home() {
   }, [hudState]);
 
   const handleTouchStart = (e) => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') {
+    if (
+      e.target.tagName === 'INPUT' || 
+      e.target.tagName === 'SELECT' || 
+      e.target.tagName === 'BUTTON' ||
+      e.target.closest('input[type="range"]')
+    ) {
       touchStartY.current = null;
       return;
     }
     touchStartY.current = e.touches[0].clientY;
+    if (scrubberRef.current) {
+      scrubberRef.current.style.transition = 'none';
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (touchStartY.current !== null && scrubberRef.current) {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      const currentY = e.touches[0].clientY;
+      const deltaY = currentY - touchStartY.current;
+      
+      let translateVal = 0;
+      if (isScrubberCollapsed) {
+        if (deltaY < 0) {
+          translateVal = deltaY;
+        } else {
+          translateVal = deltaY * 0.15;
+        }
+      } else {
+        if (deltaY > 0) {
+          translateVal = deltaY;
+        } else {
+          translateVal = deltaY * 0.15;
+        }
+      }
+      scrubberRef.current.style.transform = `translateY(${translateVal}px)`;
+    }
+  };
+
+  const handleTouchCancel = (e) => {
+    if (scrubberRef.current) {
+      scrubberRef.current.style.transition = '';
+      scrubberRef.current.style.transform = '';
+    }
+    touchStartY.current = null;
   };
 
   const handleTouchEnd = (e) => {
     if (touchStartY.current === null) return;
+    
+    if (scrubberRef.current) {
+      scrubberRef.current.style.transition = '';
+      scrubberRef.current.style.transform = '';
+    }
+    
     const touchEndY = e.changedTouches[0].clientY;
     const deltaY = touchEndY - touchStartY.current;
-    if (deltaY > 50) {
-      setIsScrubberCollapsed(true);
-    } else if (deltaY < -50) {
-      setIsScrubberCollapsed(false);
+    
+    if (isScrubberCollapsed) {
+      if (deltaY < -60) {
+        setIsScrubberCollapsed(false);
+      }
+    } else {
+      if (deltaY > 60) {
+        setIsScrubberCollapsed(true);
+      }
     }
     touchStartY.current = null;
   };
@@ -4268,6 +4322,7 @@ export default function Home() {
           */}
           {hudState === 3 && (
             <div 
+              ref={scrubberRef}
               className={`${styles.scrubberContainer} hud-card timeline-scrubber-container ${isScrubberCollapsed ? styles.collapsed : ""}`}
               onMouseDown={(e) => e.stopPropagation()}
               onMouseUp={(e) => e.stopPropagation()}
@@ -4275,7 +4330,14 @@ export default function Home() {
                 e.stopPropagation();
                 handleTouchStart(e);
               }}
-              onTouchMove={(e) => e.stopPropagation()}
+              onTouchMove={(e) => {
+                e.stopPropagation();
+                handleTouchMove(e);
+              }}
+              onTouchCancel={(e) => {
+                e.stopPropagation();
+                handleTouchCancel(e);
+              }}
               onTouchEnd={(e) => {
                 e.stopPropagation();
                 handleTouchEnd(e);
