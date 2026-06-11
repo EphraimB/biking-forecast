@@ -4280,6 +4280,28 @@ export default function Home() {
                 <div className={styles.grabPill} />
               </div>
 
+              {/* Compact collapsed info row (visible only in collapsed mode on mobile) */}
+              {getLeaveNowOverlayData() && (
+                <div className={styles.collapsedInfoRow}>
+                  <span className={styles.collapsedStatusText}>
+                    {(() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + selectedDayOffset);
+                      if (selectedDayOffset === 0) return "Today";
+                      if (selectedDayOffset === 1) return "Tomorrow";
+                      return d.toLocaleDateString("en-US", { weekday: "long" });
+                    })()} | Depart: {getLeaveNowOverlayData().depTimeStr} | Arrive: {getLeaveNowOverlayData().arrivalTimeStr}
+                  </span>
+                  <button
+                    onClick={() => setHudState(routeCoordinates.length > 0 ? 2 : 0)}
+                    className={styles.collapsedExitBtn}
+                    title="Exit Scrub"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
               {/* Integrated Forecast Day Card */}
               {activeDayData && (
                 <div className={styles.scrubberForecastHeader}>
@@ -4481,14 +4503,6 @@ export default function Home() {
                   className={styles.rangeScrubber}
                 />
 
-                {/* Compact close button (visible only in collapsed mode on mobile) */}
-                <button
-                  onClick={() => setHudState(routeCoordinates.length > 0 ? 2 : 0)}
-                  className={styles.collapsedExitBtn}
-                  title="Exit Scrub"
-                >
-                  <X size={14} />
-                </button>
               </div>
 
               {/* Stacked Telemetry & Weekly Target Input Columns */}

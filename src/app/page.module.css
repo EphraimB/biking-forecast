@@ -858,6 +858,19 @@
   display: none;
 }
 
+.collapsedInfoRow {
+  display: none;
+}
+
+.collapsedStatusText {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--hud-text-primary);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
 .collapsedExitBtn {
   display: none;
 }
@@ -1282,17 +1295,19 @@
 
   .scrubberContainer.collapsed .scrubberForecastHeader,
   .scrubberContainer.collapsed .scrubberHeader,
-  .scrubberContainer.collapsed .quickSnapperToggle,
+  .scrubberContainer.collapsed .scrubberSliderRow,
   .scrubberContainer.collapsed .scrubberDetailsGrid,
   .scrubberContainer.collapsed .scrubberElevationWrapper,
   .scrubberContainer.collapsed .exitScrubBtn {
     display: none !important;
   }
 
-  .scrubberContainer.collapsed .scrubberSliderRow {
-    flex-wrap: nowrap !important;
-    gap: 10px !important;
-    align-items: center !important;
+  .scrubberContainer.collapsed .collapsedInfoRow {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 12px;
   }
 
   .scrubberContainer.collapsed .collapsedExitBtn {
