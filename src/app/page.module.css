@@ -802,8 +802,8 @@
   flex-direction: column;
   gap: 8px;
   border-bottom: 1px solid var(--hud-border);
-  padding-bottom: 12px;
-  margin-bottom: 4px;
+  padding-bottom: 8px;
+  margin-bottom: 2px;
   width: 100%;
 }
 
@@ -826,7 +826,7 @@
 .scrubberForecastTrackCard {
   flex: 1;
   background: rgba(255, 255, 255, 0.03);
-  padding: 8px 12px;
+  padding: 6px 12px;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
@@ -844,12 +844,12 @@
 }
 
 .scrubberContainer {
-  padding: 14px 20px;
+  padding: 12px 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  max-width: 680px;
+  max-width: 760px;
   align-self: center;
   pointer-events: auto;
 }
@@ -972,7 +972,7 @@
   gap: 20px;
   width: 100%;
   border-top: 1px solid var(--hud-border);
-  padding-top: 10px;
+  padding-top: 8px;
 }
 
 .scrubberTelemetry {
@@ -1029,6 +1029,28 @@
 .exitScrubBtn {
   padding: 6px 16px;
   align-self: flex-end;
+}
+
+.headerExitBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--hud-text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color var(--duration-snap) ease, background var(--duration-snap) ease;
+}
+
+.headerExitBtn:hover {
+  color: var(--hud-text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:global([data-theme="light"]) .headerExitBtn:hover {
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .weeklyPlannerPanel {

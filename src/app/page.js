@@ -4409,14 +4409,24 @@ export default function Home() {
               {/* Integrated Forecast Day Card */}
               {activeDayData && (
                 <div className={styles.scrubberForecastHeader}>
-                  <div className={styles.scrubberForecastDayLabel}>
-                    {(() => {
-                      const d = new Date();
-                      d.setDate(d.getDate() + selectedDayOffset);
-                      if (selectedDayOffset === 0) return `Today (${d.toLocaleDateString("en-US", { weekday: "long" })})`;
-                      if (selectedDayOffset === 1) return `Tomorrow (${d.toLocaleDateString("en-US", { weekday: "long" })})`;
-                      return d.toLocaleDateString("en-US", { weekday: "long" });
-                    })()}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", marginBottom: "4px" }}>
+                    <div style={{ width: "24px" }} />
+                    <div className={styles.scrubberForecastDayLabel} style={{ margin: 0 }}>
+                      {(() => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + selectedDayOffset);
+                        if (selectedDayOffset === 0) return `Today (${d.toLocaleDateString("en-US", { weekday: "long" })})`;
+                        if (selectedDayOffset === 1) return `Tomorrow (${d.toLocaleDateString("en-US", { weekday: "long" })})`;
+                        return d.toLocaleDateString("en-US", { weekday: "long" });
+                      })()}
+                    </div>
+                    <button
+                      onClick={() => setHudState(routeCoordinates.length > 0 ? 2 : 0)}
+                      className={styles.headerExitBtn}
+                      title="Exit Scrub"
+                    >
+                      <X size={16} />
+                    </button>
                   </div>
                   <div className={styles.scrubberForecastTracksRow}>
                     {/* Outbound commute track summary */}
@@ -4654,7 +4664,7 @@ export default function Home() {
               </div>
 
               {activeRouteData.elevationData && (
-                <div className={styles.scrubberElevationWrapper} style={{ marginTop: "10px", borderTop: "1px solid var(--hud-border)", paddingTop: "8px" }}>
+                <div className={styles.scrubberElevationWrapper} style={{ marginTop: "8px", borderTop: "1px solid var(--hud-border)", paddingTop: "6px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px", fontSize: "0.68rem", color: "var(--hud-text-secondary)" }}>
                     <span style={{ fontWeight: "700" }}>⛰️ Elevation Profile</span>
                     <span>
@@ -4669,14 +4679,7 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Exit day focus button */}
-              <button 
-                onClick={() => setHudState(routeCoordinates.length > 0 ? 2 : 0)} // Return to Week-wide ambient outlook or Ambient map
-                className={`hud-btn ${styles.exitScrubBtn}`}
-              >
-                <X size={12} />
-                <span>Exit Scrub</span>
-              </button>
+
             </div>
           )}
 
