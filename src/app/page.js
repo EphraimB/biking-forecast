@@ -3269,68 +3269,70 @@ export default function Home() {
         <div className={`hud-top-right ${styles.topRightControls}`}>
           
           {/* Rider Configuration Bubble (Desktop-only) */}
-          <button 
-            className={`hud-bubble desktop-only ${styles.riderConfigBtn}`} 
-            onClick={toggleRiderConfig}
-            style={{ border: isRiderConfigOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)" }}
-            title="Rider Profile Configurations"
-          >
-            <span>🚴</span> <span className="mobile-hide">RIDER PROFILE</span>
-          </button>
-
-          {/* Expanded Rider Configurations Glass Card */}
-          {isRiderConfigOpen && (
-            <div 
-              className={`${styles.riderConfigDropdown} hud-card hud-card-responsive`}
-              onMouseDown={(e) => e.stopPropagation()}
-              onMouseUp={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
-              onTouchMove={(e) => e.stopPropagation()}
-              onTouchEnd={(e) => e.stopPropagation()}
+          <div className={isRiderConfigOpen ? "" : "desktop-only"} style={{ position: "relative" }}>
+            <button 
+              className={`hud-bubble desktop-only ${styles.riderConfigBtn}`} 
+              onClick={toggleRiderConfig}
+              style={{ border: isRiderConfigOpen ? "1.5px solid var(--color-emerald)" : "1px solid var(--hud-border)" }}
+              title="Rider Profile Configurations"
             >
-              <div className={styles.riderHeader}>
-                <h4 className={styles.riderTitle}>
-                  🚴 Rider Configurator
-                </h4>
-                <button onClick={() => setIsRiderConfigOpen(false)} className={styles.closeBtn}><X size={14} /></button>
-              </div>
-              
-              {/* Bike Selection */}
-              <div className={styles.inputRow}>
-                <span className={styles.inputLabel}>Bicycle Profile</span>
-                <select 
-                  className={`${styles.selectOverride} hud-input`} 
-                  value={newBikeType}
-                  onChange={(e) => {
-                    setNewBikeType(e.target.value);
-                    const defaultSpeeds = { Road: 24, Hybrid: 18, Mountain: 16, E_Bike: 25 };
-                    setNewSpeed(defaultSpeeds[e.target.value] || 18);
-                  }}
-                >
-                  <option value="Road">🚴 Road Bike</option>
-                  <option value="Hybrid">🚲 Hybrid / Commuter</option>
-                  <option value="Mountain">🚵 Mountain Bike</option>
-                  <option value="E_Bike">⚡ Electric Bike</option>
-                </select>
-              </div>
+              <span>🚴</span> <span className="mobile-hide">RIDER PROFILE</span>
+            </button>
 
-              {/* Speed Slider */}
-              <div className={styles.inputRow}>
-                <div className={styles.speedSliderRow}>
-                  <span className={styles.inputLabel}>Base Speed</span>
-                  <span>{unitSystem === "imperial" ? `${Math.round(newSpeed * 0.621371)} mph` : `${newSpeed} km/h`}</span>
+            {/* Expanded Rider Configurations Glass Card */}
+            {isRiderConfigOpen && (
+              <div 
+                className={`${styles.riderConfigDropdown} hud-card hud-card-responsive`}
+                onMouseDown={(e) => e.stopPropagation()}
+                onMouseUp={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
+              >
+                <div className={styles.riderHeader}>
+                  <h4 className={styles.riderTitle}>
+                    🚴 Rider Configurator
+                  </h4>
+                  <button onClick={() => setIsRiderConfigOpen(false)} className={styles.closeBtn}><X size={14} /></button>
                 </div>
-                <input 
-                  type="range" 
-                  min="10" 
-                  max="35" 
-                  value={newSpeed}
-                  onChange={(e) => setNewSpeed(parseInt(e.target.value))}
-                  className={styles.rangeInput}
-                />
+                
+                {/* Bike Selection */}
+                <div className={styles.inputRow}>
+                  <span className={styles.inputLabel}>Bicycle Profile</span>
+                  <select 
+                    className={`${styles.selectOverride} hud-input`} 
+                    value={newBikeType}
+                    onChange={(e) => {
+                      setNewBikeType(e.target.value);
+                      const defaultSpeeds = { Road: 24, Hybrid: 18, Mountain: 16, E_Bike: 25 };
+                      setNewSpeed(defaultSpeeds[e.target.value] || 18);
+                    }}
+                  >
+                    <option value="Road">🚴 Road Bike</option>
+                    <option value="Hybrid">🚲 Hybrid / Commuter</option>
+                    <option value="Mountain">🚵 Mountain Bike</option>
+                    <option value="E_Bike">⚡ Electric Bike</option>
+                  </select>
+                </div>
+
+                {/* Speed Slider */}
+                <div className={styles.inputRow}>
+                  <div className={styles.speedSliderRow}>
+                    <span className={styles.inputLabel}>Base Speed</span>
+                    <span>{unitSystem === "imperial" ? `${Math.round(newSpeed * 0.621371)} mph` : `${newSpeed} km/h`}</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="10" 
+                    max="35" 
+                    value={newSpeed}
+                    onChange={(e) => setNewSpeed(parseInt(e.target.value))}
+                    className={styles.rangeInput}
+                  />
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Metric / Imperial Toggling Bubble (Desktop-only) */}
           <button 

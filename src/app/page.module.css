@@ -219,7 +219,8 @@
 .riderConfigDropdown {
   position: absolute;
   top: 54px;
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
   width: 290px;
   display: flex;
   flex-direction: column;
@@ -1529,6 +1530,10 @@
     .collapsedRightColumn {
       margin-right: 6px !important;
     }
+  }
+
+  .riderConfigDropdown {
+    transform: none !important;
   }
 }
 
