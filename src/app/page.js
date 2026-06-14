@@ -9,7 +9,7 @@ import {
   Bookmark, Sliders, SunDim, Award, Info, Menu, Edit2, RefreshCw
 } from "lucide-react";
 
-import { fetchBicycleRoute, fetchRouteWeather, fetchRouteElevation, geocodeAddress, reverseGeocode, sendServerCommuteLog } from "@/utils/api";
+import { fetchBicycleRoute, fetchRouteWeather, fetchRouteElevation, geocodeAddress, reverseGeocode, sendServerCommuteLog, getRouteCandidates } from "@/utils/api";
 import { decodePolyline6, calculateRouteSegments, sampleCoordinates, getDistance, attachElevationToRoute } from "@/utils/routeUtils";
 import { calculateCommuteScore, calculateDepartureTimeForArrival, WMO_MAP } from "@/utils/weatherScoring";
 import styles from "./page.module.css";
@@ -312,6 +312,8 @@ export default function Home() {
   const [routeSegments, setRouteSegments] = useState([]);
   const [weatherResults, setWeatherResults] = useState([]);
   const [elevationData, setElevationData] = useState(null);
+  const [routeCandidates, setRouteCandidates] = useState(null);
+  const [activeRouteType, setActiveRouteType] = useState("detour");
   
   // HUD Config Settings (State 1)
   const [newBikeType, setNewBikeType] = useState("Hybrid");
@@ -366,14 +368,16 @@ export default function Home() {
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
-    if (savedTheme === "light") {
-      setIsLightMode(true);
-    } else if (savedTheme === "dark") {
-      setIsLightMode(false);
-    } else {
-      const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
-      setIsLightMode(prefersLight);
-    }
+    setTimeout(() => {
+      if (savedTheme === "light") {
+        setIsLightMode(true);
+      } else if (savedTheme === "dark") {
+        setIsLightMode(false);
+      } else {
+        const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
+        setIsLightMode(prefersLight);
+      }
+    }, 0);
   }, []);
 
   useEffect(() => {
@@ -388,7 +392,9 @@ export default function Home() {
 
   // Reset scrubber collapse state when HUD state changes
   useEffect(() => {
-    setIsScrubberCollapsed(false);
+    setTimeout(() => {
+      setIsScrubberCollapsed(false);
+    }, 0);
   }, [hudState]);
 
   const handleTouchStart = (e) => {
@@ -875,39 +881,119 @@ export default function Home() {
     setLoadingStatus("Connecting to routing server...");
     setError(null);
     try {
-      setLoadingStatus("Calculating bicycle route...");
-      const routePromise = fetchBicycleRoute(start.lat, start.lon, end.lat, end.lon, bikeType, speed);
-      const routeData = await Promise.race([
-        routePromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout: Routing request took too long")), 15000))
+      // Extract current wind speed and direction from ambient weather
+      let wSpeed = 12;
+      let wDir = 0;
+      if (ambientWeatherForecast && ambientWeatherForecast.hourly) {
+        const hourly = ambientWeatherForecast.hourly;
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = (now.getMonth() + 1).toString().padStart(2, "0");
+        const date = now.getDate().toString().padStart(2, "0");
+        const hour = now.getHours().toString().padStart(2, "0");
+        const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
+        let currentHourIdx = hourly.time?.indexOf(currentHourStr);
+        if (currentHourIdx === -1 || currentHourIdx === undefined) {
+          currentHourIdx = now.getHours();
+        }
+        wSpeed = hourly.wind_speed_10m?.[currentHourIdx] ?? 12;
+        wDir = hourly.wind_direction_10m?.[currentHourIdx] ?? 0;
+      }
+
+      setLoadingStatus("Calculating route candidates...");
+      let candidatesData;
+      try {
+        const candidatesPromise = getRouteCandidates(start, end, wSpeed, wDir, bikeType, speed);
+        candidatesData = await Promise.race([
+          candidatesPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout: Routing request took too long")), 15000))
+        ]);
+      } catch (err) {
+        console.error("getRouteCandidates failed, falling back to direct route only", err);
+        const directRoute = await fetchBicycleRoute(start.lat, start.lon, end.lat, end.lon, bikeType, speed);
+        candidatesData = { direct: directRoute, detour: directRoute };
+      }
+
+      setLoadingStatus("Processing route paths...");
+      
+      const processCandidate = async (routeData, type, customBikeType) => {
+        const decodedCoords = decodePolyline6(routeData.shape);
+        const segments = calculateRouteSegments(decodedCoords);
+        
+        // Fetch weather and elevation
+        const weatherPromise = fetchRouteWeather(decodedCoords, routeData.distance);
+        const elevationPromise = fetchRouteElevation(decodedCoords);
+        
+        const [weatherRaw, elevationRaw] = await Promise.all([
+          Promise.race([
+            weatherPromise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout: Weather request took too long")), 15000))
+          ]),
+          Promise.race([
+            elevationPromise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout: Elevation request took too long")), 15000))
+          ])
+        ]);
+
+        const weatherResults = handleWeatherResponse(weatherRaw);
+        const enrichedElevation = attachElevationToRoute(decodedCoords, segments, elevationRaw);
+        
+        return {
+          type,
+          coordinates: decodedCoords,
+          segments: enrichedElevation.segments,
+          weatherResults,
+          elevationData: enrichedElevation,
+          distance: routeData.distance,
+          time: routeData.time,
+          speed: speed,
+          bikeType: customBikeType,
+          startLocation: start,
+          endLocation: end
+        };
+      };
+
+      const [direct, detour] = await Promise.all([
+        processCandidate(candidatesData.direct, "direct", bikeType),
+        processCandidate(candidatesData.detour, "detour", "Hybrid")
       ]);
 
-      setLoadingStatus("Decoding route coordinates...");
-      const decodedCoords = decodePolyline6(routeData.shape);
-      setRouteCoordinates(decodedCoords);
+      const candidates = { direct, detour };
 
-      const segments = calculateRouteSegments(decodedCoords);
-      setRouteSegments(segments);
+      // Determine initial wind suitability scores to set default active candidate
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = (now.getMonth() + 1).toString().padStart(2, "0");
+      const date = now.getDate().toString().padStart(2, "0");
+      const hour = now.getHours().toString().padStart(2, "0");
+      const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
+      
+      const firstHourly = direct.weatherResults[0]?.hourly || detour.weatherResults[0]?.hourly;
+      let initialHourIdx = firstHourly?.time?.indexOf(currentHourStr);
+      if (initialHourIdx === -1 || initialHourIdx === undefined) {
+        initialHourIdx = now.getHours();
+      }
 
-      setLoadingStatus("Analyzing weather along the route...");
-      const weatherPromise = fetchRouteWeather(decodedCoords, routeData.distance);
-      const weatherData = handleWeatherResponse(await Promise.race([
-        weatherPromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout: Weather request took too long")), 15000))
-      ]));
-      setWeatherResults(weatherData);
+      const scoreDirect = calculateCommuteScore(initialHourIdx, direct.segments, speed, direct.weatherResults);
+      const scoreDetour = calculateCommuteScore(initialHourIdx, detour.segments, speed, detour.weatherResults);
 
-      setLoadingStatus("Retrieving elevation data...");
-      const elevationPromise = fetchRouteElevation(decodedCoords);
-      const elevationRaw = await Promise.race([
-        elevationPromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout: Elevation request took too long")), 15000))
-      ]);
+      direct.scores = { score: scoreDirect.score, windSuitability: 100 - scoreDirect.penalties.wind };
+      direct.activeDetails = scoreDirect;
 
-      setLoadingStatus("Enriching route details...");
-      const enrichedElevation = attachElevationToRoute(decodedCoords, segments, elevationRaw);
-      setElevationData(enrichedElevation);
-      setRouteSegments(enrichedElevation.segments);
+      detour.scores = { score: scoreDetour.score, windSuitability: 100 - scoreDetour.penalties.wind };
+      detour.activeDetails = scoreDetour;
+
+      setRouteCandidates(candidates);
+
+      // Default to detour if its wind suitability is better than direct
+      const bestType = detour.scores.windSuitability > direct.scores.windSuitability ? "detour" : "direct";
+      setActiveRouteType(bestType);
+
+      const defaultCandidate = candidates[bestType];
+      setRouteCoordinates(defaultCandidate.coordinates);
+      setRouteSegments(defaultCandidate.segments);
+      setWeatherResults(defaultCandidate.weatherResults);
+      setElevationData(defaultCandidate.elevationData);
 
       setConfirmedStart(start);
       setConfirmedEnd(end);
@@ -929,10 +1015,10 @@ export default function Home() {
           end,
           bikeType,
           speed,
-          coordinates: decodedCoords,
-          segments: enrichedElevation.segments,
-          distance: routeData.distance,
-          elevationData: enrichedElevation
+          coordinates: defaultCandidate.coordinates,
+          segments: defaultCandidate.segments,
+          distance: defaultCandidate.distance,
+          elevationData: defaultCandidate.elevationData
         };
         setSavedRoutes(prev => {
           const updated = [...prev, newRoute];
@@ -965,7 +1051,7 @@ export default function Home() {
       setIsLoading(false);
       setLoadingStatus("");
     }
-  }, [handleWeatherResponse]);
+  }, [ambientWeatherForecast, handleWeatherResponse]);
 
   const performGeocodeSearch = useCallback(async (query, isStart) => {
     if (!query || query.trim().length < 3) {
@@ -1004,7 +1090,7 @@ export default function Home() {
     const field = isStart ? 'start' : 'end';
     setResolvingCurrentLocField(field);
     
-    const useCoords = async (lat, lon) => {
+    const resolveCoords = async (lat, lon) => {
       let resolvedAddress = "Current Location";
       try {
         const resolved = await reverseGeocode(lat, lon);
@@ -1029,14 +1115,14 @@ export default function Home() {
     };
 
     if (userLocation) {
-      await useCoords(userLocation.lat, userLocation.lon);
+      await resolveCoords(userLocation.lat, userLocation.lon);
     } else if (typeof window !== "undefined" && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           const lat = position.coords.latitude;
           const lon = position.coords.longitude;
           setUserLocation({ lat, lon });
-          await useCoords(lat, lon);
+          await resolveCoords(lat, lon);
         },
         async (err) => {
           console.error("Geolocation failed:", err);
@@ -1044,14 +1130,14 @@ export default function Home() {
           const fallbackLat = 40.7851;
           const fallbackLon = -73.9682;
           setUserLocation({ lat: fallbackLat, lon: fallbackLon });
-          await useCoords(fallbackLat, fallbackLon);
+          await resolveCoords(fallbackLat, fallbackLon);
         }
       );
     } else {
       // Fallback
       const fallbackLat = 40.7851;
       const fallbackLon = -73.9682;
-      await useCoords(fallbackLat, fallbackLon);
+      await resolveCoords(fallbackLat, fallbackLon);
     }
   }, [userLocation, taggedLocations, getLabelWithTag]);
 
@@ -1984,6 +2070,81 @@ export default function Home() {
     elevationData
   ]);
 
+  // Dynamic evaluation of route candidate scores based on the current scrubbed hour/day
+  const evaluatedCandidates = useMemo(() => {
+    if (!routeCandidates) return null;
+
+    let hourIdx = 0;
+    if (hudState === 3) {
+      hourIdx = selectedDayOffset * 24 + selectedHour;
+    } else {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = (now.getMonth() + 1).toString().padStart(2, "0");
+      const date = now.getDate().toString().padStart(2, "0");
+      const hour = now.getHours().toString().padStart(2, "0");
+      const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
+
+      // Use the weatherResults coordinates time mapping
+      const firstHourly = routeCandidates.direct?.weatherResults?.[0]?.hourly || 
+                          routeCandidates.detour?.weatherResults?.[0]?.hourly;
+      let matchedIdx = firstHourly?.time?.indexOf(currentHourStr);
+      if (matchedIdx === -1 || matchedIdx === undefined) {
+        matchedIdx = now.getHours();
+      }
+      hourIdx = matchedIdx;
+    }
+
+    const updated = {};
+    Object.keys(routeCandidates).forEach(type => {
+      const cand = routeCandidates[type];
+      let segments = cand.segments;
+      let weather = cand.weatherResults;
+
+      if (hudState === 3 && isReturnTripMode) {
+        segments = getReturnSegments(cand.segments);
+        weather = [...cand.weatherResults].reverse();
+      }
+
+      const scoreObj = calculateCommuteScore(
+        hourIdx,
+        segments,
+        newSpeed,
+        weather
+      );
+
+      updated[type] = {
+        ...cand,
+        scores: {
+          score: scoreObj.score,
+          windSuitability: 100 - scoreObj.penalties.wind
+        },
+        activeDetails: scoreObj
+      };
+    });
+
+    return updated;
+  }, [routeCandidates, selectedDayOffset, selectedHour, hudState, isReturnTripMode, newSpeed]);
+
+  // Determine the route type with the highest wind suitability score at the current timeline hour
+  const weatherFriendlyRouteType = useMemo(() => {
+    if (!evaluatedCandidates) return "detour";
+    const directScore = evaluatedCandidates.direct?.scores?.windSuitability ?? -1;
+    const detourScore = evaluatedCandidates.detour?.scores?.windSuitability ?? -1;
+    return detourScore > directScore ? "detour" : "direct";
+  }, [evaluatedCandidates]);
+
+  // Helper to switch the active primary route to the selected candidate
+  const selectRouteCandidate = useCallback((type) => {
+    if (!routeCandidates || !routeCandidates[type]) return;
+    setActiveRouteType(type);
+    const candidate = routeCandidates[type];
+    setRouteCoordinates(candidate.coordinates);
+    setRouteSegments(candidate.segments);
+    setWeatherResults(candidate.weatherResults);
+    setElevationData(candidate.elevationData);
+  }, [routeCandidates]);
+
   // Keep "Leave Now" / "Arrive Now" time synced to the current system clock if not in custom mode
   useEffect(() => {
     if (isDepartureTimeCustom || selectedDayOffset !== 0) return;
@@ -2770,6 +2931,9 @@ export default function Home() {
           hudState={hudState}
           isLightMode={isLightMode}
           activeHourIdx={activeForecast ? activeForecast.departureHourIdx : null}
+          routeCandidates={evaluatedCandidates}
+          activeRouteType={activeRouteType}
+          onSelectRouteType={selectRouteCandidate}
           onMapClick={async (coord) => {
             const tempLabel = `(${coord.lat.toFixed(4)}, ${coord.lon.toFixed(4)})`;
             const isStart = !draftStart;
@@ -4064,6 +4228,53 @@ export default function Home() {
                 </div>
               </div>
 
+              {/* Route Switcher */}
+              {evaluatedCandidates && (
+                <div style={{ display: "flex", gap: "6px", width: "100%", borderTop: "1px solid var(--hud-border)", paddingTop: "8px", paddingBottom: "2px" }}>
+                  {Object.keys(evaluatedCandidates).map((type) => {
+                    const cand = evaluatedCandidates[type];
+                    const isSelected = type === activeRouteType;
+                    const isWeatherFriendly = type === weatherFriendlyRouteType;
+                    const windSuitability = cand.scores?.windSuitability ?? 100;
+                    
+                    const label = type === "direct" ? "Direct Route" : "Wind Detour";
+                    const icon = type === "direct" ? "⚡" : "🍃";
+
+                    return (
+                      <button
+                        key={type}
+                        onClick={() => selectRouteCandidate(type)}
+                        style={{
+                          flex: 1,
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: "6px 4px",
+                          borderRadius: "6px",
+                          background: isSelected ? "rgba(16, 185, 129, 0.15)" : "rgba(255, 255, 255, 0.03)",
+                          border: isSelected 
+                            ? "1.5px solid var(--color-emerald)" 
+                            : isWeatherFriendly 
+                              ? "1px dashed rgba(59, 130, 246, 0.5)" 
+                              : "1px solid var(--hud-border)",
+                          cursor: "pointer",
+                          color: isSelected ? "var(--hud-text-primary)" : "var(--hud-text-secondary)",
+                          transition: "all 0.2s ease"
+                        }}
+                      >
+                        <span style={{ fontSize: "11px", fontWeight: "700", display: "flex", alignItems: "center", gap: "3px" }}>
+                          {icon} {label}
+                        </span>
+                        <span style={{ fontSize: "9px", opacity: 0.85, marginTop: "2px" }}>
+                          Suitability: {windSuitability}%
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* Telemetry info */}
               <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px", borderTop: "1px solid var(--hud-border)", paddingTop: "8px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -4529,6 +4740,53 @@ export default function Home() {
                       Score: {activeForecast.score}% • {activeForecast.wmoEmoji} {activeForecast.wmoDesc}
                     </span>
                   </div>
+                </div>
+              )}
+
+              {/* Route Switcher in Scrubber */}
+              {evaluatedCandidates && (
+                <div style={{ display: "flex", gap: "6px", width: "100%", borderTop: "1px solid var(--hud-border)", paddingTop: "8px", paddingBottom: "8px" }}>
+                  {Object.keys(evaluatedCandidates).map((type) => {
+                    const cand = evaluatedCandidates[type];
+                    const isSelected = type === activeRouteType;
+                    const isWeatherFriendly = type === weatherFriendlyRouteType;
+                    const windSuitability = cand.scores?.windSuitability ?? 100;
+                    
+                    const label = type === "direct" ? "Direct Route" : "Wind Detour";
+                    const icon = type === "direct" ? "⚡" : "🍃";
+
+                    return (
+                      <button
+                        key={type}
+                        onClick={() => selectRouteCandidate(type)}
+                        style={{
+                          flex: 1,
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: "6px 4px",
+                          borderRadius: "6px",
+                          background: isSelected ? "rgba(16, 185, 129, 0.15)" : "rgba(255, 255, 255, 0.03)",
+                          border: isSelected 
+                            ? "1.5px solid var(--color-emerald)" 
+                            : isWeatherFriendly 
+                              ? "1px dashed rgba(59, 130, 246, 0.5)" 
+                              : "1px solid var(--hud-border)",
+                          cursor: "pointer",
+                          color: isSelected ? "var(--hud-text-primary)" : "var(--hud-text-secondary)",
+                          transition: "all 0.2s ease"
+                        }}
+                      >
+                        <span style={{ fontSize: "11px", fontWeight: "700", display: "flex", alignItems: "center", gap: "3px" }}>
+                          {icon} {label}
+                        </span>
+                        <span style={{ fontSize: "9px", opacity: 0.85, marginTop: "2px" }}>
+                          Suitability: {windSuitability}%
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 

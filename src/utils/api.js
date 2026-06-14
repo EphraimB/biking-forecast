@@ -1,4 +1,4 @@
-import { sampleCoordinates, getDistance } from "./routeUtils";
+import { sampleCoordinates, getDistance, decodePolyline6, calculateRouteSegments } from "./routeUtils";
 
 async function sendServerApiLog(apiName, action, params, durationMs = null, extra = null) {
   if (process.env.NODE_ENV !== "development") return;
@@ -219,8 +219,11 @@ export async function geocodeAddress(query) {
  * @param {number} cyclingSpeed - Speed override in km/h
  * @returns {Promise<{shape: string, distance: number, time: number, legs: Array<object>}>} Valhalla trip data
  */
-export async function fetchBicycleRoute(startLat, startLon, endLat, endLon, bikeType = "Hybrid", cyclingSpeed = 20) {
-  const cacheKey = `${Number(startLat).toFixed(3)},${Number(startLon).toFixed(3)}_${Number(endLat).toFixed(3)},${Number(endLon).toFixed(3)}_${bikeType}_${cyclingSpeed}`;
+export async function fetchBicycleRoute(startLat, startLon, endLat, endLon, bikeType = "Hybrid", cyclingSpeed = 20, useRoads = null, useHills = null, viaWaypoint = null) {
+  const roadsVal = useRoads !== null ? useRoads : (bikeType === "Road" ? 0.35 : 0.15);
+  const hillsVal = useHills !== null ? useHills : (bikeType === "Mountain" ? 0.8 : 0.4);
+  const waypointKey = viaWaypoint ? `_w${Number(viaWaypoint.lat).toFixed(4)},${Number(viaWaypoint.lon).toFixed(4)}` : "";
+  const cacheKey = `${Number(startLat).toFixed(3)},${Number(startLon).toFixed(3)}_${Number(endLat).toFixed(3)},${Number(endLon).toFixed(3)}_${bikeType}_${cyclingSpeed}_r${roadsVal}_h${hillsVal}${waypointKey}`;
   
   // Check cache first
   const cached = getCachedData(ROUTE_CACHE_PREFIX, cacheKey);
@@ -245,18 +248,23 @@ export async function fetchBicycleRoute(startLat, startLon, endLat, endLon, bike
   }
 
   try {
+    const locations = [
+      { lat: startLat, lon: startLon, type: "break" }
+    ];
+    if (viaWaypoint) {
+      locations.push({ lat: viaWaypoint.lat, lon: viaWaypoint.lon, type: "through" });
+    }
+    locations.push({ lat: endLat, lon: endLon, type: "break" });
+
     const valhallaRequest = {
-      locations: [
-        { lat: startLat, lon: startLon, type: "break" },
-        { lat: endLat, lon: endLon, type: "break" }
-      ],
+      locations,
       costing: "bicycle",
       costing_options: {
         bicycle: {
           bicycle_type: bikeType, // "Road", "Hybrid", "Cross", "Mountain"
           cycling_speed: cyclingSpeed,
-          use_roads: bikeType === "Road" ? 0.35 : 0.15, // prefer cycleways more for hybrid/mountain
-          use_hills: bikeType === "Mountain" ? 0.8 : 0.4
+          use_roads: roadsVal,
+          use_hills: hillsVal
         }
       },
       units: "km"
@@ -920,4 +928,112 @@ export async function reverseGeocode(lat, lon) {
 
   sendServerApiLog("Reverse Geocoding", "simulated_fallback", { lat, lon }, null, { reason: "Reverse geocoding failed both services." });
   return null;
+}
+
+/**
+ * Calculates the optimal wind detour route by first requesting a direct route,
+ * finding the longest straight segment, projecting a waypoint perpendicular to
+ * its midpoint in the aerodynamically superior direction (avoiding wind penalty),
+ * and then requesting a detour route via that waypoint.
+ * 
+ * @param {object} start - {lat, lon}
+ * @param {object} end - {lat, lon}
+ * @param {number} windSpeed - Wind speed in km/h
+ * @param {number} windDir - Wind direction in degrees (coming from)
+ * @param {string} bikeType - Bike type
+ * @param {number} cyclingSpeed - Speed in km/h
+ * @returns {Promise<{direct: object, detour: object}>} Direct and Detour route objects
+ */
+export async function getRouteCandidates(start, end, windSpeed = 0, windDir = 0, bikeType = "Hybrid", cyclingSpeed = 20) {
+  // 1. Fetch Direct Route
+  // Direct route uses standard parameters: useRoads = 0.85, useHills = 0.5 (fastest / direct road route)
+  const directRoute = await fetchBicycleRoute(start.lat, start.lon, end.lat, end.lon, bikeType, cyclingSpeed, 0.85, 0.5);
+
+  // Decode direct route to parse its segments
+  let decodedCoords = [];
+  try {
+    decodedCoords = decodePolyline6(directRoute.shape);
+  } catch (err) {
+    console.error("Failed to decode direct route shape", err);
+  }
+
+  // If decoding fails or no coords, return direct route for both
+  if (decodedCoords.length < 2) {
+    return { direct: directRoute, detour: directRoute };
+  }
+
+  const segments = calculateRouteSegments(decodedCoords);
+  if (segments.length === 0) {
+    return { direct: directRoute, detour: directRoute };
+  }
+
+  // 2. Find the longest straight segment of the route
+  let longestSeg = segments[0];
+  for (let i = 1; i < segments.length; i++) {
+    if (segments[i].distance > longestSeg.distance) {
+      longestSeg = segments[i];
+    }
+  }
+
+  // Midpoint of the longest segment
+  const midLat = (longestSeg.lat1 + longestSeg.lat2) / 2;
+  const midLon = (longestSeg.lon1 + longestSeg.lon2) / 2;
+
+  // Segment direction (bearing)
+  const segBearing = longestSeg.bearing;
+
+  // We want to project perpendicular to the segment: either +90 or -90 degrees.
+  // Compare the wind drag penalty for both choices.
+  const angleLeft = (segBearing - 90 + 360) % 360;
+  const angleRight = (segBearing + 90 + 360) % 360;
+
+  // Calculate headwind component for both perpendicular directions
+  const leftRad = ((angleLeft - windDir) * Math.PI) / 180;
+  const rightRad = ((angleRight - windDir) * Math.PI) / 180;
+
+  const leftHeadwind = windSpeed * Math.cos(leftRad);
+  const rightHeadwind = windSpeed * Math.cos(rightRad);
+
+  // Choose the direction that has less headwind (smaller value is better)
+  const chooseLeft = leftHeadwind < rightHeadwind;
+  const detourAngle = chooseLeft ? angleLeft : angleRight;
+
+  console.log(`[getRouteCandidates] Longest segment: ${longestSeg.distance.toFixed(2)} km, bearing: ${segBearing.toFixed(1)}°`);
+  console.log(`[getRouteCandidates] Wind: ${windSpeed.toFixed(1)} km/h from ${windDir}°. Left Headwind: ${leftHeadwind.toFixed(1)}, Right Headwind: ${rightHeadwind.toFixed(1)}`);
+  console.log(`[getRouteCandidates] Detour chosen angle: ${detourAngle.toFixed(1)}° (${chooseLeft ? "Left" : "Right"})`);
+
+  // Convert navigation bearing to standard math angle in radians for coordinate projection
+  const alpha = ((90 - detourAngle) * Math.PI) / 180;
+
+  // Project detour waypoint: 1.5 km perpendicular to the segment midpoint
+  // Latitude: 1 degree approx 111 km. 1.5 km is 1.5 / 111 = 0.0135 degrees.
+  // Longitude: 1 degree approx 111 * cos(lat) km.
+  const latOffset = (1.5 / 111) * Math.sin(alpha);
+  const lonOffset = (1.5 / (111 * Math.cos((midLat * Math.PI) / 180))) * Math.cos(alpha);
+
+  const detourWaypoint = {
+    lat: midLat + latOffset,
+    lon: midLon + lonOffset
+  };
+
+  console.log(`[getRouteCandidates] Projected Detour Waypoint: (${detourWaypoint.lat.toFixed(4)}, ${detourWaypoint.lon.toFixed(4)})`);
+
+  // 3. Fetch detour route via this projected waypoint
+  let detourRoute;
+  try {
+    detourRoute = await fetchBicycleRoute(start.lat, start.lon, end.lat, end.lon, bikeType, cyclingSpeed, 0.35, 0.2, detourWaypoint);
+  } catch (err) {
+    console.warn("Failed to fetch detour route via waypoint, falling back to flat-costing detour:", err);
+    try {
+      detourRoute = await fetchBicycleRoute(start.lat, start.lon, end.lat, end.lon, bikeType, cyclingSpeed, 0.35, 0.0);
+    } catch (err2) {
+      console.error("Fallback detour routing failed, defaulting detour to direct route", err2);
+      detourRoute = directRoute;
+    }
+  }
+
+  return {
+    direct: directRoute,
+    detour: detourRoute
+  };
 }

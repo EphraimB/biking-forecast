@@ -25,7 +25,10 @@ export default function RouteMap({
   ambientWeatherForecast = null,
   onMapMove = null,
   activeHourIdx = null,
-  isLightMode = false
+  isLightMode = false,
+  routeCandidates = null,
+  activeRouteType = "detour",
+  onSelectRouteType = null
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -241,6 +244,94 @@ export default function RouteMap({
       }
 
       const numSamples = weatherResults.length;
+
+      // Draw secondary/inactive route candidates as muted dashed lines
+      if (routeCandidates) {
+        Object.keys(routeCandidates).forEach((type) => {
+          if (type === activeRouteType) return; // Active route is drawn below
+          const cand = routeCandidates[type];
+          if (!cand || !cand.coordinates || cand.coordinates.length < 2) return;
+
+          const polyCoords = cand.coordinates;
+          const color = isLightMode ? "#94a3b8" : "#475569";
+
+          // Shadow line for depth
+          const bgLine = L.polyline(polyCoords, {
+            color: color,
+            weight: 6,
+            opacity: 0.15,
+            lineJoin: "round"
+          }).addTo(map);
+
+          // Dashed path line
+          const poly = L.polyline(polyCoords, {
+            color: color,
+            weight: 3,
+            opacity: 0.5,
+            dashArray: "6, 6",
+            lineJoin: "round"
+          }).addTo(map);
+
+          // Broad interactive hover overlay
+          const hoverPoly = L.polyline(polyCoords, {
+            color: "transparent",
+            weight: 20,
+            opacity: 0,
+            lineJoin: "round",
+            interactive: true
+          }).addTo(map);
+
+          // Hover states
+          hoverPoly.on("mouseover", () => {
+            poly.setStyle({ opacity: 0.9, weight: 5 });
+          });
+          hoverPoly.on("mouseout", () => {
+            poly.setStyle({ opacity: 0.5, weight: 3 });
+          });
+
+          // Click selection
+          hoverPoly.on("click", () => {
+            if (onSelectRouteType) {
+              onSelectRouteType(type);
+            }
+          });
+
+          // Tooltip content
+          const displayType = type === "direct" ? "Direct Route" : "Wind Detour";
+          const windSuitability = cand.scores?.windSuitability ?? 100;
+          const durationMins = cand.activeDetails?.duration ?? Math.round(cand.time / 60);
+          const distanceKm = cand.distance;
+          const displayDist = unitSystem === "imperial"
+            ? `${(distanceKm * 0.621371).toFixed(1)} mi`
+            : `${distanceKm.toFixed(1)} km`;
+
+          const tooltipContent = `
+            <div style="font-family: var(--font-body); font-size: 11px; color: var(--hud-text-primary); padding: 4px; line-height: 1.4;">
+              <h4 style="font-family: var(--font-heading); color: #94a3b8; font-size: 12px; margin: 0 0 4px 0; font-weight: 800;">${displayType}</h4>
+              <div>Wind Suitability: <strong style="color: ${windSuitability >= 85 ? "var(--color-emerald)" : windSuitability >= 60 ? "var(--color-amber)" : "var(--color-ruby)"}">${windSuitability}%</strong></div>
+              <div>Est. Ride: <strong>${durationMins} mins</strong> (${displayDist})</div>
+              <div style="margin-top: 4px; font-size: 9px; color: var(--color-sky); font-weight: 700;">Click to select this route</div>
+            </div>
+          `;
+
+          const supportsHover = typeof window !== "undefined" && window.matchMedia("(hover: hover)").matches;
+          if (supportsHover) {
+            hoverPoly.bindTooltip(tooltipContent, {
+              sticky: true,
+              className: "leaflet-tooltip"
+            });
+          }
+
+          hoverPoly.bindPopup(tooltipContent, {
+            className: "leaflet-popup-segment",
+            closeOnClick: false
+          });
+
+          layersRef.current.polylines.push(bgLine);
+          layersRef.current.polylines.push(poly);
+          layersRef.current.polylines.push(hoverPoly);
+        });
+      }
 
       if (routeSegments && routeSegments.length > 0 && weatherResults.length > 0) {
         // Track overall route distance to place items appropriately
@@ -573,7 +664,7 @@ export default function RouteMap({
 
     });
 
-  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState, customSpeed, userLocation, activeHourIdx]);
+  }, [coordinates, startLocation, endLocation, routeSegments, weatherResults, selectedDay, selectedHour, unitSystem, hudState, customSpeed, userLocation, activeHourIdx, routeCandidates, activeRouteType, onSelectRouteType, isLightMode]);
 
   // Synchronously compute derived environmental metrics in render (avoiding useEffect cascading triggers)
   const getAmbientWeatherMetrics = () => {
