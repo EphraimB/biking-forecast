@@ -953,10 +953,17 @@ export default function Home() {
         };
       };
 
-      const [direct, detour] = await Promise.all([
-        processCandidate(candidatesData.direct, "direct", bikeType),
-        processCandidate(candidatesData.detour, "detour", "Hybrid")
-      ]);
+      let direct, detour = null;
+      if (candidatesData.detour) {
+        const processed = await Promise.all([
+          processCandidate(candidatesData.direct, "direct", bikeType),
+          processCandidate(candidatesData.detour, "detour", "Hybrid")
+        ]);
+        direct = processed[0];
+        detour = processed[1];
+      } else {
+        direct = await processCandidate(candidatesData.direct, "direct", bikeType);
+      }
 
       const candidates = { direct, detour };
 
@@ -968,25 +975,26 @@ export default function Home() {
       const hour = now.getHours().toString().padStart(2, "0");
       const currentHourStr = `${year}-${month}-${date}T${hour}:00`;
       
-      const firstHourly = direct.weatherResults[0]?.hourly || detour.weatherResults[0]?.hourly;
+      const firstHourly = direct.weatherResults[0]?.hourly || detour?.weatherResults?.[0]?.hourly;
       let initialHourIdx = firstHourly?.time?.indexOf(currentHourStr);
       if (initialHourIdx === -1 || initialHourIdx === undefined) {
         initialHourIdx = now.getHours();
       }
 
       const scoreDirect = calculateCommuteScore(initialHourIdx, direct.segments, speed, direct.weatherResults);
-      const scoreDetour = calculateCommuteScore(initialHourIdx, detour.segments, speed, detour.weatherResults);
-
       direct.scores = { score: scoreDirect.score, windSuitability: 100 - scoreDirect.penalties.wind };
       direct.activeDetails = scoreDirect;
 
-      detour.scores = { score: scoreDetour.score, windSuitability: 100 - scoreDetour.penalties.wind };
-      detour.activeDetails = scoreDetour;
+      if (detour) {
+        const scoreDetour = calculateCommuteScore(initialHourIdx, detour.segments, speed, detour.weatherResults);
+        detour.scores = { score: scoreDetour.score, windSuitability: 100 - scoreDetour.penalties.wind };
+        detour.activeDetails = scoreDetour;
+      }
 
       setRouteCandidates(candidates);
 
       // Default to detour if its wind suitability is better than direct
-      const bestType = detour.scores.windSuitability > direct.scores.windSuitability ? "detour" : "direct";
+      const bestType = (detour && detour.scores.windSuitability > direct.scores.windSuitability) ? "detour" : "direct";
       setActiveRouteType(bestType);
 
       const defaultCandidate = candidates[bestType];
@@ -2098,6 +2106,10 @@ export default function Home() {
     const updated = {};
     Object.keys(routeCandidates).forEach(type => {
       const cand = routeCandidates[type];
+      if (!cand) {
+        updated[type] = null;
+        return;
+      }
       let segments = cand.segments;
       let weather = cand.weatherResults;
 
@@ -2128,10 +2140,10 @@ export default function Home() {
 
   // Determine the route type with the highest wind suitability score at the current timeline hour
   const weatherFriendlyRouteType = useMemo(() => {
-    if (!evaluatedCandidates) return "detour";
+    if (!evaluatedCandidates) return "direct";
     const directScore = evaluatedCandidates.direct?.scores?.windSuitability ?? -1;
     const detourScore = evaluatedCandidates.detour?.scores?.windSuitability ?? -1;
-    return detourScore > directScore ? "detour" : "direct";
+    return (detourScore > directScore && evaluatedCandidates.detour !== null) ? "detour" : "direct";
   }, [evaluatedCandidates]);
 
   // Helper to switch the active primary route to the selected candidate
@@ -4233,6 +4245,37 @@ export default function Home() {
                 <div style={{ display: "flex", gap: "6px", width: "100%", borderTop: "1px solid var(--hud-border)", paddingTop: "8px", paddingBottom: "2px" }}>
                   {Object.keys(evaluatedCandidates).map((type) => {
                     const cand = evaluatedCandidates[type];
+                    
+                    if (type === "detour" && !cand) {
+                      return (
+                        <button
+                          key={type}
+                          disabled
+                          style={{
+                            flex: 1,
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "6px 4px",
+                            borderRadius: "6px",
+                            background: "rgba(255, 255, 255, 0.01)",
+                            border: "1px solid var(--hud-border)",
+                            cursor: "not-allowed",
+                            color: "var(--hud-text-muted)",
+                            opacity: 0.5
+                          }}
+                        >
+                          <span style={{ fontSize: "11px", fontWeight: "700", display: "flex", alignItems: "center", gap: "3px", color: "var(--hud-text-secondary)" }}>
+                            🍃 No Detour
+                          </span>
+                          <span style={{ fontSize: "9px", marginTop: "2px", color: "var(--hud-text-secondary)" }}>
+                            Single Corridor
+                          </span>
+                        </button>
+                      );
+                    }
+
                     const isSelected = type === activeRouteType;
                     const isWeatherFriendly = type === weatherFriendlyRouteType;
                     const windSuitability = cand.scores?.windSuitability ?? 100;
@@ -4273,9 +4316,7 @@ export default function Home() {
                     );
                   })}
                 </div>
-              )}
-
-              {/* Telemetry info */}
+              )}              {/* Telemetry info */}
               <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px", borderTop: "1px solid var(--hud-border)", paddingTop: "8px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <span>⏱️</span>
@@ -4742,12 +4783,42 @@ export default function Home() {
                   </div>
                 </div>
               )}
-
               {/* Route Switcher in Scrubber */}
               {evaluatedCandidates && (
                 <div style={{ display: "flex", gap: "6px", width: "100%", borderTop: "1px solid var(--hud-border)", paddingTop: "8px", paddingBottom: "8px" }}>
                   {Object.keys(evaluatedCandidates).map((type) => {
                     const cand = evaluatedCandidates[type];
+                    
+                    if (type === "detour" && !cand) {
+                      return (
+                        <button
+                          key={type}
+                          disabled
+                          style={{
+                            flex: 1,
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "6px 4px",
+                            borderRadius: "6px",
+                            background: "rgba(255, 255, 255, 0.01)",
+                            border: "1px solid var(--hud-border)",
+                            cursor: "not-allowed",
+                            color: "var(--hud-text-muted)",
+                            opacity: 0.5
+                          }}
+                        >
+                          <span style={{ fontSize: "11px", fontWeight: "700", display: "flex", alignItems: "center", gap: "3px", color: "var(--hud-text-secondary)" }}>
+                            🍃 No Detour
+                          </span>
+                          <span style={{ fontSize: "9px", marginTop: "2px", color: "var(--hud-text-secondary)" }}>
+                            Single Corridor
+                          </span>
+                        </button>
+                      );
+                    }
+
                     const isSelected = type === activeRouteType;
                     const isWeatherFriendly = type === weatherFriendlyRouteType;
                     const windSuitability = cand.scores?.windSuitability ?? 100;
@@ -4789,7 +4860,6 @@ export default function Home() {
                   })}
                 </div>
               )}
-
               {/* Slider & Quick Snappers Row */}
               <div className={styles.scrubberSliderRow}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>

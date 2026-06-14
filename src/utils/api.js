@@ -219,11 +219,12 @@ export async function geocodeAddress(query) {
  * @param {number} cyclingSpeed - Speed override in km/h
  * @returns {Promise<{shape: string, distance: number, time: number, legs: Array<object>}>} Valhalla trip data
  */
-export async function fetchBicycleRoute(startLat, startLon, endLat, endLon, bikeType = "Hybrid", cyclingSpeed = 20, useRoads = null, useHills = null, viaWaypoint = null) {
+export async function fetchBicycleRoute(startLat, startLon, endLat, endLon, bikeType = "Hybrid", cyclingSpeed = 20, useRoads = null, useHills = null, viaWaypoint = null, excludeLocations = null) {
   const roadsVal = useRoads !== null ? useRoads : (bikeType === "Road" ? 0.35 : 0.15);
   const hillsVal = useHills !== null ? useHills : (bikeType === "Mountain" ? 0.8 : 0.4);
   const waypointKey = viaWaypoint ? `_w${Number(viaWaypoint.lat).toFixed(4)},${Number(viaWaypoint.lon).toFixed(4)}` : "";
-  const cacheKey = `${Number(startLat).toFixed(3)},${Number(startLon).toFixed(3)}_${Number(endLat).toFixed(3)},${Number(endLon).toFixed(3)}_${bikeType}_${cyclingSpeed}_r${roadsVal}_h${hillsVal}${waypointKey}`;
+  const excludeKey = excludeLocations ? `_e${excludeLocations.map(l => `${Number(l.lat).toFixed(4)},${Number(l.lon).toFixed(4)}`).join("|")}` : "";
+  const cacheKey = `${Number(startLat).toFixed(3)},${Number(startLon).toFixed(3)}_${Number(endLat).toFixed(3)},${Number(endLon).toFixed(3)}_${bikeType}_${cyclingSpeed}_r${roadsVal}_h${hillsVal}${waypointKey}${excludeKey}`;
   
   // Check cache first
   const cached = getCachedData(ROUTE_CACHE_PREFIX, cacheKey);
@@ -269,6 +270,10 @@ export async function fetchBicycleRoute(startLat, startLon, endLat, endLon, bike
       },
       units: "km"
     };
+
+    if (excludeLocations) {
+      valhallaRequest.exclude_locations = excludeLocations;
+    }
 
     const url = `https://valhalla1.openstreetmap.de/route?json=${encodeURIComponent(
       JSON.stringify(valhallaRequest)
@@ -932,9 +937,9 @@ export async function reverseGeocode(lat, lon) {
 
 /**
  * Calculates the optimal wind detour route by first requesting a direct route,
- * finding the longest straight segment, projecting a waypoint perpendicular to
- * its midpoint in the aerodynamically superior direction (avoiding wind penalty),
- * and then requesting a detour route via that waypoint.
+ * finding the longest straight segment, and then attempting to fetch a detour
+ * route by explicitly excluding the midpoint of that longest segment.
+ * If no alternative route exists (e.g. crossing a single bridge), returns detour: null.
  * 
  * @param {object} start - {lat, lon}
  * @param {object} end - {lat, lon}
@@ -942,7 +947,7 @@ export async function reverseGeocode(lat, lon) {
  * @param {number} windDir - Wind direction in degrees (coming from)
  * @param {string} bikeType - Bike type
  * @param {number} cyclingSpeed - Speed in km/h
- * @returns {Promise<{direct: object, detour: object}>} Direct and Detour route objects
+ * @returns {Promise<{direct: object, detour: object|null}>} Direct and Detour route objects
  */
 export async function getRouteCandidates(start, end, windSpeed = 0, windDir = 0, bikeType = "Hybrid", cyclingSpeed = 20) {
   // 1. Fetch Direct Route
@@ -959,77 +964,110 @@ export async function getRouteCandidates(start, end, windSpeed = 0, windDir = 0,
 
   // If decoding fails or no coords, return direct route for both
   if (decodedCoords.length < 2) {
-    return { direct: directRoute, detour: directRoute };
+    return { direct: directRoute, detour: null };
   }
 
   const segments = calculateRouteSegments(decodedCoords);
   if (segments.length === 0) {
-    return { direct: directRoute, detour: directRoute };
+    return { direct: directRoute, detour: null };
   }
 
-  // 2. Find the longest straight segment of the route
-  let longestSeg = segments[0];
-  for (let i = 1; i < segments.length; i++) {
-    if (segments[i].distance > longestSeg.distance) {
-      longestSeg = segments[i];
+  // Identify headwind corridors (> 10 km/h)
+  let corridors = [];
+  let currentCorridor = [];
+
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    const angleRad = ((seg.bearing - windDir) * Math.PI) / 180;
+    const headwind = windSpeed * Math.cos(angleRad);
+
+    if (headwind > 10.0) {
+      currentCorridor.push({ segment: seg, index: i });
+    } else {
+      if (currentCorridor.length > 0) {
+        corridors.push(currentCorridor);
+        currentCorridor = [];
+      }
+    }
+  }
+  if (currentCorridor.length > 0) {
+    corridors.push(currentCorridor);
+  }
+
+  // Find the corridor with the maximum total distance
+  let bestCorridor = null;
+  let maxDistance = 0;
+
+  for (const corridor of corridors) {
+    const dist = corridor.reduce((sum, item) => sum + item.segment.distance, 0);
+    if (dist > maxDistance) {
+      maxDistance = dist;
+      bestCorridor = corridor;
     }
   }
 
-  // Midpoint of the longest segment
-  const midLat = (longestSeg.lat1 + longestSeg.lat2) / 2;
-  const midLon = (longestSeg.lon1 + longestSeg.lon2) / 2;
+  console.log(`[getRouteCandidates] Longest headwind corridor distance: ${maxDistance.toFixed(2)} km`);
 
-  // Segment direction (bearing)
-  const segBearing = longestSeg.bearing;
+  // Only detour if the corridor distance is at least 500 meters (0.5 km)
+  if (!bestCorridor || maxDistance < 0.5) {
+    console.log(`[getRouteCandidates] No significant headwind corridor found (longest is ${maxDistance.toFixed(2)} km, threshold is 0.5 km). Returning direct route only.`);
+    return { direct: directRoute, detour: null };
+  }
 
-  // We want to project perpendicular to the segment: either +90 or -90 degrees.
-  // Compare the wind drag penalty for both choices.
-  const angleLeft = (segBearing - 90 + 360) % 360;
-  const angleRight = (segBearing + 90 + 360) % 360;
+  // Gather all coordinates in the corridor
+  const corridorCoords = [];
+  corridorCoords.push({ lat: bestCorridor[0].segment.lat1, lon: bestCorridor[0].segment.lon1 });
+  for (const item of bestCorridor) {
+    corridorCoords.push({ lat: item.segment.lat2, lon: item.segment.lon2 });
+  }
 
-  // Calculate headwind component for both perpendicular directions
-  const leftRad = ((angleLeft - windDir) * Math.PI) / 180;
-  const rightRad = ((angleRight - windDir) * Math.PI) / 180;
+  // Sample coordinates along the corridor every 300 to 500 meters (e.g., 400m)
+  const sampledCoords = [];
+  sampledCoords.push(corridorCoords[0]);
+  let lastSampled = corridorCoords[0];
+  let accumulatedDist = 0;
 
-  const leftHeadwind = windSpeed * Math.cos(leftRad);
-  const rightHeadwind = windSpeed * Math.cos(rightRad);
+  for (let i = 1; i < corridorCoords.length - 1; i++) {
+    const prev = corridorCoords[i - 1];
+    const curr = corridorCoords[i];
+    accumulatedDist += getDistance(prev.lat, prev.lon, curr.lat, curr.lon);
 
-  // Choose the direction that has less headwind (smaller value is better)
-  const chooseLeft = leftHeadwind < rightHeadwind;
-  const detourAngle = chooseLeft ? angleLeft : angleRight;
+    if (accumulatedDist >= 0.4) {
+      sampledCoords.push(curr);
+      lastSampled = curr;
+      accumulatedDist = 0;
+    }
+  }
 
-  console.log(`[getRouteCandidates] Longest segment: ${longestSeg.distance.toFixed(2)} km, bearing: ${segBearing.toFixed(1)}°`);
-  console.log(`[getRouteCandidates] Wind: ${windSpeed.toFixed(1)} km/h from ${windDir}°. Left Headwind: ${leftHeadwind.toFixed(1)}, Right Headwind: ${rightHeadwind.toFixed(1)}`);
-  console.log(`[getRouteCandidates] Detour chosen angle: ${detourAngle.toFixed(1)}° (${chooseLeft ? "Left" : "Right"})`);
+  // Include the end of the corridor if it's far enough from the last sampled point
+  const endPoint = corridorCoords[corridorCoords.length - 1];
+  const distFromLast = getDistance(lastSampled.lat, lastSampled.lon, endPoint.lat, endPoint.lon);
+  if (distFromLast > 0.1) {
+    sampledCoords.push(endPoint);
+  }
 
-  // Convert navigation bearing to standard math angle in radians for coordinate projection
-  const alpha = ((90 - detourAngle) * Math.PI) / 180;
+  // Filter out exclusion coordinates within 300m of the origin or destination
+  const excludeCoords = sampledCoords.filter(pt => {
+    const distToStart = getDistance(pt.lat, pt.lon, start.lat, start.lon);
+    const distToEnd = getDistance(pt.lat, pt.lon, end.lat, end.lon);
+    return distToStart > 0.3 && distToEnd > 0.3;
+  });
 
-  // Project detour waypoint: 1.5 km perpendicular to the segment midpoint
-  // Latitude: 1 degree approx 111 km. 1.5 km is 1.5 / 111 = 0.0135 degrees.
-  // Longitude: 1 degree approx 111 * cos(lat) km.
-  const latOffset = (1.5 / 111) * Math.sin(alpha);
-  const lonOffset = (1.5 / (111 * Math.cos((midLat * Math.PI) / 180))) * Math.cos(alpha);
+  if (excludeCoords.length === 0) {
+    console.log("[getRouteCandidates] All exclusion points were too close to the origin or destination. Returning direct route only.");
+    return { direct: directRoute, detour: null };
+  }
 
-  const detourWaypoint = {
-    lat: midLat + latOffset,
-    lon: midLon + lonOffset
-  };
+  console.log(`[getRouteCandidates] Excluding ${excludeCoords.length} points along headwind corridor to force detour.`);
 
-  console.log(`[getRouteCandidates] Projected Detour Waypoint: (${detourWaypoint.lat.toFixed(4)}, ${detourWaypoint.lon.toFixed(4)})`);
-
-  // 3. Fetch detour route via this projected waypoint
-  let detourRoute;
+  // 3. Fetch detour route excluding these locations
+  let detourRoute = null;
   try {
-    detourRoute = await fetchBicycleRoute(start.lat, start.lon, end.lat, end.lon, bikeType, cyclingSpeed, 0.35, 0.2, detourWaypoint);
+    // Exclude the corridor to force a different route
+    detourRoute = await fetchBicycleRoute(start.lat, start.lon, end.lat, end.lon, "Hybrid", cyclingSpeed, 0.35, 0.4, null, excludeCoords);
   } catch (err) {
-    console.warn("Failed to fetch detour route via waypoint, falling back to flat-costing detour:", err);
-    try {
-      detourRoute = await fetchBicycleRoute(start.lat, start.lon, end.lat, end.lon, bikeType, cyclingSpeed, 0.35, 0.0);
-    } catch (err2) {
-      console.error("Fallback detour routing failed, defaulting detour to direct route", err2);
-      detourRoute = directRoute;
-    }
+    console.warn(`[getRouteCandidates] No alternative detour route found (excluding headwind corridor failed: ${err.message || err}).`);
+    detourRoute = null;
   }
 
   return {
